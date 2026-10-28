@@ -66,3 +66,5 @@ npm run format  # Biome autofix (safe fixes only)
 badly formatted or fail lint. Run `npm run format` to fix them.
 
 There are no settings and no run step: this is a library of types only.
+
+Licensed under the MIT licence, see [LICENSE](LICENSE).
