@@ -8,6 +8,8 @@ pulse-contract depends on no other pulse repository. It is consumed by [pulse-pr
 
 pulse is built by Paragon Factory agents from the issues in [pulse-meta](https://github.com/lorenzh/pulse-meta).
 
+Contributing: see [AGENTS.md](AGENTS.md).
+
 ## Usage
 
 Depend on a pinned commit of `main` and use `import type` only:
