@@ -95,6 +95,10 @@ repository. Node 24+ with native type stripping, ESM, npm, strict TypeScript (`t
 - Commit subjects use Conventional Commits, imperative, lower case, no period (`fix: keep last data when the api is down`).
 - The pull request names the issue, the checks that ran, and the known limits.
 
+## Shared tooling configuration
+
+The shared tooling configuration lives in `lorenzh/pulse-config`. The other pulse repositories use it through `extends` (Biome, TypeScript, Lefthook), a one-line ESLint config and `uses:` (CI). A rule change is made in `pulse-config` and reaches a target when its pin is updated. "Never weaken `biome.json`, `tsconfig.json` or CI" refers to the shared config.
+
 ## This repository
 
 - Types only: no runtime code in `src/`.

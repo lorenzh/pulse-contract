@@ -67,10 +67,14 @@ npm run format  # Biome autofix (safe fixes only)
 `*.js`, `*.ts`, `*.json` and `*.jsonc` files and ESLint on staged `*.js` and `*.ts` files, and rejects the commit if they are
 badly formatted or fail lint. Run `npm run format` to fix them.
 
-Checks: Biome, SonarJS via ESLint (recommended rules, cognitive complexity <= 15; config and
-pinned tooling in `tools/sonarjs`, an npm workspace with its own TypeScript 6 because
-typescript-eslint does not support TypeScript 7) and line coverage >= 80 %. Run them with
-`npm run lint` and `npm test`.
+Checks: Biome, SonarJS via ESLint (recommended rules, cognitive complexity <= 15) and
+line coverage >= 80 %. Run them with `npm run lint` and `npm test`.
+
+## Shared tooling configuration
+
+The shared tooling configuration lives in `lorenzh/pulse-config`. The other pulse repositories use it through `extends` (Biome, TypeScript, Lefthook), a one-line ESLint config and `uses:` (CI). A rule change is made in `pulse-config` and reaches a target when its pin is updated. "Never weaken `biome.json`, `tsconfig.json` or CI" refers to the shared config.
+The pin is in `package.json` and in the `uses:` ref of `.github/workflows/ci.yml`; update both together.
+The local `eslint.config.js` also ignores `.repos/`.
 
 There are no settings and no run step: this is a library of types only.
 
