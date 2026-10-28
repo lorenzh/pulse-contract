@@ -1,5 +1,5 @@
 export type CheckStatus = "up" | "down";
-export type CheckState = CheckStatus | "unknown";
+export type CheckState = CheckStatus | "unknown" | "maintenance";
 export interface Check {
     id: string;
     name: string;
@@ -35,6 +35,15 @@ export interface LocationResult {
     /** True when the latest result is outside the window ending at the check's newest result. */
     stale: boolean;
 }
+/** A planned maintenance window for one check, half-open `[start, end)`. */
+export interface MaintenanceWindow {
+    checkId: string;
+    /** Epoch ms, inclusive. */
+    start: number;
+    /** Epoch ms, exclusive. */
+    end: number;
+    note: string;
+}
 export interface CheckWithState extends Check {
     state: CheckState;
     consecutiveDown: number;
@@ -42,6 +51,8 @@ export interface CheckWithState extends Check {
     lastReason: string | null;
     /** Latest result per location ever seen, sorted by location name; empty without results. */
     locations: LocationResult[];
+    /** The active window; set only when state is "maintenance". */
+    maintenance?: MaintenanceWindow;
 }
 /** Body of POST /results. */
 export type PostResultRequest = Result;
@@ -51,6 +62,8 @@ export type ChecksResponse = CheckWithState[];
 export type ResultsResponse = Result[];
 /** GET /incidents */
 export type IncidentsResponse = Incident[];
+/** GET /maintenance */
+export type MaintenanceResponse = MaintenanceWindow[];
 export interface ErrorResponse {
     error: string;
 }
