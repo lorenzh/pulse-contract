@@ -61,3 +61,9 @@ test("fixture covers degraded and the latency objective", () => {
     ["up", "degraded", "down", "unknown", "maintenance"],
   );
 });
+
+test("fixture covers retry fields and attempts", () => {
+  assert.equal(fixture.variants.retryCheck.retries, 2);
+  assert.equal(fixture.variants.retryCheck.retryDelayMs, 500);
+  assert.equal(fixture.results[0]?.attempts, 1);
+});

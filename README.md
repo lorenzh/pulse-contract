@@ -34,6 +34,15 @@ served data. Only the leaf's expiry is judged: the chain and hostname are not ve
 (negative when expired, `null` when no certificate was read, absent or `null` for HTTP).
 `CheckWithState` is `Check & CheckStateFields`, so it distributes over both variants.
 
+## Retries
+
+An `HttpCheck` may set `retries` (integer 0..10, absent means 0) and `retryDelayMs` (integer
+0..60000, absent means 1000 when `retries` > 0); the api serves resolved values. A failed attempt
+(non-2xx, timeout, network error) is repeated before the probe reports down. `Result.attempts`
+(integer >= 1, required) is the number of attempts made; the other result fields are those of the
+last attempt, except `timestamp`, which is the start of the first. The api treats a missing
+`attempts` on `POST /results` as 1. TLS checks have no retry fields.
+
 ## Locations
 
 `Result.location` is the probe location name (required). Legacy results without a location count as
