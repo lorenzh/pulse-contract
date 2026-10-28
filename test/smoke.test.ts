@@ -1,7 +1,39 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as pkg from "../src/index.ts";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fixture } from "./types.fixture.ts";
 
-test("smoke: index module loads", () => {
-  assert.equal(typeof pkg, "object");
+const root = new URL("..", import.meta.url).pathname;
+
+test("type fixtures are loadable", () => {
+  assert.equal(fixture.checks.length, 1);
+});
+
+test("dist matches a fresh build of src", () => {
+  const out = mkdtempSync(join(tmpdir(), "contract-dist-"));
+  try {
+    const tsc = join(root, "node_modules", "typescript", "bin", "tsc");
+    execFileSync(
+      process.execPath,
+      [tsc, "-p", join(root, "tsconfig.build.json"), "--outDir", out],
+      { cwd: root },
+    );
+    for (const file of ["index.d.ts", "index.js"]) {
+      assert.equal(
+        readFileSync(join(root, "dist", file), "utf8"),
+        readFileSync(join(out, file), "utf8"),
+        `dist/${file} is out of date; run npm run build`,
+      );
+    }
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test("package entry imports as an empty module", async () => {
+  const mod = await import("@lorenzh/pulse-contract");
+  assert.deepEqual(Object.keys(mod), []);
 });
