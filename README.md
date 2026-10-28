@@ -27,7 +27,7 @@ The compiled output in `dist/` is committed, because Node does not strip types u
 ## Check types
 
 `Check` is `HttpCheck | TlsCheck`. An `HttpCheck` has a `url` and an optional `type: "http"` (absent
-means http). A `TlsCheck` (`type: "tls"`, `host`, `port`, `warnDays`, `intervalMs`, optional
+means http) and an optional `latencyObjectiveMs` (ms; a successful result slower than it is `degraded`; absent means no objective). `CheckStatus` is `"up" | "degraded" | "down"`. A `TlsCheck` (`type: "tls"`, `host`, `port`, `warnDays`, `intervalMs`, optional
 `timeoutMs`) watches the leaf certificate of a TLS endpoint; `port` and `warnDays` are always set in
 served data. Only the leaf's expiry is judged: the chain and hostname are not verified.
 `Result.certDaysLeft` and `CheckWithState.certDaysLeft` hold the floored whole days until expiry

@@ -21,6 +21,18 @@ import type {
 const status: CheckStatus = "down";
 const state: CheckState = "unknown";
 const check: Check = { id: "a", name: "A", url: "http://x", intervalMs: 1000 };
+const withObjective: HttpCheck = { ...check, latencyObjectiveMs: 500 };
+const degradedStatus: CheckStatus = "degraded";
+const degradedResult: Result = {
+  checkId: "a",
+  timestamp: 2,
+  status: degradedStatus,
+  statusCode: 200,
+  latencyMs: 850,
+  attempts: 1,
+  reason: "latency 850ms over objective 500ms",
+  location: "default",
+};
 const withTimeout: Check = { ...check, timeoutMs: 500 };
 const httpCheck: HttpCheck = { ...check, type: "http" };
 const retryCheck: HttpCheck = { ...check, retries: 2, retryDelayMs: 500 };
@@ -76,6 +88,10 @@ const withState: CheckWithState = {
   lastReason: null,
   locations: [locationResult],
 };
+const stateOf = (state: CheckState): CheckWithState => ({ ...withObjective, ...withState, state });
+const allStates: CheckWithState[] = (
+  ["up", "degraded", "down", "unknown", "maintenance"] as const
+).map(stateOf);
 const window: MaintenanceWindow = { checkId: "a", start: 1, end: 2, note: "upgrade" };
 const maintenanceState: CheckState = "maintenance";
 const inMaintenance: CheckWithState = {
@@ -85,8 +101,16 @@ const inMaintenance: CheckWithState = {
 };
 const maintenance: MaintenanceResponse = [window];
 const checks: ChecksResponse = [withState, inMaintenance];
-const variants = { httpCheck, retryCheck, tlsAsCheck, tlsWithState };
-const results: ResultsResponse = [request, tlsResult];
+const variants = {
+  withObjective,
+  degradedResult,
+  allStates,
+  httpCheck,
+  retryCheck,
+  tlsAsCheck,
+  tlsWithState,
+};
+const results: ResultsResponse = [request, tlsResult, degradedResult];
 const incidents: IncidentsResponse = [incident];
 const error: ErrorResponse = { error: "bad" };
 
