@@ -115,6 +115,32 @@ export interface CheckStateFields {
 /** A check with its evaluated state; distributes over the `Check` union. */
 export type CheckWithState = Check & CheckStateFields;
 
+/** One UTC calendar day of a check's uptime. */
+export interface UptimeDay {
+  /** UTC calendar day, YYYY-MM-DD. */
+  date: string;
+  /**
+   * (up + degraded results) / all results * 100, unrounded, 0..100. Degraded counts as up,
+   * all locations count, maintenance is not subtracted. null when the day has no results
+   * (a day without results is not down).
+   */
+  uptime: number | null;
+  /** Number of results of the day; 0 when `uptime` is null. */
+  results: number;
+}
+
+/** The 90-day uptime of one check. */
+export interface CheckUptime {
+  checkId: string;
+  /**
+   * Exactly 90 UTC days, oldest first; the last is the date of the service's `now()` and is
+   * partial. Results before 00:00 UTC of the first day or after `now()` are ignored.
+   */
+  days: UptimeDay[];
+  /** Result-weighted over the window: sum(up + degraded) / sum(all) * 100; null without results. */
+  uptime: number | null;
+}
+
 /** Body of POST /results. */
 export type PostResultRequest = Result;
 /** GET /checks */
@@ -125,6 +151,8 @@ export type ResultsResponse = Result[];
 export type IncidentsResponse = Incident[];
 /** GET /maintenance */
 export type MaintenanceResponse = MaintenanceWindow[];
+/** GET /uptime: one entry per configured check, in the order of GET /checks. */
+export type UptimeResponse = CheckUptime[];
 
 export interface ErrorResponse {
   error: string;

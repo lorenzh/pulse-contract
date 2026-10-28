@@ -67,3 +67,11 @@ test("fixture covers retry fields and attempts", () => {
   assert.equal(fixture.variants.retryCheck.retryDelayMs, 500);
   assert.equal(fixture.results[0]?.attempts, 1);
 });
+
+test("fixture covers uptime types", () => {
+  const [first, second] = fixture.uptime;
+  assert.equal(first?.days[0]?.uptime, null);
+  assert.equal(first?.days[1]?.results, 500);
+  assert.equal(first?.uptime, 98.4);
+  assert.equal(second?.uptime, null);
+});

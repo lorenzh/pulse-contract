@@ -3,6 +3,7 @@ import type {
   CheckState,
   CheckStatus,
   ChecksResponse,
+  CheckUptime,
   CheckWithState,
   ErrorResponse,
   HttpCheck,
@@ -15,6 +16,8 @@ import type {
   Result,
   ResultsResponse,
   TlsCheck,
+  UptimeDay,
+  UptimeResponse,
 } from "../src/index.ts";
 
 // Compile-time fixture: covered by `npm run typecheck`.
@@ -114,4 +117,14 @@ const results: ResultsResponse = [request, tlsResult, degradedResult];
 const incidents: IncidentsResponse = [incident];
 const error: ErrorResponse = { error: "bad" };
 
-export const fixture = { variants, checks, results, incidents, maintenance, error };
+const noDataDay: UptimeDay = { date: "2026-10-26", uptime: null, results: 0 };
+const uptimeDay: UptimeDay = { date: "2026-10-27", uptime: 98.4, results: 500 };
+const checkUptime: CheckUptime = {
+  checkId: "a",
+  days: [noDataDay, uptimeDay],
+  uptime: 98.4,
+};
+const emptyUptime: CheckUptime = { checkId: "b", days: [noDataDay], uptime: null };
+const uptime: UptimeResponse = [checkUptime, emptyUptime];
+
+export const fixture = { variants, checks, results, incidents, maintenance, error, uptime };
