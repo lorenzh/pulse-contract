@@ -7,6 +7,8 @@ import type {
   ErrorResponse,
   Incident,
   IncidentsResponse,
+  MaintenanceResponse,
+  MaintenanceWindow,
   PostResultRequest,
   Result,
   ResultsResponse,
@@ -34,9 +36,17 @@ const withState: CheckWithState = {
   lastResultAt: null,
   lastReason: null,
 };
-const checks: ChecksResponse = [withState];
+const window: MaintenanceWindow = { checkId: "a", start: 1, end: 2, note: "upgrade" };
+const maintenanceState: CheckState = "maintenance";
+const inMaintenance: CheckWithState = {
+  ...withState,
+  state: maintenanceState,
+  maintenance: window,
+};
+const maintenance: MaintenanceResponse = [window];
+const checks: ChecksResponse = [withState, inMaintenance];
 const results: ResultsResponse = [request];
 const incidents: IncidentsResponse = [incident];
 const error: ErrorResponse = { error: "bad" };
 
-export const fixture = { checks, results, incidents, error };
+export const fixture = { checks, results, incidents, maintenance, error };
