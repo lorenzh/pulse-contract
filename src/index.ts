@@ -19,6 +19,8 @@ export interface Result {
   latencyMs: number;
   /** null when up; otherwise e.g. "HTTP 503", "timeout after 1000ms", "ECONNREFUSED". */
   reason: string | null;
+  /** Name of the probe location that produced the result; `default` for legacy results. */
+  location: string;
 }
 
 export interface Incident {
@@ -28,6 +30,14 @@ export interface Incident {
   resolvedAt: number | null;
   /** The reason of the result that opened the incident. */
   reason: string | null;
+}
+
+/** The latest result of one probe location for a check. */
+export interface LocationResult {
+  location: string;
+  result: Result;
+  /** True when the latest result is outside the window ending at the check's newest result. */
+  stale: boolean;
 }
 
 /** A planned maintenance window for one check, half-open `[start, end)`. */
@@ -45,6 +55,8 @@ export interface CheckWithState extends Check {
   consecutiveDown: number;
   lastResultAt: number | null;
   lastReason: string | null;
+  /** Latest result per location ever seen, sorted by location name; empty without results. */
+  locations: LocationResult[];
   /** The active window; set only when state is "maintenance". */
   maintenance?: MaintenanceWindow;
 }

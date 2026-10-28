@@ -7,6 +7,7 @@ import type {
   ErrorResponse,
   Incident,
   IncidentsResponse,
+  LocationResult,
   MaintenanceResponse,
   MaintenanceWindow,
   PostResultRequest,
@@ -26,7 +27,9 @@ const result: Result = {
   statusCode: null,
   latencyMs: 3,
   reason: "ECONNREFUSED",
+  location: "default",
 };
+const locationResult: LocationResult = { location: "default", result, stale: false };
 const request: PostResultRequest = result;
 const incident: Incident = { id: 1, checkId: "a", openedAt: 1, resolvedAt: null, reason: null };
 const withState: CheckWithState = {
@@ -35,6 +38,7 @@ const withState: CheckWithState = {
   consecutiveDown: 0,
   lastResultAt: null,
   lastReason: null,
+  locations: [locationResult],
 };
 const window: MaintenanceWindow = { checkId: "a", start: 1, end: 2, note: "upgrade" };
 const maintenanceState: CheckState = "maintenance";
