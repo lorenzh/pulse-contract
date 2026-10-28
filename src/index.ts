@@ -9,6 +9,16 @@ export interface HttpCheck {
   url: string;
   intervalMs: number;
   timeoutMs?: number;
+  /**
+   * Extra attempts after a failed one (non-2xx, timeout or network error), integer 0..10.
+   * Absent means 0. The api always serves the resolved value.
+   */
+  retries?: number;
+  /**
+   * Wait in ms between attempts, integer 0..60000. Absent means 1000 when `retries` > 0.
+   * The api always serves the resolved value.
+   */
+  retryDelayMs?: number;
 }
 
 /**
@@ -42,6 +52,12 @@ export interface Result {
   reason: string | null;
   /** Name of the probe location that produced the result; `default` for legacy results. */
   location: string;
+  /**
+   * Attempts made for this result, integer >= 1 (at most `retries` + 1). The other fields
+   * are those of the last attempt, except `timestamp`, which is the start of the first.
+   * The api treats a missing value on POST /results as 1.
+   */
+  attempts: number;
   /**
    * TLS checks: floored whole days until the leaf certificate expires, negative when
    * expired, null when no certificate was read. Absent or null for HTTP.

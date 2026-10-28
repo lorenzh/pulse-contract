@@ -23,6 +23,7 @@ const state: CheckState = "unknown";
 const check: Check = { id: "a", name: "A", url: "http://x", intervalMs: 1000 };
 const withTimeout: Check = { ...check, timeoutMs: 500 };
 const httpCheck: HttpCheck = { ...check, type: "http" };
+const retryCheck: HttpCheck = { ...check, retries: 2, retryDelayMs: 500 };
 const tlsCheck: TlsCheck = {
   id: "t",
   name: "T",
@@ -42,6 +43,7 @@ const tlsResult: Result = {
   latencyMs: 3,
   reason: "certificate expires in 5 days",
   location: "default",
+  attempts: 1,
   certDaysLeft: 5,
 };
 const tlsWithState: CheckWithState = {
@@ -61,6 +63,7 @@ const result: Result = {
   latencyMs: 3,
   reason: "ECONNREFUSED",
   location: "default",
+  attempts: 1,
 };
 const locationResult: LocationResult = { location: "default", result, stale: false };
 const request: PostResultRequest = result;
@@ -82,7 +85,7 @@ const inMaintenance: CheckWithState = {
 };
 const maintenance: MaintenanceResponse = [window];
 const checks: ChecksResponse = [withState, inMaintenance];
-const variants = { httpCheck, tlsAsCheck, tlsWithState };
+const variants = { httpCheck, retryCheck, tlsAsCheck, tlsWithState };
 const results: ResultsResponse = [request, tlsResult];
 const incidents: IncidentsResponse = [incident];
 const error: ErrorResponse = { error: "bad" };
