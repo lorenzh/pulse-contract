@@ -28,7 +28,13 @@ Requires Node >= 24.
 
 ```sh
 npm ci
-npm run check   # build, typecheck and tests
+npm run check   # lint, build, typecheck and tests
+npm run lint    # Biome format and lint check, changes nothing
+npm run format  # Biome autofix (safe fixes only)
 ```
+
+`npm ci` installs a Lefthook pre-commit hook that runs `biome check` on staged
+`*.js`, `*.ts`, `*.json` and `*.jsonc` files and rejects the commit if they are
+badly formatted or fail lint. Run `npm run format` to fix them.
 
 There are no settings and no run step: this is a library of types only.
