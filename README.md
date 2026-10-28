@@ -57,13 +57,18 @@ Requires Node >= 24.
 ```sh
 npm ci
 npm run check   # lint, build, typecheck and tests
-npm run lint    # Biome format and lint check, changes nothing
+npm run lint    # Biome and SonarJS (ESLint) check, changes nothing
 npm run format  # Biome autofix (safe fixes only)
 ```
 
 `npm ci` installs a Lefthook pre-commit hook that runs `biome check` on staged
-`*.js`, `*.ts`, `*.json` and `*.jsonc` files and rejects the commit if they are
+`*.js`, `*.ts`, `*.json` and `*.jsonc` files and ESLint on staged `*.js` and `*.ts` files, and rejects the commit if they are
 badly formatted or fail lint. Run `npm run format` to fix them.
+
+Checks: Biome, SonarJS via ESLint (recommended rules, cognitive complexity <= 15; config and
+pinned tooling in `tools/sonarjs`, an npm workspace with its own TypeScript 6 because
+typescript-eslint does not support TypeScript 7) and line coverage >= 80 %. Run them with
+`npm run lint` and `npm test`.
 
 There are no settings and no run step: this is a library of types only.
 
