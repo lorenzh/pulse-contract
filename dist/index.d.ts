@@ -1,4 +1,6 @@
-export type CheckStatus = "up" | "down";
+/** "degraded": the check answered successfully but slower than its latency objective. */
+export type CheckStatus = "up" | "degraded" | "down";
+/** A `CheckStatus`, or "unknown" (no result yet) or "maintenance" (active window). */
 export type CheckState = CheckStatus | "unknown" | "maintenance";
 export interface HttpCheck {
     id: string;
@@ -8,6 +10,11 @@ export interface HttpCheck {
     url: string;
     intervalMs: number;
     timeoutMs?: number;
+    /**
+     * Latency objective in ms: a successful (2xx) result slower than this is degraded.
+     * Absent means no objective.
+     */
+    latencyObjectiveMs?: number;
 }
 /**
  * Watches the leaf certificate of a TLS endpoint. Only the leaf's expiry is judged;
@@ -34,7 +41,7 @@ export interface Result {
     /** null when no response arrived. */
     statusCode: number | null;
     latencyMs: number;
-    /** null when up; otherwise e.g. "HTTP 503", "timeout after 1000ms", "ECONNREFUSED". */
+    /** null when up or when no reason applies; for degraded e.g. "latency 850ms over objective 500ms"; otherwise e.g. "HTTP 503", "timeout after 1000ms", "ECONNREFUSED". */
     reason: string | null;
     /** Name of the probe location that produced the result; `default` for legacy results. */
     location: string;

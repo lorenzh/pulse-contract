@@ -51,3 +51,13 @@ test("fixture covers http and tls check variants", () => {
   assert.equal(tlsWithState.certDaysLeft, 5);
   assert.equal(fixture.checks[0]?.type, undefined);
 });
+
+test("fixture covers degraded and the latency objective", () => {
+  const { withObjective, degradedResult, allStates } = fixture.variants;
+  assert.equal(withObjective.latencyObjectiveMs, 500);
+  assert.equal(degradedResult.status, "degraded");
+  assert.deepEqual(
+    allStates.map((c) => c.state),
+    ["up", "degraded", "down", "unknown", "maintenance"],
+  );
+});
