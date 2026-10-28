@@ -9,7 +9,7 @@ import { fixture } from "./types.fixture.ts";
 const root = new URL("..", import.meta.url).pathname;
 
 test("type fixtures are loadable", () => {
-  assert.equal(fixture.checks.length, 1);
+  assert.equal(fixture.checks.length, 2);
 });
 
 test("dist matches a fresh build of src", () => {
@@ -36,4 +36,10 @@ test("dist matches a fresh build of src", () => {
 test("package entry imports as an empty module", async () => {
   const mod = await import("@lorenzh/pulse-contract");
   assert.deepEqual(Object.keys(mod), []);
+});
+
+test("fixture covers maintenance types", () => {
+  assert.equal(fixture.maintenance.length, 1);
+  assert.equal(fixture.checks[1]?.state, "maintenance");
+  assert.equal(fixture.checks[1]?.maintenance, fixture.maintenance[0]);
 });
