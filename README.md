@@ -1,5 +1,7 @@
 # pulse-contract
 
+[![CI](https://github.com/lorenzh/pulse-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/lorenzh/pulse-contract/actions/workflows/ci.yml)
+
 pulse is an uptime monitor with a status page. This repository is its shared contract: the TypeScript types used by every other pulse repository, namely `Check`, `Result`, `Incident`, `CheckWithState` and the API request/response shapes (`PostResultRequest`, `ChecksResponse`, `ResultsResponse`, `IncidentsResponse`, `ErrorResponse`), plus the `CheckStatus` and `CheckState` unions. Types only, no runtime code.
 
 pulse-contract depends on no other pulse repository. It is consumed by [pulse-probe](https://github.com/lorenzh/pulse-probe), [pulse-api](https://github.com/lorenzh/pulse-api) and [pulse-status](https://github.com/lorenzh/pulse-status).
