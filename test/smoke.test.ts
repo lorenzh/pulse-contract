@@ -43,3 +43,11 @@ test("fixture covers maintenance types", () => {
   assert.equal(fixture.checks[1]?.state, "maintenance");
   assert.equal(fixture.checks[1]?.maintenance, fixture.maintenance[0]);
 });
+
+test("fixture covers http and tls check variants", () => {
+  const { httpCheck, tlsAsCheck, tlsWithState } = fixture.variants;
+  assert.equal(httpCheck.type, "http");
+  assert.equal(tlsAsCheck.type, "tls");
+  assert.equal(tlsWithState.certDaysLeft, 5);
+  assert.equal(fixture.checks[0]?.type, undefined);
+});

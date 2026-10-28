@@ -1,13 +1,34 @@
 export type CheckStatus = "up" | "down";
 export type CheckState = CheckStatus | "unknown" | "maintenance";
 
-export interface Check {
+export interface HttpCheck {
   id: string;
   name: string;
+  /** Absent means "http". */
+  type?: "http";
   url: string;
   intervalMs: number;
   timeoutMs?: number;
 }
+
+/**
+ * Watches the leaf certificate of a TLS endpoint. Only the leaf's expiry is judged;
+ * the chain and the hostname are not verified. `port` and `warnDays` are always set
+ * in served data (the api config parser applies the defaults 443 and 14).
+ */
+export interface TlsCheck {
+  id: string;
+  name: string;
+  type: "tls";
+  host: string;
+  port: number;
+  /** The check is down when the certificate has this many days or fewer left. */
+  warnDays: number;
+  intervalMs: number;
+  timeoutMs?: number;
+}
+
+export type Check = HttpCheck | TlsCheck;
 
 export interface Result {
   checkId: string;
@@ -21,6 +42,11 @@ export interface Result {
   reason: string | null;
   /** Name of the probe location that produced the result; `default` for legacy results. */
   location: string;
+  /**
+   * TLS checks: floored whole days until the leaf certificate expires, negative when
+   * expired, null when no certificate was read. Absent or null for HTTP.
+   */
+  certDaysLeft?: number | null;
 }
 
 export interface Incident {
@@ -50,7 +76,7 @@ export interface MaintenanceWindow {
   note: string;
 }
 
-export interface CheckWithState extends Check {
+export interface CheckStateFields {
   state: CheckState;
   consecutiveDown: number;
   lastResultAt: number | null;
@@ -59,7 +85,12 @@ export interface CheckWithState extends Check {
   locations: LocationResult[];
   /** The active window; set only when state is "maintenance". */
   maintenance?: MaintenanceWindow;
+  /** certDaysLeft of the latest result; absent or null for HTTP and without a certificate. */
+  certDaysLeft?: number | null;
 }
+
+/** A check with its evaluated state; distributes over the `Check` union. */
+export type CheckWithState = Check & CheckStateFields;
 
 /** Body of POST /results. */
 export type PostResultRequest = Result;

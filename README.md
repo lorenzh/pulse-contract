@@ -24,6 +24,16 @@ The compiled output in `dist/` is committed, because Node does not strip types u
 `node_modules` and Git dependencies have no build step. After changing `src/`, run
 `npm run build` and commit `dist/`. A test fails when `dist/` is out of date.
 
+## Check types
+
+`Check` is `HttpCheck | TlsCheck`. An `HttpCheck` has a `url` and an optional `type: "http"` (absent
+means http). A `TlsCheck` (`type: "tls"`, `host`, `port`, `warnDays`, `intervalMs`, optional
+`timeoutMs`) watches the leaf certificate of a TLS endpoint; `port` and `warnDays` are always set in
+served data. Only the leaf's expiry is judged: the chain and hostname are not verified.
+`Result.certDaysLeft` and `CheckWithState.certDaysLeft` hold the floored whole days until expiry
+(negative when expired, `null` when no certificate was read, absent or `null` for HTTP).
+`CheckWithState` is `Check & CheckStateFields`, so it distributes over both variants.
+
 ## Locations
 
 `Result.location` is the probe location name (required). Legacy results without a location count as
