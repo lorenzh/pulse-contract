@@ -51,3 +51,9 @@ test("fixture covers http and tls check variants", () => {
   assert.equal(tlsWithState.certDaysLeft, 5);
   assert.equal(fixture.checks[0]?.type, undefined);
 });
+
+test("fixture covers retry fields and attempts", () => {
+  assert.equal(fixture.variants.retryCheck.retries, 2);
+  assert.equal(fixture.variants.retryCheck.retryDelayMs, 500);
+  assert.equal(fixture.results[0]?.attempts, 1);
+});
