@@ -1,0 +1,12 @@
+{
+  "name": "pulse-sonarjs-tools",
+  "private": true,
+  "type": "module",
+  "description": "SonarJS lint tooling, isolated because typescript-eslint does not support TypeScript 7.",
+  "devDependencies": {
+    "@typescript-eslint/parser": "8.72.1",
+    "eslint": "10.13.0",
+    "eslint-plugin-sonarjs": "4.2.2",
+    "typescript": "6.0.3"
+  }
+}

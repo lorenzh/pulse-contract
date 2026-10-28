@@ -23,7 +23,7 @@ import type {
 // Compile-time fixture: covered by `npm run typecheck`.
 const status: CheckStatus = "down";
 const state: CheckState = "unknown";
-const check: Check = { id: "a", name: "A", url: "http://x", intervalMs: 1000 };
+const check: Check = { id: "a", name: "A", url: "https://x", intervalMs: 1000 };
 const withObjective: HttpCheck = { ...check, latencyObjectiveMs: 500 };
 const degradedStatus: CheckStatus = "degraded";
 const degradedResult: Result = {
