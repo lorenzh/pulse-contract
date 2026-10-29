@@ -155,6 +155,35 @@ process; `mismatch` fails the call like a network error and is never ignored.
 The package version (`package.json`, semver) is separate: it follows semver, while `WIRE_VERSION`
 moves only with an incompatible wire change.
 
+## API client
+
+`fetchJson(url, options)` GETs a JSON document, checks it and never throws for expected failures.
+It uses web APIs only (no `node:` imports), so a browser can import it. It needs
+`AbortSignal.any`: Chrome 116, Firefox 124, Safari 17.4, Node 20.3.
+
+Options: `fetch` (injected), `validate` (a contract validator, for example
+`(raw) => validateChecksResponse(raw)`), `timeoutMs` (covers headers and body), `signal`
+(caller abort), `maxBytes` (default `DEFAULT_MAX_BODY_BYTES`, 5 MiB), `headers`, `onWireAbsent`
+(called for each response without the wire header) and `schedule(fn, ms)` (returns a cancel
+function; default `setTimeout`).
+
+The result is `{ ok: true; value; wire: "ok" | "absent" }` or `{ ok: false; error }`. `error.kind`:
+
+| kind            | fields             | meaning                                                          |
+| --------------- | ------------------ | ---------------------------------------------------------------- |
+| `timeout`       | `timeoutMs`        | no complete response in time, also if `fetch` ignores the signal |
+| `aborted`       | `reason`           | the caller's `signal` aborted                                    |
+| `network`       | `cause`            | `fetch` or the body read rejected                                |
+| `http`          | `status`, `wire`   | status is not 2xx; `wire` is the `checkWireVersion` result       |
+| `too-large`     | `maxBytes`         | `Content-Length` or the streamed bytes exceed the cap            |
+| `invalid-json`  | `message`          | the body is not JSON                                             |
+| `wire-mismatch` | `message`          | the wire header differs from `WIRE_VERSION`                      |
+| `validation`    | `message`, `path?` | the validator refused the body; `message` has the path           |
+
+Order of checks: HTTP status, wire header, size, JSON, validation. A non-2xx response with a
+mismatching header is therefore `http`. The timer is always cleared and the request is aborted on
+timeout, cap and caller abort.
+
 ## Bump the pin in a consumer
 
 Consumers are pulse-api, pulse-probe, pulse-status and pulse-notify. Each pins the contract to a

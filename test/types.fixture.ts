@@ -6,6 +6,8 @@ import type {
   CheckUptime,
   CheckWithState,
   ErrorResponse,
+  FetchJsonError,
+  FetchJsonResult,
   HeartbeatCheck,
   HttpCheck,
   Incident,
@@ -166,7 +168,11 @@ const checkUptime: CheckUptime = {
 const emptyUptime: CheckUptime = { checkId: "b", days: [noDataDay], uptime: null };
 const uptime: UptimeResponse = [checkUptime, emptyUptime];
 
+const fetchError: FetchJsonError = { kind: "http", status: 500, wire: { status: "absent" } };
+const fetchResult: FetchJsonResult<Check> = { ok: false, error: fetchError };
+
 export const fixture = {
+  fetchResult,
   request,
   minimalRequest,
   variants,
