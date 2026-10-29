@@ -295,3 +295,41 @@ test("heartbeat checks reject bad fields", () => {
   assert.equal(validateCheck({ ...hb, grace: 0, period: 1000 }).ok, true);
   assert.equal(validateCheck({ ...hb, grace: 86_400_000, period: 86_400_000 }).ok, true);
 });
+
+test("a served heartbeat check with all state fields passes validateCheck", () => {
+  const served = {
+    ...fixture.variants.heartbeatWithState,
+    state: "maintenance",
+    lastResultAt: 1,
+    lastReason: "late",
+    locations: [{ location: "default", result: fixture.results[0], stale: false }],
+    maintenance: fixture.maintenance[0],
+    certDaysLeft: null,
+  };
+  const result = validateCheck(served);
+  assert.equal(result.ok && result.value, served);
+  assert.equal(validateCheckWithState(served).ok, true);
+  assert.equal(
+    errorOf(validateCheck({ ...served, url: "x" })),
+    "check.url: is not allowed on a heartbeat check",
+  );
+  assert.equal(
+    errorOf(validateCheck({ ...served, secret: "0123456789abcdef" })),
+    "check.secret: is not allowed on a heartbeat check",
+  );
+});
+
+test("heartbeat checks reject inherited names as unknown keys", () => {
+  const hb = JSON.stringify(fixture.variants.heartbeatAsCheck).slice(0, -1);
+  for (const key of ["constructor", "toString", "__proto__"]) {
+    const input: unknown = JSON.parse(`${hb},"${key}":1}`);
+    assert.equal(
+      errorOf(validateCheck(input)),
+      `check.${key}: is not allowed on a heartbeat check`,
+    );
+    assert.equal(
+      errorOf(validateCheckWithState(input)),
+      `check.${key}: is not allowed on a heartbeat check`,
+    );
+  }
+});

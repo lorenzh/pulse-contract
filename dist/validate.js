@@ -144,16 +144,20 @@ const uptimeShape = {
     }))),
     uptime: required(nullable(finite)),
 };
-/** Rejects keys outside `shape` and `extra`; a heartbeat check never carries a secret or a target. */
-function unknownKey(value, path, shape, extra) {
+/**
+ * Rejects keys outside the heartbeat and state shapes; a heartbeat check never carries a
+ * secret or a target. Own keys only, so inherited names such as `constructor` stay unknown.
+ */
+function unknownKey(value, path) {
     for (const key of Object.keys(value)) {
-        if (!(key in shape) && !(key in extra)) {
+        if (!Object.hasOwn(heartbeatShape, key) && !Object.hasOwn(stateShape, key)) {
             return `${path}.${key}: is not allowed on a heartbeat check`;
         }
     }
     return undefined;
 }
-function checkBase(value, path, extra = {}) {
+/** State fields pass unvalidated, as served `GET /checks` items carry them. */
+function checkBase(value, path) {
     if (!isObject(value)) {
         return `${path}: must be an object`;
     }
@@ -164,13 +168,13 @@ function checkBase(value, path, extra = {}) {
         case "tls":
             return checkShape(value, path, tlsShape);
         case "heartbeat":
-            return (checkShape(value, path, heartbeatShape) ?? unknownKey(value, path, heartbeatShape, extra));
+            return checkShape(value, path, heartbeatShape) ?? unknownKey(value, path);
         default:
             return `${path}.type: must be "http", "tls" or "heartbeat"`;
     }
 }
 function checkWithState(value, path) {
-    return checkBase(value, path, stateShape) ?? checkShape(value, path, stateShape);
+    return checkBase(value, path) ?? checkShape(value, path, stateShape);
 }
 /** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
 export function validateCheck(value, path = "check") {
