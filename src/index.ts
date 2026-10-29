@@ -8,6 +8,7 @@ export interface HttpCheck {
   name: string;
   /** Absent means "http". */
   type?: "http";
+  /** Non-empty. */
   url: string;
   intervalMs: number;
   timeoutMs?: number;
@@ -44,6 +45,7 @@ export interface TlsCheck {
   id: string;
   name: string;
   type: "tls";
+  /** Non-empty. */
   host: string;
   port: number;
   /** The check is down when the certificate has this many days or fewer left. */

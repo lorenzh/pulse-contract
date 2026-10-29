@@ -56,6 +56,7 @@ test("invalid checks name the path", () => {
   const cases: [Record<string, unknown>, string][] = [
     [{ ...base, id: "" }, "check.id: must be a non-empty string"],
     [{ ...base, url: undefined }, "check.url: is required"],
+    [{ ...base, url: "" }, "check.url: must be a non-empty string"],
     [{ ...base, intervalMs: 0 }, "check.intervalMs: must be a finite number > 0"],
     [{ ...base, intervalMs: null }, "check.intervalMs: must be a finite number > 0"],
     [{ ...base, timeoutMs: "5" }, "check.timeoutMs: must be a finite number"],
@@ -73,6 +74,21 @@ test("invalid checks name the path", () => {
     "check.warnDays: must be an integer",
   );
   assert.equal(errorOf(validateCheck({ ...tls, host: undefined })), "check.host: is required");
+  assert.equal(
+    errorOf(validateCheck({ ...tls, host: "" })),
+    "check.host: must be a non-empty string",
+  );
+});
+
+test("empty url and host are rejected in checks lists", () => {
+  const http = clone(fixture.variants.httpCheck);
+  const tls = clone(fixture.variants.tlsAsCheck);
+  assert.equal(validateCheck(http).ok, true);
+  assert.equal(validateCheck(tls).ok, true);
+  assert.equal(
+    errorOf(validateChecksResponse([{ ...http, ...fixture.checks[0], url: "" }])),
+    "checks[0].url: must be a non-empty string",
+  );
 });
 
 test("non-objects are rejected with the given path", () => {
