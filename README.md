@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/lorenzh/pulse-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/lorenzh/pulse-contract/actions/workflows/ci.yml)
 
-pulse is an uptime monitor with a status page. This repository is its shared contract: the TypeScript types used by every other pulse repository (checks, results, incidents, maintenance windows, uptime and the API request and response shapes). Types only, no runtime code.
+pulse is an uptime monitor with a status page. This repository is its shared contract: the TypeScript types used by every other pulse repository (checks, results, incidents, maintenance windows, uptime and the API request and response shapes). It also holds plain-TypeScript runtime validators for those shapes and the wire-format version, so every service checks the wire format the same way. No runtime dependency.
 
 pulse-contract depends on no other pulse repository. It is consumed by [pulse-api](https://github.com/lorenzh/pulse-api), [pulse-probe](https://github.com/lorenzh/pulse-probe), [pulse-status](https://github.com/lorenzh/pulse-status) and [pulse-notify](https://github.com/lorenzh/pulse-notify).
 
@@ -14,15 +14,22 @@ Contributing: see [AGENTS.md](AGENTS.md).
 
 ## Usage
 
-Depend on a pinned commit of `main` and use `import type` only:
+Depend on a pinned commit of `main`. Import types with `import type`; the validators and the wire version are runtime exports:
 
 ```json
 "@lorenzh/pulse-contract": "github:lorenzh/pulse-contract#<full commit sha>"
 ```
 
 ```ts
+import { checkWireVersion, validateCheck, WIRE_VERSION_HEADER } from "@lorenzh/pulse-contract";
 import type { Check, Result } from "@lorenzh/pulse-contract";
+
+const checked = validateCheck(body, "checks[3]"); // { ok: true, value } | { ok: false, error }
+const version = checkWireVersion(response.headers.get(WIRE_VERSION_HEADER));
 ```
+
+Validators never throw. `error` reads `<path>: <problem>`, for example
+`checks[3].intervalMs: must be a finite number > 0`. See [docs/index.md](docs/index.md#validators).
 
 The compiled output in `dist/` is committed, because Node does not strip types under
 `node_modules` and Git dependencies have no build step. After changing `src/`, run
@@ -52,6 +59,6 @@ The shared tooling configuration lives in `lorenzh/pulse-config`. The other puls
 The pin is in `package.json` and in the `uses:` ref of `.github/workflows/ci.yml`; update both together.
 The local `eslint.config.js` also ignores `.repos/`.
 
-There are no settings and no run step: this is a library of types only.
+There are no settings and no run step: this is a library.
 
 Licensed under the MIT licence, see [LICENSE](LICENSE).

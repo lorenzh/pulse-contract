@@ -1,0 +1,313 @@
+import type {
+  Check,
+  ChecksResponse,
+  CheckUptime,
+  CheckWithState,
+  Incident,
+  IncidentsResponse,
+  MaintenanceResponse,
+  MaintenanceWindow,
+  PostResultRequest,
+  Result,
+  ResultsResponse,
+  UptimeResponse,
+} from "./index.ts";
+
+/** Outcome of a validator. Validators never throw. */
+export type Validation<T> = { ok: true; value: T } | { ok: false; error: string };
+
+type Fields = Record<string, unknown>;
+/** Returns the full error text (including the path), or undefined when the value is valid. */
+type Rule = (value: unknown, path: string) => string | undefined;
+type Shape = Record<string, { rule: Rule; optional?: boolean }>;
+
+const isObject = (value: unknown): value is Fields =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const isInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value);
+
+const simple =
+  (isValid: (value: unknown) => boolean, problem: string): Rule =>
+  (value, path) =>
+    isValid(value) ? undefined : `${path}: ${problem}`;
+
+const text = simple((v) => typeof v === "string", "must be a string");
+const nonEmpty = simple((v) => typeof v === "string" && v.length > 0, "must be a non-empty string");
+const finite = simple(isFiniteNumber, "must be a finite number");
+const nonNegative = simple((v) => isFiniteNumber(v) && v >= 0, "must be a finite number >= 0");
+const positive = simple((v) => isFiniteNumber(v) && v > 0, "must be a finite number > 0");
+const integer = simple(isInteger, "must be an integer");
+const atLeastOne = simple((v) => isInteger(v) && v >= 1, "must be an integer >= 1");
+const bool = simple((v) => typeof v === "boolean", "must be a boolean");
+const isoDay = simple(
+  (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v),
+  "must be a YYYY-MM-DD date",
+);
+const statusCode = simple(
+  (v) => isInteger(v) && v >= 100 && v <= 599,
+  "must be an integer 100..599",
+);
+
+const oneOf = (allowed: readonly string[]): Rule => {
+  const list = allowed.map((a) => JSON.stringify(a)).join(", ");
+  return simple((v) => typeof v === "string" && allowed.includes(v), `must be one of ${list}`);
+};
+
+const nullable =
+  (rule: Rule): Rule =>
+  (value, path) =>
+    value === null ? undefined : rule(value, path);
+
+const arrayOf =
+  (rule: Rule): Rule =>
+  (value, path) => {
+    if (!Array.isArray(value)) {
+      return `${path}: must be an array`;
+    }
+    for (const [i, item] of value.entries()) {
+      const error = rule(item, `${path}[${i}]`);
+      if (error !== undefined) {
+        return error;
+      }
+    }
+    return undefined;
+  };
+
+const objectOf =
+  (shape: Shape): Rule =>
+  (value, path) =>
+    checkShape(value, path, shape);
+
+function checkShape(value: unknown, path: string, shape: Shape): string | undefined {
+  if (!isObject(value)) {
+    return `${path}: must be an object`;
+  }
+  for (const [key, field] of Object.entries(shape)) {
+    const fieldValue = value[key];
+    if (fieldValue === undefined) {
+      if (field.optional === true) {
+        continue;
+      }
+      return `${path}.${key}: is required`;
+    }
+    const error = field.rule(fieldValue, `${path}.${key}`);
+    if (error !== undefined) {
+      return error;
+    }
+  }
+  return undefined;
+}
+
+function verdict<T>(error: string | undefined, value: unknown): Validation<T> {
+  // The caller has checked `value` against the shape of T.
+  return error === undefined ? { ok: true, value: value as T } : { ok: false, error };
+}
+
+const optional = (rule: Rule): { rule: Rule; optional: true } => ({ rule, optional: true });
+const required = (rule: Rule): { rule: Rule } => ({ rule });
+
+const httpShape: Shape = {
+  id: required(nonEmpty),
+  name: required(text),
+  type: optional(oneOf(["http"])),
+  url: required(text),
+  intervalMs: required(positive),
+  timeoutMs: optional(finite),
+  latencyObjectiveMs: optional(finite),
+  retries: optional(integer),
+  retryDelayMs: optional(integer),
+  keyword: optional(text),
+};
+
+const tlsShape: Shape = {
+  id: required(nonEmpty),
+  name: required(text),
+  type: required(oneOf(["tls"])),
+  host: required(text),
+  port: required(integer),
+  warnDays: required(integer),
+  intervalMs: required(positive),
+  timeoutMs: optional(finite),
+};
+
+const statusRule = oneOf(["up", "degraded", "down"]);
+const certDaysLeft = optional(nullable(integer));
+
+const resultShape: Shape = {
+  checkId: required(nonEmpty),
+  timestamp: required(integer),
+  status: required(statusRule),
+  statusCode: required(nullable(statusCode)),
+  latencyMs: required(finite),
+  reason: required(nullable(text)),
+  location: required(text),
+  attempts: required(atLeastOne),
+  certDaysLeft,
+};
+
+const postResultShape: Shape = {
+  checkId: required(nonEmpty),
+  timestamp: required(integer),
+  status: required(statusRule),
+  statusCode: required(nullable(statusCode)),
+  latencyMs: required(nonNegative),
+  reason: required(nullable(text)),
+  location: optional(text),
+  attempts: optional(atLeastOne),
+  certDaysLeft,
+};
+
+const maintenanceShape: Shape = {
+  checkId: required(nonEmpty),
+  start: required(finite),
+  end: required(finite),
+  note: required(text),
+};
+
+const incidentShape: Shape = {
+  id: required(integer),
+  checkId: required(nonEmpty),
+  openedAt: required(finite),
+  resolvedAt: required(nullable(finite)),
+  reason: required(nullable(text)),
+};
+
+const stateShape: Shape = {
+  state: required(oneOf(["up", "degraded", "down", "unknown", "maintenance"])),
+  consecutiveDown: required(integer),
+  lastResultAt: required(nullable(finite)),
+  lastReason: required(nullable(text)),
+  locations: required(
+    arrayOf(
+      objectOf({
+        location: required(text),
+        result: required(objectOf(resultShape)),
+        stale: required(bool),
+      }),
+    ),
+  ),
+  maintenance: optional(objectOf(maintenanceShape)),
+  certDaysLeft,
+};
+
+const uptimeShape: Shape = {
+  checkId: required(nonEmpty),
+  days: required(
+    arrayOf(
+      objectOf({
+        date: required(isoDay),
+        uptime: required(nullable(finite)),
+        results: required(simple((v) => isInteger(v) && v >= 0, "must be an integer >= 0")),
+      }),
+    ),
+  ),
+  uptime: required(nullable(finite)),
+};
+
+function checkBase(value: unknown, path: string): string | undefined {
+  if (!isObject(value)) {
+    return `${path}: must be an object`;
+  }
+  switch (value.type) {
+    case undefined:
+    case "http":
+      return checkShape(value, path, httpShape);
+    case "tls":
+      return checkShape(value, path, tlsShape);
+    default:
+      return `${path}.type: must be "http" or "tls"`;
+  }
+}
+
+function checkWithState(value: unknown, path: string): string | undefined {
+  return checkBase(value, path) ?? checkShape(value, path, stateShape);
+}
+
+/** Validates a `Check` (http or tls). State fields are ignored. Returns the same object. */
+export function validateCheck(value: unknown, path = "check"): Validation<Check> {
+  return verdict(checkBase(value, path), value);
+}
+
+/** Validates a `CheckWithState`. Returns the same object. */
+export function validateCheckWithState(value: unknown, path = "check"): Validation<CheckWithState> {
+  return verdict(checkWithState(value, path), value);
+}
+
+/** Validates a `Result`. Returns the same object. */
+export function validateResult(value: unknown, path = "result"): Validation<Result> {
+  return verdict(checkShape(value, path, resultShape), value);
+}
+
+/**
+ * Validates the body of `POST /results`. Returns the value as sent: `location` and
+ * `attempts` are not defaulted (missing `attempts` means 1, missing or blank `location`
+ * means `default`).
+ */
+export function validatePostResultRequest(
+  value: unknown,
+  path = "result",
+): Validation<PostResultRequest> {
+  return verdict(checkShape(value, path, postResultShape), value);
+}
+
+/** Validates an `Incident`. Returns the same object. */
+export function validateIncident(value: unknown, path = "incident"): Validation<Incident> {
+  return verdict(checkShape(value, path, incidentShape), value);
+}
+
+/** Validates a `MaintenanceWindow`. Returns the same object. */
+export function validateMaintenanceWindow(
+  value: unknown,
+  path = "maintenance",
+): Validation<MaintenanceWindow> {
+  return verdict(checkShape(value, path, maintenanceShape), value);
+}
+
+/** Validates a `CheckUptime`. Returns the same object. */
+export function validateCheckUptime(value: unknown, path = "uptime"): Validation<CheckUptime> {
+  return verdict(checkShape(value, path, uptimeShape), value);
+}
+
+/** Validates `GET /checks`; fails on the first bad element. */
+export function validateChecksResponse(
+  value: unknown,
+  path = "checks",
+): Validation<ChecksResponse> {
+  return verdict(arrayOf(checkWithState)(value, path), value);
+}
+
+/** Validates `GET /checks/:id/results`; fails on the first bad element. */
+export function validateResultsResponse(
+  value: unknown,
+  path = "results",
+): Validation<ResultsResponse> {
+  return verdict(arrayOf(objectOf(resultShape))(value, path), value);
+}
+
+/** Validates `GET /incidents`; fails on the first bad element. */
+export function validateIncidentsResponse(
+  value: unknown,
+  path = "incidents",
+): Validation<IncidentsResponse> {
+  return verdict(arrayOf(objectOf(incidentShape))(value, path), value);
+}
+
+/** Validates `GET /maintenance`; fails on the first bad element. */
+export function validateMaintenanceResponse(
+  value: unknown,
+  path = "maintenance",
+): Validation<MaintenanceResponse> {
+  return verdict(arrayOf(objectOf(maintenanceShape))(value, path), value);
+}
+
+/** Validates `GET /uptime`; fails on the first bad element. */
+export function validateUptimeResponse(
+  value: unknown,
+  path = "uptime",
+): Validation<UptimeResponse> {
+  return verdict(arrayOf(objectOf(uptimeShape))(value, path), value);
+}

@@ -148,8 +148,14 @@ export interface CheckUptime {
   uptime: number | null;
 }
 
-/** Body of POST /results. */
-export type PostResultRequest = Result;
+/**
+ * Body of POST /results: a `Result` where `location` and `attempts` may be absent. A missing
+ * `attempts` means 1; a missing or blank `location` means `default`.
+ */
+export type PostResultRequest = Omit<Result, "location" | "attempts"> & {
+  location?: string;
+  attempts?: number;
+};
 /** GET /checks */
 export type ChecksResponse = CheckWithState[];
 /** GET /checks/:id/results */
@@ -164,3 +170,25 @@ export type UptimeResponse = CheckUptime[];
 export interface ErrorResponse {
   error: string;
 }
+
+export {
+  type Validation,
+  validateCheck,
+  validateChecksResponse,
+  validateCheckUptime,
+  validateCheckWithState,
+  validateIncident,
+  validateIncidentsResponse,
+  validateMaintenanceResponse,
+  validateMaintenanceWindow,
+  validatePostResultRequest,
+  validateResult,
+  validateResultsResponse,
+  validateUptimeResponse,
+} from "./validate.ts";
+export {
+  checkWireVersion,
+  WIRE_VERSION,
+  WIRE_VERSION_HEADER,
+  type WireVersionCheck,
+} from "./version.ts";

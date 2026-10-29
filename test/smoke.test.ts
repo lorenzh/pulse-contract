@@ -21,7 +21,7 @@ test("dist matches a fresh build of src", () => {
       [tsc, "-p", join(root, "tsconfig.build.json"), "--outDir", out],
       { cwd: root },
     );
-    for (const file of ["index.d.ts", "index.js"]) {
+    for (const file of ["index", "validate", "version"].flatMap((n) => [`${n}.d.ts`, `${n}.js`])) {
       assert.equal(
         readFileSync(join(root, "dist", file), "utf8"),
         readFileSync(join(out, file), "utf8"),
@@ -33,9 +33,25 @@ test("dist matches a fresh build of src", () => {
   }
 });
 
-test("package entry imports as an empty module", async () => {
+test("package entry exports the validators and the wire version", async () => {
   const mod = await import("@lorenzh/pulse-contract");
-  assert.deepEqual(Object.keys(mod), []);
+  assert.deepEqual(Object.keys(mod).sort(), [
+    "WIRE_VERSION",
+    "WIRE_VERSION_HEADER",
+    "checkWireVersion",
+    "validateCheck",
+    "validateCheckUptime",
+    "validateCheckWithState",
+    "validateChecksResponse",
+    "validateIncident",
+    "validateIncidentsResponse",
+    "validateMaintenanceResponse",
+    "validateMaintenanceWindow",
+    "validatePostResultRequest",
+    "validateResult",
+    "validateResultsResponse",
+    "validateUptimeResponse",
+  ]);
 });
 
 test("fixture covers maintenance types", () => {
