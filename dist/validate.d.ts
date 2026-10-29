@@ -7,7 +7,7 @@ export type Validation<T> = {
     ok: false;
     error: string;
 };
-/** Validates a `Check` (http or tls). State fields are ignored. Returns the same object. */
+/** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
 export declare function validateCheck(value: unknown, path?: string): Validation<Check>;
 /** Validates a `CheckWithState`. Returns the same object. */
 export declare function validateCheckWithState(value: unknown, path?: string): Validation<CheckWithState>;
