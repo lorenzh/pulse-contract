@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/lorenzh/pulse-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/lorenzh/pulse-contract/actions/workflows/ci.yml)
 
-pulse is an uptime monitor with a status page. This repository is its shared contract: the TypeScript types used by every other pulse repository (checks, results, incidents, maintenance windows, uptime and the API request and response shapes). It also holds plain-TypeScript runtime validators for those shapes and the wire-format version, so every service checks the wire format the same way. No runtime dependency.
+pulse is an uptime monitor with a status page. This repository is its shared contract: the TypeScript types used by every other pulse repository (checks, results, incidents, maintenance windows, uptime and the API request and response shapes). It also holds runtime validators for those shapes and the wire-format version, so every service checks the wire format the same way. Types and validators come from one set of [zod](https://zod.dev) schemas; `zod` is the only runtime dependency.
 
 pulse-contract depends on no other pulse repository. It is consumed by [pulse-api](https://github.com/lorenzh/pulse-api), [pulse-probe](https://github.com/lorenzh/pulse-probe), [pulse-status](https://github.com/lorenzh/pulse-status) and [pulse-notify](https://github.com/lorenzh/pulse-notify).
 
@@ -29,7 +29,7 @@ const version = checkWireVersion(response.headers.get(WIRE_VERSION_HEADER));
 ```
 
 Validators never throw. `error` reads `<path>: <problem>`, for example
-`checks[3].intervalMs: must be a finite number > 0`. See [docs/index.md](docs/index.md#validators).
+`checks[3].intervalMs: must be an integer 1..2147483647`. Ranges are enforced (timer values at most `MAX_TIMER_MS`, dates must exist, uptime 0..100); see the bounds table in [docs/index.md](docs/index.md#validators).
 
 The compiled output in `dist/` is committed, because Node does not strip types under
 `node_modules` and Git dependencies have no build step. After changing `src/`, run

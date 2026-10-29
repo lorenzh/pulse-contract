@@ -23,7 +23,7 @@ repository. Node 24+ with native type stripping, ESM, npm, strict TypeScript (`t
 
 ## Repository boundaries
 
-- `pulse-contract` holds shared types, plain-TS validators and the wire version. It has no runtime dependency and depends on no other repo.
+- `pulse-contract` holds shared types, plain-TS validators and the wire version. Its only runtime dependency is `zod` (exact version). It depends on no other repo.
 - Import contract types with `import type` only. A service never imports another service.
 - Services talk to each other only over HTTP at run time, in the shapes the contract defines.
 - Pin the contract dependency to a full commit SHA on its `main`; update the pin when the spec needs a newer contract.
@@ -101,7 +101,7 @@ The shared tooling configuration lives in `lorenzh/pulse-config`. The other puls
 
 ## This repository
 
-- Types, plain-TS validators (`src/validate.ts`) and the wire version (`src/version.ts`); no runtime dependency. Validators never throw and return the same object they were given.
+- Zod schemas and the types inferred from them (`src/schema.ts`), validators on those schemas (`src/validate.ts`) and the wire version (`src/version.ts`); `zod` is the only runtime dependency. Validators never throw and return the same object they were given.
 - `dist/` is committed, because Node does not strip types under `node_modules` and Git dependencies
   have no build step. After a change in `src/`, run `npm run build` and commit `dist/`.
   A test and CI fail when `dist/` is out of date.
