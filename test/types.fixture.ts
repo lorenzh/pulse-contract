@@ -6,6 +6,7 @@ import type {
   CheckUptime,
   CheckWithState,
   ErrorResponse,
+  HeartbeatCheck,
   HttpCheck,
   Incident,
   IncidentsResponse,
@@ -71,6 +72,37 @@ const tlsWithState: CheckWithState = {
   locations: [{ location: "default", result: tlsResult, stale: false }],
   certDaysLeft: 5,
 };
+const heartbeatCheck: HeartbeatCheck = {
+  id: "h",
+  name: "H",
+  type: "heartbeat",
+  period: 60000,
+  grace: 5000,
+};
+const heartbeatAsCheck: Check = heartbeatCheck;
+const heartbeatWithState: CheckWithState = {
+  ...heartbeatCheck,
+  state: "unknown",
+  consecutiveDown: 0,
+  lastResultAt: null,
+  lastReason: null,
+  locations: [],
+};
+const checkTarget = (c: Check): string => {
+  switch (c.type) {
+    case "heartbeat":
+      return `every ${c.period}ms`;
+    case "tls":
+      return c.host;
+    case "http":
+    case undefined:
+      return c.url;
+    default: {
+      const unreachable: never = c;
+      return unreachable;
+    }
+  }
+};
 const result: Result = {
   checkId: "a",
   timestamp: 1,
@@ -116,6 +148,9 @@ const variants = {
   keywordCheck,
   tlsAsCheck,
   tlsWithState,
+  heartbeatAsCheck,
+  heartbeatWithState,
+  checkTarget,
 };
 const results: ResultsResponse = [result, tlsResult, degradedResult];
 const incidents: IncidentsResponse = [incident];

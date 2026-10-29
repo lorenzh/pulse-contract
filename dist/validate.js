@@ -12,6 +12,7 @@ const atLeastOne = simple((v) => isInteger(v) && v >= 1, "must be an integer >= 
 const bool = simple((v) => typeof v === "boolean", "must be a boolean");
 const isoDay = simple((v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v), "must be a YYYY-MM-DD date");
 const statusCode = simple((v) => isInteger(v) && v >= 100 && v <= 599, "must be an integer 100..599");
+const intBetween = (min, max) => simple((v) => isInteger(v) && v >= min && v <= max, `must be an integer ${min}..${max}`);
 const oneOf = (allowed) => {
     const list = allowed.map((a) => JSON.stringify(a)).join(", ");
     return simple((v) => typeof v === "string" && allowed.includes(v), `must be one of ${list}`);
@@ -77,6 +78,13 @@ const tlsShape = {
     intervalMs: required(positive),
     timeoutMs: optional(finite),
 };
+const heartbeatShape = {
+    id: required(nonEmpty),
+    name: required(text),
+    type: required(oneOf(["heartbeat"])),
+    period: required(intBetween(1000, 86_400_000)),
+    grace: required(intBetween(0, 86_400_000)),
+};
 const statusRule = oneOf(["up", "degraded", "down"]);
 const certDaysLeft = optional(nullable(integer));
 const resultShape = {
@@ -136,7 +144,16 @@ const uptimeShape = {
     }))),
     uptime: required(nullable(finite)),
 };
-function checkBase(value, path) {
+/** Rejects keys outside `shape` and `extra`; a heartbeat check never carries a secret or a target. */
+function unknownKey(value, path, shape, extra) {
+    for (const key of Object.keys(value)) {
+        if (!(key in shape) && !(key in extra)) {
+            return `${path}.${key}: is not allowed on a heartbeat check`;
+        }
+    }
+    return undefined;
+}
+function checkBase(value, path, extra = {}) {
     if (!isObject(value)) {
         return `${path}: must be an object`;
     }
@@ -146,14 +163,16 @@ function checkBase(value, path) {
             return checkShape(value, path, httpShape);
         case "tls":
             return checkShape(value, path, tlsShape);
+        case "heartbeat":
+            return (checkShape(value, path, heartbeatShape) ?? unknownKey(value, path, heartbeatShape, extra));
         default:
-            return `${path}.type: must be "http" or "tls"`;
+            return `${path}.type: must be "http", "tls" or "heartbeat"`;
     }
 }
 function checkWithState(value, path) {
-    return checkBase(value, path) ?? checkShape(value, path, stateShape);
+    return checkBase(value, path, stateShape) ?? checkShape(value, path, stateShape);
 }
-/** Validates a `Check` (http or tls). State fields are ignored. Returns the same object. */
+/** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
 export function validateCheck(value, path = "check") {
     return verdict(checkBase(value, path), value);
 }

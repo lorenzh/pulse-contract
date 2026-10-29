@@ -15,7 +15,8 @@ Every type exported from `src/index.ts`. Import them with `import type`.
 | `CheckState`          | A `CheckStatus`, or `"unknown"` (no result yet) or `"maintenance"` (active window).                                                                        |
 | `HttpCheck`           | An HTTP check: `url`, interval, optional timeout, latency objective, retries, retry delay and keyword.                                                     |
 | `TlsCheck`            | A check of the leaf certificate of a TLS endpoint: `host`, `port`, `warnDays`, interval.                                                                   |
-| `Check`               | `HttpCheck \| TlsCheck`.                                                                                                                                   |
+| `HeartbeatCheck`      | A check that a job pings: `period` and `grace` in ms. The probe never runs it.                                                                             |
+| `Check`               | `HttpCheck \| TlsCheck \| HeartbeatCheck`.                                                                                                                 |
 | `Result`              | One probe result: check id, timestamp, status, status code, latency, reason, location, attempts, optional `certDaysLeft`.                                  |
 | `Incident`            | A run of down results: check id, `openedAt`, `resolvedAt` (null while open), reason.                                                                       |
 | `LocationResult`      | The latest `Result` of one probe location, with a `stale` flag.                                                                                            |
@@ -43,13 +44,20 @@ first, `uptime` 0..100 or null without results) and the result-weighted 90-day `
 
 ## Check types
 
-`Check` is `HttpCheck | TlsCheck`. An `HttpCheck` has a `url` and an optional `type: "http"` (absent
+`Check` is `HttpCheck | TlsCheck | HeartbeatCheck`. An `HttpCheck` has a `url` and an optional `type: "http"` (absent
 means http) and an optional `latencyObjectiveMs` (ms; a successful result slower than it is `degraded`; absent means no objective). `CheckStatus` is `"up" | "degraded" | "down"`. A `TlsCheck` (`type: "tls"`, `host`, `port`, `warnDays`, `intervalMs`, optional
 `timeoutMs`) watches the leaf certificate of a TLS endpoint; `port` and `warnDays` are always set in
 served data. Only the leaf's expiry is judged: the chain and hostname are not verified.
 `Result.certDaysLeft` and `CheckWithState.certDaysLeft` hold the floored whole days until expiry
 (negative when expired, `null` when no certificate was read, absent or `null` for HTTP).
-`CheckWithState` is `Check & CheckStateFields`, so it distributes over both variants.
+A `HeartbeatCheck` (`type: "heartbeat"`, `period`, `grace`) is pinged by a cron job or worker
+instead of being probed. `period` is the expected time between pings (integer ms, 1000..86400000);
+`grace` is the extra wait before the check is down (integer ms, 0..86400000, always set in served
+data). It has no `url`, `host`, `intervalMs` or `timeoutMs`, and the ping secret is never part of the
+contract. The probe never runs it. In `CheckWithState`, `lastResultAt` is the time of the last ping
+(`null` before the first). `validateCheck` rejects unknown keys on a heartbeat check, including
+`url`, `host`, `intervalMs` and `secret`.
+`CheckWithState` is `Check & CheckStateFields`, so it distributes over all variants.
 
 ## Retries
 
@@ -92,7 +100,7 @@ Exported from the package root, all plain TypeScript with no dependency. Each ta
 value and an optional `path` (the name used in the error, so a caller can say `checks[3]`) and
 returns `Validation<T>`: `{ ok: true; value: T } | { ok: false; error: string }`. They never throw.
 
-- Item validators: `validateCheck` (http or tls; ignores state fields), `validateCheckWithState`,
+- Item validators: `validateCheck` (http, tls or heartbeat; ignores state fields), `validateCheckWithState`,
   `validateResult`, `validateIncident`, `validateMaintenanceWindow`, `validateCheckUptime`,
   `validatePostResultRequest`. Default paths: `check`, `result`, `incident`, `maintenance`, `uptime`.
 - Array validators, which fail on the first bad element and name its index: `validateChecksResponse`

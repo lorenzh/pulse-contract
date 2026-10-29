@@ -54,7 +54,22 @@ export interface TlsCheck {
   timeoutMs?: number;
 }
 
-export type Check = HttpCheck | TlsCheck;
+/**
+ * A job pings the api; the check is down when no ping arrives within `period + grace`.
+ * The probe never runs it. In `CheckWithState`, `lastResultAt` is the time of the last ping.
+ * The ping secret is not part of this type: the api never serves it.
+ */
+export interface HeartbeatCheck {
+  id: string;
+  name: string;
+  type: "heartbeat";
+  /** Expected time between pings in ms, integer 1000..86400000. */
+  period: number;
+  /** Extra wait in ms before the check is down, integer 0..86400000. Always set in served data. */
+  grace: number;
+}
+
+export type Check = HttpCheck | TlsCheck | HeartbeatCheck;
 
 export interface Result {
   checkId: string;

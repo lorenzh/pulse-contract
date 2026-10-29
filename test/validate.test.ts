@@ -62,7 +62,7 @@ test("invalid checks name the path", () => {
     [{ ...base, timeoutMs: "5" }, "check.timeoutMs: must be a finite number"],
     [{ ...base, retries: 1.5 }, "check.retries: must be an integer"],
     [{ ...base, keyword: 3 }, "check.keyword: must be a string"],
-    [{ ...base, type: "ftp" }, 'check.type: must be "http" or "tls"'],
+    [{ ...base, type: "ftp" }, 'check.type: must be "http", "tls" or "heartbeat"'],
   ];
   for (const [input, message] of cases) {
     assert.equal(errorOf(validateCheck(input)), message);
@@ -259,4 +259,39 @@ test("a bad maintenance entry or stale flag is reported", () => {
     ),
     "checks[0].locations[0].stale: must be a boolean",
   );
+});
+
+test("heartbeat checks validate, alone and in a checks response", () => {
+  const { heartbeatAsCheck, heartbeatWithState, checkTarget } = fixture.variants;
+  const result = validateCheck(heartbeatAsCheck);
+  assert.equal(result.ok && result.value, heartbeatAsCheck);
+  assert.equal(validateCheckWithState(heartbeatWithState).ok, true);
+  assert.equal(validateChecksResponse([...fixture.checks, heartbeatWithState]).ok, true);
+  assert.equal(checkTarget(heartbeatAsCheck), "every 60000ms");
+  assert.equal(checkTarget(fixture.variants.tlsAsCheck), "example.com");
+});
+
+test("heartbeat checks reject bad fields", () => {
+  const hb = clone(fixture.variants.heartbeatAsCheck);
+  const cases: [Record<string, unknown>, string][] = [
+    [{ ...hb, period: undefined }, "check.period: is required"],
+    [{ ...hb, grace: undefined }, "check.grace: is required"],
+    [{ ...hb, period: 1500.5 }, "check.period: must be an integer 1000..86400000"],
+    [{ ...hb, period: 999 }, "check.period: must be an integer 1000..86400000"],
+    [{ ...hb, period: 86_400_001 }, "check.period: must be an integer 1000..86400000"],
+    [{ ...hb, period: "60000" }, "check.period: must be an integer 1000..86400000"],
+    [{ ...hb, grace: -1 }, "check.grace: must be an integer 0..86400000"],
+    [{ ...hb, grace: 86_400_001 }, "check.grace: must be an integer 0..86400000"],
+    [{ ...hb, grace: null }, "check.grace: must be an integer 0..86400000"],
+    [{ ...hb, url: "x" }, "check.url: is not allowed on a heartbeat check"],
+    [{ ...hb, host: "x" }, "check.host: is not allowed on a heartbeat check"],
+    [{ ...hb, intervalMs: 1000 }, "check.intervalMs: is not allowed on a heartbeat check"],
+    [{ ...hb, secret: "0123456789abcdef" }, "check.secret: is not allowed on a heartbeat check"],
+    [{ ...hb, extra: 1 }, "check.extra: is not allowed on a heartbeat check"],
+  ];
+  for (const [input, message] of cases) {
+    assert.equal(errorOf(validateCheck(input)), message);
+  }
+  assert.equal(validateCheck({ ...hb, grace: 0, period: 1000 }).ok, true);
+  assert.equal(validateCheck({ ...hb, grace: 86_400_000, period: 86_400_000 }).ok, true);
 });
