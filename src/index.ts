@@ -1,3 +1,10 @@
+export {
+  DEFAULT_MAX_BODY_BYTES,
+  type FetchJsonError,
+  type FetchJsonOptions,
+  type FetchJsonResult,
+  fetchJson,
+} from "./client.ts";
 export type {
   Check,
   CheckState,

@@ -42,10 +42,12 @@ test("package entry exports the validators and the wire version", async () => {
   assert.deepEqual(
     Object.keys(mod).sort(byName),
     [
+      "DEFAULT_MAX_BODY_BYTES",
       "MAX_TIMER_MS",
       "WIRE_VERSION",
       "WIRE_VERSION_HEADER",
       "checkWireVersion",
+      "fetchJson",
       "validateCheck",
       "validateCheckUptime",
       "validateCheckWithState",

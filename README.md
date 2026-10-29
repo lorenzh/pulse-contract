@@ -31,6 +31,10 @@ const version = checkWireVersion(response.headers.get(WIRE_VERSION_HEADER));
 Validators never throw. `error` reads `<path>: <problem>`, for example
 `checks[3].intervalMs: must be an integer 1..2147483647`. Ranges are enforced (timer values at most `MAX_TIMER_MS`, dates must exist, uptime 0..100); see the bounds table in [docs/index.md](docs/index.md#validators).
 
+`fetchJson` is a shared JSON GET client with timeout, size cap (5 MiB by default), wire-version
+check and validation; it returns a typed result instead of throwing. See
+[docs/index.md](docs/index.md#api-client).
+
 The compiled output in `dist/` is committed, because Node does not strip types under
 `node_modules` and Git dependencies have no build step. After changing `src/`, run
 `npm run build` and commit `dist/`. A test fails when `dist/` is out of date.
