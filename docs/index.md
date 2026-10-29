@@ -67,6 +67,19 @@ answer whose body does not contain it is `down`: the probe sets `statusCode` to 
 received and `reason` to `keyword "<text>" not found`. The probe searches only within its body size
 limit (1 MiB). Absent means the body is not read. `TlsCheck` has no `keyword`.
 
+Example of an `HttpCheck` with a keyword:
+
+```json
+{
+  "id": "home",
+  "name": "Home page",
+  "type": "http",
+  "url": "https://example.com/",
+  "intervalMs": 60000,
+  "keyword": "Welcome"
+}
+```
+
 ## Locations
 
 `Result.location` is the probe location name (required). Legacy results without a location count as
