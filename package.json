@@ -1,8 +1,8 @@
 {
   "name": "@lorenzh/pulse-contract",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "license": "MIT",
-  "description": "Shared TypeScript types (Check, Result, Incident and API shapes) used by all pulse repos.",
+  "description": "Shared TypeScript types, plain-TS runtime validators and the wire-format version used by all pulse repos.",
   "type": "module",
   "engines": {
     "node": ">=24"

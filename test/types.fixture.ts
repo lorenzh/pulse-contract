@@ -83,6 +83,7 @@ const result: Result = {
 };
 const locationResult: LocationResult = { location: "default", result, stale: false };
 const request: PostResultRequest = result;
+const minimalRequest: PostResultRequest = { ...result, location: undefined, attempts: undefined };
 const incident: Incident = { id: 1, checkId: "a", openedAt: 1, resolvedAt: null, reason: null };
 const withState: CheckWithState = {
   ...withTimeout,
@@ -115,7 +116,7 @@ const variants = {
   tlsAsCheck,
   tlsWithState,
 };
-const results: ResultsResponse = [request, tlsResult, degradedResult];
+const results: ResultsResponse = [result, tlsResult, degradedResult];
 const incidents: IncidentsResponse = [incident];
 const error: ErrorResponse = { error: "bad" };
 
@@ -129,4 +130,14 @@ const checkUptime: CheckUptime = {
 const emptyUptime: CheckUptime = { checkId: "b", days: [noDataDay], uptime: null };
 const uptime: UptimeResponse = [checkUptime, emptyUptime];
 
-export const fixture = { variants, checks, results, incidents, maintenance, error, uptime };
+export const fixture = {
+  request,
+  minimalRequest,
+  variants,
+  checks,
+  results,
+  incidents,
+  maintenance,
+  error,
+  uptime,
+};

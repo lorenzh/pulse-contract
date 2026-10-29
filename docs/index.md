@@ -1,36 +1,36 @@
 # pulse-contract documentation
 
-pulse-contract holds the shared TypeScript types of pulse. It has no runtime code and no settings.
+pulse-contract holds the shared TypeScript types of pulse, plain-TypeScript runtime validators for them and the wire-format version. It has no runtime dependency and no settings.
 For how the services fit together, see the
 [architecture](https://github.com/lorenzh/pulse-meta/blob/main/docs/architecture.md) in the meta
 repository. The main README is [README.md](../README.md).
 
 ## Type reference
 
-Every type exported from `src/index.ts`. Import them with `import type` only.
+Every type exported from `src/index.ts`. Import them with `import type`.
 
-| Type                  | Meaning                                                                                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CheckStatus`         | Result status: `"up"`, `"degraded"` or `"down"`.                                                                                                        |
-| `CheckState`          | A `CheckStatus`, or `"unknown"` (no result yet) or `"maintenance"` (active window).                                                                     |
-| `HttpCheck`           | An HTTP check: `url`, interval, optional timeout, latency objective, retries, retry delay and keyword.                                                  |
-| `TlsCheck`            | A check of the leaf certificate of a TLS endpoint: `host`, `port`, `warnDays`, interval.                                                                |
-| `Check`               | `HttpCheck \| TlsCheck`.                                                                                                                                |
-| `Result`              | One probe result: check id, timestamp, status, status code, latency, reason, location, attempts, optional `certDaysLeft`.                               |
-| `Incident`            | A run of down results: check id, `openedAt`, `resolvedAt` (null while open), reason.                                                                    |
-| `LocationResult`      | The latest `Result` of one probe location, with a `stale` flag.                                                                                         |
-| `MaintenanceWindow`   | A planned window for one check, half-open `[start, end)` in epoch ms, with a note.                                                                      |
-| `CheckStateFields`    | The evaluated state added to a check: `state`, `consecutiveDown`, `lastResultAt`, `lastReason`, `locations`, optional `maintenance` and `certDaysLeft`. |
-| `CheckWithState`      | `Check & CheckStateFields`; distributes over both check variants.                                                                                       |
-| `UptimeDay`           | Uptime of one UTC day (`date`, `uptime` 0..100 or null, `results`).                                                                                     |
-| `CheckUptime`         | The 90-day uptime of one check: `checkId`, 90 `days` oldest first, weighted `uptime`.                                                                   |
-| `PostResultRequest`   | Body of `POST /results`: a `Result`.                                                                                                                    |
-| `ChecksResponse`      | Response of `GET /checks`: `CheckWithState[]`.                                                                                                          |
-| `ResultsResponse`     | Response of `GET /checks/:id/results`: `Result[]`.                                                                                                      |
-| `IncidentsResponse`   | Response of `GET /incidents`: `Incident[]`.                                                                                                             |
-| `MaintenanceResponse` | Response of `GET /maintenance`: `MaintenanceWindow[]`.                                                                                                  |
-| `UptimeResponse`      | Response of `GET /uptime`: `CheckUptime[]`, one per check, in the order of `GET /checks`.                                                               |
-| `ErrorResponse`       | Error body: `{ error: string }`.                                                                                                                        |
+| Type                  | Meaning                                                                                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CheckStatus`         | Result status: `"up"`, `"degraded"` or `"down"`.                                                                                                           |
+| `CheckState`          | A `CheckStatus`, or `"unknown"` (no result yet) or `"maintenance"` (active window).                                                                        |
+| `HttpCheck`           | An HTTP check: `url`, interval, optional timeout, latency objective, retries, retry delay and keyword.                                                     |
+| `TlsCheck`            | A check of the leaf certificate of a TLS endpoint: `host`, `port`, `warnDays`, interval.                                                                   |
+| `Check`               | `HttpCheck \| TlsCheck`.                                                                                                                                   |
+| `Result`              | One probe result: check id, timestamp, status, status code, latency, reason, location, attempts, optional `certDaysLeft`.                                  |
+| `Incident`            | A run of down results: check id, `openedAt`, `resolvedAt` (null while open), reason.                                                                       |
+| `LocationResult`      | The latest `Result` of one probe location, with a `stale` flag.                                                                                            |
+| `MaintenanceWindow`   | A planned window for one check, half-open `[start, end)` in epoch ms, with a note.                                                                         |
+| `CheckStateFields`    | The evaluated state added to a check: `state`, `consecutiveDown`, `lastResultAt`, `lastReason`, `locations`, optional `maintenance` and `certDaysLeft`.    |
+| `CheckWithState`      | `Check & CheckStateFields`; distributes over both check variants.                                                                                          |
+| `UptimeDay`           | Uptime of one UTC day (`date`, `uptime` 0..100 or null, `results`).                                                                                        |
+| `CheckUptime`         | The 90-day uptime of one check: `checkId`, 90 `days` oldest first, weighted `uptime`.                                                                      |
+| `PostResultRequest`   | Body of `POST /results`: a `Result` where `location` and `attempts` may be absent (absent `attempts` means 1, absent or blank `location` means `default`). |
+| `ChecksResponse`      | Response of `GET /checks`: `CheckWithState[]`.                                                                                                             |
+| `ResultsResponse`     | Response of `GET /checks/:id/results`: `Result[]`.                                                                                                         |
+| `IncidentsResponse`   | Response of `GET /incidents`: `Incident[]`.                                                                                                                |
+| `MaintenanceResponse` | Response of `GET /maintenance`: `MaintenanceWindow[]`.                                                                                                     |
+| `UptimeResponse`      | Response of `GET /uptime`: `CheckUptime[]`, one per check, in the order of `GET /checks`.                                                                  |
+| `ErrorResponse`       | Error body: `{ error: string }`.                                                                                                                           |
 
 ## Details of the shared shapes
 
@@ -83,9 +83,50 @@ Example of an `HttpCheck` with a keyword:
 ## Locations
 
 `Result.location` is the probe location name (required). Legacy results without a location count as
-`default`; since this package has no runtime code, the constant `"default"` is documented here
-rather than exported. `CheckWithState.locations` lists the latest `LocationResult` per location
+`default`; the constant `"default"` is documented here rather than exported. `CheckWithState.locations` lists the latest `LocationResult` per location
 (sorted by name, `stale` when outside the evaluation window), and is `[]` for checks without results.
+
+## Validators
+
+Exported from the package root, all plain TypeScript with no dependency. Each takes an untrusted
+value and an optional `path` (the name used in the error, so a caller can say `checks[3]`) and
+returns `Validation<T>`: `{ ok: true; value: T } | { ok: false; error: string }`. They never throw.
+
+- Item validators: `validateCheck` (http or tls; ignores state fields), `validateCheckWithState`,
+  `validateResult`, `validateIncident`, `validateMaintenanceWindow`, `validateCheckUptime`,
+  `validatePostResultRequest`. Default paths: `check`, `result`, `incident`, `maintenance`, `uptime`.
+- Array validators, which fail on the first bad element and name its index: `validateChecksResponse`
+  (uses `validateCheckWithState`), `validateResultsResponse`, `validateIncidentsResponse`,
+  `validateMaintenanceResponse`, `validateUptimeResponse`. A consumer that skips bad items loops over
+  the raw array with the item validator and the path `checks[<i>]`; one that fails the whole
+  response uses the array validator.
+
+Error format: `<path>: <problem>` with a JSONPath-like path, e.g.
+`checks[1].locations[0].result.status: must be one of "up", "degraded", "down"` or
+`uptime[0].days[2].uptime: must be a finite number`.
+
+Rules: the full declared shape is checked (required fields, types, enums, non-empty `id` and
+`checkId`, finite numbers, `intervalMs` > 0, integer `port`, `warnDays`, `retries`, `retryDelayMs`,
+`attempts`; nullable fields accept `null`; optional fields may be absent or `undefined`). Unknown
+extra fields are accepted and kept: on success `value` is the same object, not a copy.
+Service-specific bounds (timestamp windows, length limits, Date ranges) stay in the service.
+
+`validatePostResultRequest` checks `checkId`, integer `timestamp`, `status`, `statusCode` (null or
+integer 100..599), `latencyMs` (finite, >= 0), `reason`, optional string `location`, optional
+integer `attempts` >= 1 and optional null or integer `certDaysLeft`. It returns the value as sent,
+without defaults.
+
+## Wire-format version
+
+`WIRE_VERSION` (integer, now `1`) changes only on an incompatible wire change. The api sends it in
+the `WIRE_VERSION_HEADER` header (`x-pulse-contract`) on every response.
+`checkWireVersion(header)` returns `{ status: "ok" }`, `{ status: "absent" }` or
+`{ status: "mismatch"; error }`; the comparison is an exact integer match and a malformed value is a
+mismatch. Consumer policy: `absent` is tolerated (an old api during rollout) and logged once per
+process; `mismatch` fails the call like a network error and is never ignored.
+
+The package version (`package.json`, semver) is separate: it follows semver, while `WIRE_VERSION`
+moves only with an incompatible wire change.
 
 ## Bump the pin in a consumer
 
@@ -101,6 +142,6 @@ full commit SHA on its `main`.
 
 ## Change the contract
 
-Edit `src/index.ts`, update `test/types.fixture.ts` and the docs, run `npm run build` and commit
+Edit `src/` (types in `index.ts`, validators in `validate.ts`, version in `version.ts`), update `test/types.fixture.ts`, the validator tests and the docs, run `npm run build` and commit
 `dist/`, then run `npm run check`. A breaking type change needs a matching section for each
 consumer in the spec.
