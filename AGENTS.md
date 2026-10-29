@@ -26,6 +26,7 @@ repository. Node 24+ with native type stripping, ESM, npm, strict TypeScript (`t
 - `pulse-contract` holds shared types, plain-TS validators and the wire version. Its only runtime dependency is `zod` (exact version). It depends on no other repo.
 - Import contract types with `import type` only. A service never imports another service.
 - Services talk to each other only over HTTP at run time, in the shapes the contract defines.
+- Use `pulse-kit`, `pulse-contract` or an approved package before writing infrastructure code. Propose an addition to `pulse-kit` instead of a local helper.
 - Pin the contract dependency to a full commit SHA on its `main`; update the pin when the spec needs a newer contract.
 - A change that needs a contract change waits for the merged contract change. Never copy contract types into a service.
 - Edit only this repository. Other repositories in the workspace are read-only context.
