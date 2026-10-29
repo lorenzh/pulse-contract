@@ -5,6 +5,13 @@ const fail = (error) => ({
     ok: false,
     error,
 });
+/**
+ * Cancels a body without waiting: a cancel on a `clone()` branch stays pending while the other
+ * branch is open. The caller aborts the request right after.
+ */
+function dropBody(cancel) {
+    cancel?.().catch(() => undefined); // body is dropped anyway
+}
 const defaultSchedule = (fn, ms) => {
     const handle = setTimeout(fn, ms);
     return () => clearTimeout(handle);
@@ -23,7 +30,7 @@ function decode(chunks, total) {
 async function readText(response, maxBytes) {
     const length = Number(response.headers.get("content-length"));
     if (Number.isFinite(length) && length > maxBytes) {
-        await response.body?.cancel().catch(() => undefined); // body is dropped anyway
+        dropBody(response.body?.cancel.bind(response.body));
         return undefined;
     }
     if (!response.body) {
@@ -40,7 +47,7 @@ async function readText(response, maxBytes) {
         }
         total += value.length;
         if (total > maxBytes) {
-            await reader.cancel().catch(() => undefined); // body is dropped anyway
+            dropBody(reader.cancel.bind(reader));
             return undefined;
         }
         chunks.push(value);
@@ -72,17 +79,17 @@ async function exchange(url, options, signal) {
     }
     const response = await options.fetch(url, init);
     const wire = checkWireVersion(response.headers.get(WIRE_VERSION_HEADER));
+    if (wire.status === "absent") {
+        options.onWireAbsent?.();
+    }
     // Order: status, wire header, size, JSON, validation.
     if (!response.ok) {
-        await response.body?.cancel().catch(() => undefined); // body is not needed
+        dropBody(response.body?.cancel.bind(response.body));
         return fail({ kind: "http", status: response.status, wire });
     }
     if (wire.status === "mismatch") {
-        await response.body?.cancel().catch(() => undefined); // body is not needed
+        dropBody(response.body?.cancel.bind(response.body));
         return fail({ kind: "wire-mismatch", message: wire.error });
-    }
-    if (wire.status === "absent") {
-        options.onWireAbsent?.();
     }
     const text = await readText(response, maxBytes);
     if (text === undefined) {
@@ -99,20 +106,22 @@ export async function fetchJson(url, options) {
     const own = new AbortController();
     const caller = options.signal;
     const signal = caller === undefined ? own.signal : AbortSignal.any([own.signal, caller]);
-    let timedOut = false;
+    // The first interruption wins: a timer that fires after a caller abort does not turn it into a timeout.
+    let interruption;
     let stop = () => undefined;
     // Settles first when the timer fires or the caller aborts, even if fetch ignores the signal.
     const interrupted = new Promise((_, reject) => {
-        const interrupt = () => reject(new Error("interrupted"));
+        const interrupt = (kind) => {
+            interruption ??= kind;
+            reject(new Error("interrupted"));
+        };
+        const onAbort = () => interrupt("aborted");
         const schedule = options.schedule ?? defaultSchedule;
-        const cancel = schedule(() => {
-            timedOut = true;
-            interrupt();
-        }, options.timeoutMs);
-        caller?.addEventListener("abort", interrupt, { once: true });
+        const cancel = schedule(() => interrupt("timeout"), options.timeoutMs);
+        caller?.addEventListener("abort", onAbort, { once: true });
         stop = () => {
             cancel();
-            caller?.removeEventListener("abort", interrupt);
+            caller?.removeEventListener("abort", onAbort);
         };
     });
     interrupted.catch(() => undefined); // the race below observes it
@@ -123,11 +132,11 @@ export async function fetchJson(url, options) {
         return await Promise.race([exchange(url, options, signal), interrupted]);
     }
     catch (error) {
-        if (timedOut) {
+        if (interruption === "timeout") {
             return fail({ kind: "timeout", timeoutMs: options.timeoutMs });
         }
-        if (caller?.aborted === true) {
-            return fail({ kind: "aborted", reason: caller.reason });
+        if (interruption === "aborted" || caller?.aborted === true) {
+            return fail({ kind: "aborted", reason: caller?.reason });
         }
         return fail({ kind: "network", cause: error });
     }

@@ -266,3 +266,75 @@ test("fetch rejection keeps its cause", async () => {
   );
   assert.deepEqual(result, { ok: false, error: { kind: "network", cause } });
 });
+
+// A fetch that hands out a clone: cancelling its body stays pending while the original is open.
+async function settleWithClone(make: () => Response, maxBytes?: number): Promise<unknown> {
+  const timers = fakeTimers();
+  const fetchFn: typeof fetch = () => Promise.resolve(make().clone());
+  const options = { ...base(fetchFn), schedule: timers.schedule };
+  const pending = fetchJson(
+    "https://x/",
+    maxBytes === undefined ? options : { ...options, maxBytes },
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  timers.fire(); // too late when the error was already returned
+  const result = await pending;
+  return result.ok ? "ok" : result.error.kind;
+}
+
+const openBody = (): ReadableStream<Uint8Array> =>
+  new ReadableStream<Uint8Array>({
+    pull(controller) {
+      controller.enqueue(new Uint8Array(8));
+    },
+  });
+
+test("a cloned response with an http error returns http, not timeout", async () => {
+  const kind = await settleWithClone(
+    () => new Response(openBody(), { status: 503, headers: wireHeaders }),
+  );
+  assert.equal(kind, "http");
+});
+
+test("a cloned response above the cap returns too-large, not timeout", async () => {
+  const kind = await settleWithClone(() => new Response(openBody(), { headers: wireHeaders }), 20);
+  assert.equal(kind, "too-large");
+});
+
+test("a cloned response with content-length above the cap returns too-large", async () => {
+  const kind = await settleWithClone(
+    () => new Response(openBody(), { headers: { ...wireHeaders, "content-length": "100" } }),
+    10,
+  );
+  assert.equal(kind, "too-large");
+});
+
+test("a cloned response with a wire mismatch returns wire-mismatch, not timeout", async () => {
+  const kind = await settleWithClone(
+    () => new Response(openBody(), { headers: { [WIRE_VERSION_HEADER]: "99" } }),
+  );
+  assert.equal(kind, "wire-mismatch");
+});
+
+test("an http error without the wire header calls onWireAbsent once", async () => {
+  let calls = 0;
+  const result = await fetchJson("https://x/", {
+    ...base(respond(() => new Response("down", { status: 503 }))),
+    onWireAbsent: () => calls++,
+  });
+  assert.equal(!result.ok && result.error.kind, "http");
+  assert.equal(calls, 1);
+});
+
+test("a caller abort before the timer stays aborted", async () => {
+  const timers = fakeTimers();
+  const controller = new AbortController();
+  const pending = fetchJson("https://x/", {
+    ...base(() => new Promise<Response>(() => undefined)),
+    schedule: timers.schedule,
+    signal: controller.signal,
+  });
+  controller.abort("stop");
+  timers.fire(); // fires before the race settles
+  assert.deepEqual(await pending, { ok: false, error: { kind: "aborted", reason: "stop" } });
+});
