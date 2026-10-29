@@ -32,6 +32,41 @@ Every type exported from `src/index.ts`. Import them with `import type` only.
 | `UptimeResponse`      | Response of `GET /uptime`: `CheckUptime[]`, one per check, in the order of `GET /checks`.                                                               |
 | `ErrorResponse`       | Error body: `{ error: string }`.                                                                                                                        |
 
+## Details of the shared shapes
+
+`CheckState` includes `"maintenance"`: a check whose `MaintenanceWindow` (`checkId`, `start`, `end` as
+epoch ms with `[start, end)` semantics, `note`) is active is reported with that state and the window
+in `CheckWithState.maintenance`. `GET /maintenance` returns a `MaintenanceResponse`.
+
+`GET /uptime` returns an `UptimeResponse`: per check a `CheckUptime` with 90 UTC `UptimeDay`s (oldest
+first, `uptime` 0..100 or null without results) and the result-weighted 90-day `uptime`.
+
+## Check types
+
+`Check` is `HttpCheck | TlsCheck`. An `HttpCheck` has a `url` and an optional `type: "http"` (absent
+means http) and an optional `latencyObjectiveMs` (ms; a successful result slower than it is `degraded`; absent means no objective). `CheckStatus` is `"up" | "degraded" | "down"`. A `TlsCheck` (`type: "tls"`, `host`, `port`, `warnDays`, `intervalMs`, optional
+`timeoutMs`) watches the leaf certificate of a TLS endpoint; `port` and `warnDays` are always set in
+served data. Only the leaf's expiry is judged: the chain and hostname are not verified.
+`Result.certDaysLeft` and `CheckWithState.certDaysLeft` hold the floored whole days until expiry
+(negative when expired, `null` when no certificate was read, absent or `null` for HTTP).
+`CheckWithState` is `Check & CheckStateFields`, so it distributes over both variants.
+
+## Retries
+
+An `HttpCheck` may set `retries` (integer 0..10, absent means 0) and `retryDelayMs` (integer
+0..60000, absent means 1000 when `retries` > 0); the api serves resolved values. A failed attempt
+(non-2xx, timeout, network error) is repeated before the probe reports down. `Result.attempts`
+(integer >= 1, required) is the number of attempts made; the other result fields are those of the
+last attempt, except `timestamp`, which is the start of the first. The api treats a missing
+`attempts` on `POST /results` as 1. TLS checks have no retry fields.
+
+## Locations
+
+`Result.location` is the probe location name (required). Legacy results without a location count as
+`default`; since this package has no runtime code, the constant `"default"` is documented here
+rather than exported. `CheckWithState.locations` lists the latest `LocationResult` per location
+(sorted by name, `stale` when outside the evaluation window), and is `[]` for checks without results.
+
 ## Bump the pin in a consumer
 
 Consumers are pulse-api, pulse-probe, pulse-status and pulse-notify. Each pins the contract to a
@@ -46,6 +81,6 @@ full commit SHA on its `main`.
 
 ## Change the contract
 
-Edit `src/index.ts`, update `test/types.fixture.ts` and the README, run `npm run build` and commit
+Edit `src/index.ts`, update `test/types.fixture.ts` and the docs, run `npm run build` and commit
 `dist/`, then run `npm run check`. A breaking type change needs a matching section for each
 consumer in the spec.
