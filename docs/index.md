@@ -13,7 +13,7 @@ Every type exported from `src/index.ts`. Import them with `import type` only.
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CheckStatus`         | Result status: `"up"`, `"degraded"` or `"down"`.                                                                                                        |
 | `CheckState`          | A `CheckStatus`, or `"unknown"` (no result yet) or `"maintenance"` (active window).                                                                     |
-| `HttpCheck`           | An HTTP check: `url`, interval, optional timeout, latency objective, retries and retry delay.                                                           |
+| `HttpCheck`           | An HTTP check: `url`, interval, optional timeout, latency objective, retries, retry delay and keyword.                                                  |
 | `TlsCheck`            | A check of the leaf certificate of a TLS endpoint: `host`, `port`, `warnDays`, interval.                                                                |
 | `Check`               | `HttpCheck \| TlsCheck`.                                                                                                                                |
 | `Result`              | One probe result: check id, timestamp, status, status code, latency, reason, location, attempts, optional `certDaysLeft`.                               |
@@ -59,6 +59,13 @@ An `HttpCheck` may set `retries` (integer 0..10, absent means 0) and `retryDelay
 (integer >= 1, required) is the number of attempts made; the other result fields are those of the
 last attempt, except `timestamp`, which is the start of the first. The api treats a missing
 `attempts` on `POST /results` as 1. TLS checks have no retry fields.
+
+## Keyword
+
+An `HttpCheck` may set `keyword`, a plain case-sensitive substring (no regular expression). A 2xx
+answer whose body does not contain it is `down`: the probe sets `statusCode` to the 2xx code
+received and `reason` to `keyword "<text>" not found`. The probe searches only within its body size
+limit (1 MiB). Absent means the body is not read. `TlsCheck` has no `keyword`.
 
 ## Locations
 

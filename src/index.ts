@@ -26,6 +26,13 @@ export interface HttpCheck {
    * The api always serves the resolved value.
    */
   retryDelayMs?: number;
+  /**
+   * Plain case-sensitive substring that a 2xx answer body must contain. The check is `down`
+   * when it does not (searched within the probe's body size limit); the probe writes `reason`
+   * `keyword "<text>" not found` with the 2xx `statusCode`. Absent means the body is not read.
+   * Not available on `TlsCheck`.
+   */
+  keyword?: string;
 }
 
 /**

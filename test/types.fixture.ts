@@ -38,6 +38,7 @@ const degradedResult: Result = {
 };
 const withTimeout: Check = { ...check, timeoutMs: 500 };
 const httpCheck: HttpCheck = { ...check, type: "http" };
+const keywordCheck: HttpCheck = { ...check, keyword: "ok" };
 const retryCheck: HttpCheck = { ...check, retries: 2, retryDelayMs: 500 };
 const tlsCheck: TlsCheck = {
   id: "t",
@@ -110,6 +111,7 @@ const variants = {
   allStates,
   httpCheck,
   retryCheck,
+  keywordCheck,
   tlsAsCheck,
   tlsWithState,
 };
