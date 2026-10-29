@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  MAX_TIMER_MS,
   validateCheck,
   validateChecksResponse,
   validateCheckUptime,
@@ -57,10 +58,10 @@ test("invalid checks name the path", () => {
     [{ ...base, id: "" }, "check.id: must be a non-empty string"],
     [{ ...base, url: undefined }, "check.url: is required"],
     [{ ...base, url: "" }, "check.url: must be a non-empty string"],
-    [{ ...base, intervalMs: 0 }, "check.intervalMs: must be a finite number > 0"],
-    [{ ...base, intervalMs: null }, "check.intervalMs: must be a finite number > 0"],
-    [{ ...base, timeoutMs: "5" }, "check.timeoutMs: must be a finite number"],
-    [{ ...base, retries: 1.5 }, "check.retries: must be an integer"],
+    [{ ...base, intervalMs: 0 }, "check.intervalMs: must be an integer 1..2147483647"],
+    [{ ...base, intervalMs: null }, "check.intervalMs: must be an integer 1..2147483647"],
+    [{ ...base, timeoutMs: "5" }, "check.timeoutMs: must be an integer 1..2147483647"],
+    [{ ...base, retries: 1.5 }, "check.retries: must be an integer 0..10"],
     [{ ...base, keyword: 3 }, "check.keyword: must be a string"],
     [{ ...base, type: "ftp" }, 'check.type: must be "http", "tls" or "heartbeat"'],
   ];
@@ -68,10 +69,13 @@ test("invalid checks name the path", () => {
     assert.equal(errorOf(validateCheck(input)), message);
   }
   const tls = clone(fixture.variants.tlsAsCheck);
-  assert.equal(errorOf(validateCheck({ ...tls, port: 4.5 })), "check.port: must be an integer");
+  assert.equal(
+    errorOf(validateCheck({ ...tls, port: 4.5 })),
+    "check.port: must be an integer 1..65535",
+  );
   assert.equal(
     errorOf(validateCheck({ ...tls, warnDays: "14" })),
-    "check.warnDays: must be an integer",
+    "check.warnDays: must be an integer >= 0",
   );
   assert.equal(errorOf(validateCheck({ ...tls, host: undefined })), "check.host: is required");
   assert.equal(
@@ -196,7 +200,7 @@ test("validateCheckUptime", () => {
   const worse = { ...first, days: [{ date: "2026-10-26", uptime: "1", results: 0 }] };
   assert.equal(
     errorOf(validateCheckUptime(worse)),
-    "uptime.days[0].uptime: must be a finite number",
+    "uptime.days[0].uptime: must be null or a number 0..100",
   );
   assert.equal(
     errorOf(validateCheckUptime({ ...first, days: {} })),
@@ -241,7 +245,7 @@ test("nested paths in checks and uptime responses", () => {
   if (uptime[0]) uptime[0].days = days;
   assert.equal(
     errorOf(validateUptimeResponse(uptime)),
-    "uptime[0].days[2].uptime: must be a finite number",
+    "uptime[0].days[2].uptime: must be null or a number 0..100",
   );
 });
 
@@ -332,4 +336,93 @@ test("heartbeat checks reject inherited names as unknown keys", () => {
       `check.${key}: is not allowed on a heartbeat check`,
     );
   }
+});
+
+const limit = (check: Record<string, unknown>, field: string, value: unknown): string | undefined =>
+  errorOf(validateCheck({ ...check, [field]: value }));
+
+test("bounds are enforced at the limit and rejected one past it", () => {
+  const http = clone(fixture.variants.httpCheck);
+  const tls = clone(fixture.variants.tlsAsCheck);
+  const rows: [Record<string, unknown>, string, number, number][] = [
+    [http, "intervalMs", 1, 2_147_483_647],
+    [http, "timeoutMs", 1, 2_147_483_647],
+    [http, "latencyObjectiveMs", 1, 2_147_483_647],
+    [http, "retries", 0, 10],
+    [http, "retryDelayMs", 0, 60_000],
+    [tls, "intervalMs", 1, 2_147_483_647],
+    [tls, "timeoutMs", 1, 2_147_483_647],
+    [tls, "port", 1, 65_535],
+  ];
+  for (const [check, field, min, max] of rows) {
+    assert.equal(limit(check, field, min), undefined, `${field} ${min}`);
+    assert.equal(limit(check, field, max), undefined, `${field} ${max}`);
+    const message = `check.${field}: must be an integer ${min}..${max}`;
+    assert.equal(limit(check, field, min - 1), message);
+    assert.equal(limit(check, field, max + 1), message);
+  }
+  assert.equal(limit(tls, "warnDays", 0), undefined);
+  assert.equal(limit(tls, "warnDays", 10_000), undefined);
+  assert.equal(limit(tls, "warnDays", -1), "check.warnDays: must be an integer >= 0");
+  assert.equal(
+    limit(http, "intervalMs", 2_147_483_648),
+    "check.intervalMs: must be an integer 1..2147483647",
+  );
+  assert.equal(MAX_TIMER_MS, 2_147_483_647);
+});
+
+test("uptime is null or 0..100", () => {
+  const [first] = fixture.uptime;
+  const day = { date: "2026-10-26", uptime: 100, results: 1 };
+  const withDay = (d: unknown): unknown => ({ ...first, days: [d] });
+  assert.equal(validateCheckUptime(withDay(day)).ok, true);
+  assert.equal(validateCheckUptime(withDay({ ...day, uptime: 0 })).ok, true);
+  assert.equal(
+    errorOf(validateCheckUptime(withDay({ ...day, uptime: 101 }))),
+    "uptime.days[0].uptime: must be null or a number 0..100",
+  );
+  assert.equal(
+    errorOf(validateCheckUptime(withDay({ ...day, uptime: -1 }))),
+    "uptime.days[0].uptime: must be null or a number 0..100",
+  );
+  assert.equal(
+    errorOf(validateCheckUptime({ ...first, uptime: 100.5 })),
+    "uptime.uptime: must be null or a number 0..100",
+  );
+});
+
+test("dates must be real calendar days", () => {
+  const [first] = fixture.uptime;
+  const dateError = (date: string): string | undefined =>
+    errorOf(validateCheckUptime({ ...first, days: [{ date, uptime: null, results: 0 }] }));
+  assert.equal(dateError("2028-02-29"), undefined);
+  assert.equal(dateError("2030-02-28"), undefined);
+  for (const date of ["2030-02-30", "2029-02-29", "2030-13-01", "2030-04-31", "2030-00-10"]) {
+    assert.equal(dateError(date), "uptime.days[0].date: must be a YYYY-MM-DD date", date);
+  }
+});
+
+test("maintenance end must be after start", () => {
+  const [window] = fixture.maintenance;
+  assert.equal(validateMaintenanceWindow({ ...window, start: 5, end: 6 }).ok, true);
+  for (const end of [5, 4]) {
+    assert.equal(
+      errorOf(validateMaintenanceWindow({ ...window, start: 5, end })),
+      "maintenance.end: must be greater than start",
+    );
+  }
+  const checks = clone(fixture.checks) as unknown as Record<string, unknown>[];
+  assert.equal(
+    errorOf(
+      validateChecksResponse([{ ...checks[1], maintenance: { ...window, start: 9, end: 9 } }]),
+    ),
+    "checks[0].maintenance.end: must be greater than start",
+  );
+});
+
+test("inherited names are never present and extra fields are kept", () => {
+  const http = JSON.stringify(fixture.variants.httpCheck).slice(0, -1);
+  const input: unknown = JSON.parse(`${http},"__proto__":{"url":"x"},"constructor":1}`);
+  const result = validateCheck(input);
+  assert.equal(result.ok && result.value, input);
 });

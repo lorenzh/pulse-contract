@@ -21,7 +21,10 @@ test("dist matches a fresh build of src", () => {
       [tsc, "-p", join(root, "tsconfig.build.json"), "--outDir", out],
       { cwd: root },
     );
-    for (const file of ["index", "validate", "version"].flatMap((n) => [`${n}.d.ts`, `${n}.js`])) {
+    for (const file of ["index", "schema", "validate", "version"].flatMap((n) => [
+      `${n}.d.ts`,
+      `${n}.js`,
+    ])) {
       assert.equal(
         readFileSync(join(root, "dist", file), "utf8"),
         readFileSync(join(out, file), "utf8"),
@@ -39,6 +42,7 @@ test("package entry exports the validators and the wire version", async () => {
   assert.deepEqual(
     Object.keys(mod).sort(byName),
     [
+      "MAX_TIMER_MS",
       "WIRE_VERSION",
       "WIRE_VERSION_HEADER",
       "checkWireVersion",

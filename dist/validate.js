@@ -1,148 +1,56 @@
+import { checkStateFieldsSchema, checkUptimeSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, maintenanceWindowSchema, postResultRequestSchema, resultSchema, tlsCheckSchema, } from "./schema.js";
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
-const isFiniteNumber = (value) => typeof value === "number" && Number.isFinite(value);
-const isInteger = (value) => typeof value === "number" && Number.isInteger(value);
-const simple = (isValid, problem) => (value, path) => isValid(value) ? undefined : `${path}: ${problem}`;
-const text = simple((v) => typeof v === "string", "must be a string");
-const nonEmpty = simple((v) => typeof v === "string" && v.length > 0, "must be a non-empty string");
-const finite = simple(isFiniteNumber, "must be a finite number");
-const nonNegative = simple((v) => isFiniteNumber(v) && v >= 0, "must be a finite number >= 0");
-const positive = simple((v) => isFiniteNumber(v) && v > 0, "must be a finite number > 0");
-const integer = simple(isInteger, "must be an integer");
-const atLeastOne = simple((v) => isInteger(v) && v >= 1, "must be an integer >= 1");
-const bool = simple((v) => typeof v === "boolean", "must be a boolean");
-const isoDay = simple((v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v), "must be a YYYY-MM-DD date");
-const statusCode = simple((v) => isInteger(v) && v >= 100 && v <= 599, "must be an integer 100..599");
-const intBetween = (min, max) => simple((v) => isInteger(v) && v >= min && v <= max, `must be an integer ${min}..${max}`);
-const oneOf = (allowed) => {
-    const list = allowed.map((a) => JSON.stringify(a)).join(", ");
-    return simple((v) => typeof v === "string" && allowed.includes(v), `must be one of ${list}`);
-};
-const nullable = (rule) => (value, path) => value === null ? undefined : rule(value, path);
-const arrayOf = (rule) => (value, path) => {
+/** Reads an own property; inherited names such as `constructor` count as absent. */
+function ownValue(parent, key) {
+    if (typeof parent !== "object" || parent === null || !Object.hasOwn(parent, key)) {
+        return undefined;
+    }
+    return Reflect.get(parent, key);
+}
+/** `checks[2].intervalMs` style: indexes in brackets, keys after a dot. */
+function formatPath(base, keys) {
+    let path = base;
+    for (const key of keys) {
+        path += typeof key === "number" ? `[${key}]` : `.${String(key)}`;
+    }
+    return path;
+}
+/** The first problem of a failed parse as `<path>: <problem>`. */
+function firstError(error, value, base) {
+    const issue = error.issues[0];
+    if (issue === undefined) {
+        return `${base}: is invalid`;
+    }
+    const path = formatPath(base, issue.path);
+    let at = value;
+    for (const key of issue.path) {
+        at = ownValue(at, key);
+    }
+    return `${path}: ${at === undefined && issue.path.length > 0 ? "is required" : issue.message}`;
+}
+/** Returns the error text, or undefined when the value matches the schema. */
+function problem(schema, value, path) {
+    const parsed = schema.safeParse(value);
+    return parsed.success ? undefined : firstError(parsed.error, value, path);
+}
+function verdict(error, value) {
+    // The caller has checked `value` against the schema of T; the same object is returned.
+    return error === undefined ? { ok: true, value: value } : { ok: false, error };
+}
+function validateWith(schema, value, path) {
+    return verdict(problem(schema, value, path), value);
+}
+const arrayProblem = (check, value, path) => {
     if (!Array.isArray(value)) {
         return `${path}: must be an array`;
     }
     for (const [i, item] of value.entries()) {
-        const error = rule(item, `${path}[${i}]`);
+        const error = check(item, `${path}[${i}]`);
         if (error !== undefined) {
             return error;
         }
     }
     return undefined;
-};
-const objectOf = (shape) => (value, path) => checkShape(value, path, shape);
-function checkShape(value, path, shape) {
-    if (!isObject(value)) {
-        return `${path}: must be an object`;
-    }
-    for (const [key, field] of Object.entries(shape)) {
-        const fieldValue = value[key];
-        if (fieldValue === undefined) {
-            if (field.optional === true) {
-                continue;
-            }
-            return `${path}.${key}: is required`;
-        }
-        const error = field.rule(fieldValue, `${path}.${key}`);
-        if (error !== undefined) {
-            return error;
-        }
-    }
-    return undefined;
-}
-function verdict(error, value) {
-    // The caller has checked `value` against the shape of T.
-    return error === undefined ? { ok: true, value: value } : { ok: false, error };
-}
-const optional = (rule) => ({ rule, optional: true });
-const required = (rule) => ({ rule });
-const httpShape = {
-    id: required(nonEmpty),
-    name: required(text),
-    type: optional(oneOf(["http"])),
-    url: required(nonEmpty),
-    intervalMs: required(positive),
-    timeoutMs: optional(finite),
-    latencyObjectiveMs: optional(finite),
-    retries: optional(integer),
-    retryDelayMs: optional(integer),
-    keyword: optional(text),
-};
-const tlsShape = {
-    id: required(nonEmpty),
-    name: required(text),
-    type: required(oneOf(["tls"])),
-    host: required(nonEmpty),
-    port: required(integer),
-    warnDays: required(integer),
-    intervalMs: required(positive),
-    timeoutMs: optional(finite),
-};
-const heartbeatShape = {
-    id: required(nonEmpty),
-    name: required(text),
-    type: required(oneOf(["heartbeat"])),
-    period: required(intBetween(1000, 86_400_000)),
-    grace: required(intBetween(0, 86_400_000)),
-};
-const statusRule = oneOf(["up", "degraded", "down"]);
-const certDaysLeft = optional(nullable(integer));
-const resultShape = {
-    checkId: required(nonEmpty),
-    timestamp: required(integer),
-    status: required(statusRule),
-    statusCode: required(nullable(statusCode)),
-    latencyMs: required(finite),
-    reason: required(nullable(text)),
-    location: required(text),
-    attempts: required(atLeastOne),
-    certDaysLeft,
-};
-const postResultShape = {
-    checkId: required(nonEmpty),
-    timestamp: required(integer),
-    status: required(statusRule),
-    statusCode: required(nullable(statusCode)),
-    latencyMs: required(nonNegative),
-    reason: required(nullable(text)),
-    location: optional(text),
-    attempts: optional(atLeastOne),
-    certDaysLeft,
-};
-const maintenanceShape = {
-    checkId: required(nonEmpty),
-    start: required(finite),
-    end: required(finite),
-    note: required(text),
-};
-const incidentShape = {
-    id: required(integer),
-    checkId: required(nonEmpty),
-    openedAt: required(finite),
-    resolvedAt: required(nullable(finite)),
-    reason: required(nullable(text)),
-};
-const stateShape = {
-    state: required(oneOf(["up", "degraded", "down", "unknown", "maintenance"])),
-    consecutiveDown: required(integer),
-    lastResultAt: required(nullable(finite)),
-    lastReason: required(nullable(text)),
-    locations: required(arrayOf(objectOf({
-        location: required(text),
-        result: required(objectOf(resultShape)),
-        stale: required(bool),
-    }))),
-    maintenance: optional(objectOf(maintenanceShape)),
-    certDaysLeft,
-};
-const uptimeShape = {
-    checkId: required(nonEmpty),
-    days: required(arrayOf(objectOf({
-        date: required(isoDay),
-        uptime: required(nullable(finite)),
-        results: required(simple((v) => isInteger(v) && v >= 0, "must be an integer >= 0")),
-    }))),
-    uptime: required(nullable(finite)),
 };
 /**
  * Rejects keys outside the heartbeat and state shapes; a heartbeat check never carries a
@@ -150,7 +58,8 @@ const uptimeShape = {
  */
 function unknownKey(value, path) {
     for (const key of Object.keys(value)) {
-        if (!Object.hasOwn(heartbeatShape, key) && !Object.hasOwn(stateShape, key)) {
+        if (!Object.hasOwn(heartbeatCheckSchema.shape, key) &&
+            !Object.hasOwn(checkStateFieldsSchema.shape, key)) {
             return `${path}.${key}: is not allowed on a heartbeat check`;
         }
     }
@@ -164,17 +73,17 @@ function checkBase(value, path) {
     switch (value.type) {
         case undefined:
         case "http":
-            return checkShape(value, path, httpShape);
+            return problem(httpCheckSchema, value, path);
         case "tls":
-            return checkShape(value, path, tlsShape);
+            return problem(tlsCheckSchema, value, path);
         case "heartbeat":
-            return checkShape(value, path, heartbeatShape) ?? unknownKey(value, path);
+            return problem(heartbeatCheckSchema, value, path) ?? unknownKey(value, path);
         default:
             return `${path}.type: must be "http", "tls" or "heartbeat"`;
     }
 }
 function checkWithState(value, path) {
-    return checkBase(value, path) ?? checkShape(value, path, stateShape);
+    return checkBase(value, path) ?? problem(checkStateFieldsSchema, value, path);
 }
 /** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
 export function validateCheck(value, path = "check") {
@@ -186,7 +95,7 @@ export function validateCheckWithState(value, path = "check") {
 }
 /** Validates a `Result`. Returns the same object. */
 export function validateResult(value, path = "result") {
-    return verdict(checkShape(value, path, resultShape), value);
+    return validateWith(resultSchema, value, path);
 }
 /**
  * Validates the body of `POST /results`. Returns the value as sent: `location` and
@@ -194,37 +103,37 @@ export function validateResult(value, path = "result") {
  * means `default`).
  */
 export function validatePostResultRequest(value, path = "result") {
-    return verdict(checkShape(value, path, postResultShape), value);
+    return validateWith(postResultRequestSchema, value, path);
 }
 /** Validates an `Incident`. Returns the same object. */
 export function validateIncident(value, path = "incident") {
-    return verdict(checkShape(value, path, incidentShape), value);
+    return validateWith(incidentSchema, value, path);
 }
-/** Validates a `MaintenanceWindow`. Returns the same object. */
+/** Validates a `MaintenanceWindow` (`end` greater than `start`). Returns the same object. */
 export function validateMaintenanceWindow(value, path = "maintenance") {
-    return verdict(checkShape(value, path, maintenanceShape), value);
+    return validateWith(maintenanceWindowSchema, value, path);
 }
 /** Validates a `CheckUptime`. Returns the same object. */
 export function validateCheckUptime(value, path = "uptime") {
-    return verdict(checkShape(value, path, uptimeShape), value);
+    return validateWith(checkUptimeSchema, value, path);
 }
 /** Validates `GET /checks`; fails on the first bad element. */
 export function validateChecksResponse(value, path = "checks") {
-    return verdict(arrayOf(checkWithState)(value, path), value);
+    return verdict(arrayProblem(checkWithState, value, path), value);
 }
 /** Validates `GET /checks/:id/results`; fails on the first bad element. */
 export function validateResultsResponse(value, path = "results") {
-    return verdict(arrayOf(objectOf(resultShape))(value, path), value);
+    return verdict(arrayProblem((item, p) => problem(resultSchema, item, p), value, path), value);
 }
 /** Validates `GET /incidents`; fails on the first bad element. */
 export function validateIncidentsResponse(value, path = "incidents") {
-    return verdict(arrayOf(objectOf(incidentShape))(value, path), value);
+    return verdict(arrayProblem((item, p) => problem(incidentSchema, item, p), value, path), value);
 }
 /** Validates `GET /maintenance`; fails on the first bad element. */
 export function validateMaintenanceResponse(value, path = "maintenance") {
-    return verdict(arrayOf(objectOf(maintenanceShape))(value, path), value);
+    return verdict(arrayProblem((item, p) => problem(maintenanceWindowSchema, item, p), value, path), value);
 }
 /** Validates `GET /uptime`; fails on the first bad element. */
 export function validateUptimeResponse(value, path = "uptime") {
-    return verdict(arrayOf(objectOf(uptimeShape))(value, path), value);
+    return verdict(arrayProblem((item, p) => problem(checkUptimeSchema, item, p), value, path), value);
 }

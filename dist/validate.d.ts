@@ -1,4 +1,4 @@
-import type { Check, ChecksResponse, CheckUptime, CheckWithState, Incident, IncidentsResponse, MaintenanceResponse, MaintenanceWindow, PostResultRequest, Result, ResultsResponse, UptimeResponse } from "./index.ts";
+import { type Check, type ChecksResponse, type CheckUptime, type CheckWithState, type Incident, type IncidentsResponse, type MaintenanceResponse, type MaintenanceWindow, type PostResultRequest, type Result, type ResultsResponse, type UptimeResponse } from "./schema.ts";
 /** Outcome of a validator. Validators never throw. */
 export type Validation<T> = {
     ok: true;
@@ -21,7 +21,7 @@ export declare function validateResult(value: unknown, path?: string): Validatio
 export declare function validatePostResultRequest(value: unknown, path?: string): Validation<PostResultRequest>;
 /** Validates an `Incident`. Returns the same object. */
 export declare function validateIncident(value: unknown, path?: string): Validation<Incident>;
-/** Validates a `MaintenanceWindow`. Returns the same object. */
+/** Validates a `MaintenanceWindow` (`end` greater than `start`). Returns the same object. */
 export declare function validateMaintenanceWindow(value: unknown, path?: string): Validation<MaintenanceWindow>;
 /** Validates a `CheckUptime`. Returns the same object. */
 export declare function validateCheckUptime(value: unknown, path?: string): Validation<CheckUptime>;

@@ -1,6 +1,6 @@
 # pulse-contract documentation
 
-pulse-contract holds the shared TypeScript types of pulse, plain-TypeScript runtime validators for them and the wire-format version. It has no runtime dependency and no settings.
+pulse-contract holds the shared TypeScript types of pulse, plain-TypeScript runtime validators for them and the wire-format version. Types and validators come from one set of zod schemas (`src/schema.ts`). Its only runtime dependency is `zod`; it has no settings.
 For how the services fit together, see the
 [architecture](https://github.com/lorenzh/pulse-meta/blob/main/docs/architecture.md) in the meta
 repository. The main README is [README.md](../README.md).
@@ -96,7 +96,7 @@ Example of an `HttpCheck` with a keyword:
 
 ## Validators
 
-Exported from the package root, all plain TypeScript with no dependency. Each takes an untrusted
+Exported from the package root, built on the zod schemas in `src/schema.ts` (types are `z.infer` aliases with the names below). Each takes an untrusted
 value and an optional `path` (the name used in the error, so a caller can say `checks[3]`) and
 returns `Validation<T>`: `{ ok: true; value: T } | { ok: false; error: string }`. They never throw.
 
@@ -111,13 +111,32 @@ returns `Validation<T>`: `{ ok: true; value: T } | { ok: false; error: string }`
 
 Error format: `<path>: <problem>` with a JSONPath-like path, e.g.
 `checks[1].locations[0].result.status: must be one of "up", "degraded", "down"` or
-`uptime[0].days[2].uptime: must be a finite number`.
+`uptime[0].days[2].uptime: must be null or a number 0..100`. Only the first problem is reported;
+a missing required field reads `<path>: is required`. Inherited names (`constructor`, `__proto__`)
+never count as present.
 
 Rules: the full declared shape is checked (required fields, types, enums, non-empty `id` and
-`checkId`, finite numbers, `intervalMs` > 0, integer `port`, `warnDays`, `retries`, `retryDelayMs`,
-`attempts`; nullable fields accept `null`; optional fields may be absent or `undefined`). Unknown
+`checkId`, finite numbers, the bounds below; nullable fields accept `null`; optional fields may be absent or `undefined`). Unknown
 extra fields are accepted and kept: on success `value` is the same object, not a copy.
-Service-specific bounds (timestamp windows, length limits, Date ranges) stay in the service.
+Service-specific bounds (timestamp windows, length limits) stay in the service.
+
+Bounds (a value outside them is rejected):
+
+| Field                                                       | Rule                                                                                |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `intervalMs` (http, tls), `timeoutMs`, `latencyObjectiveMs` | integer 1..2147483647 (`MAX_TIMER_MS`)                                              |
+| `retries`                                                   | integer 0..10                                                                       |
+| `retryDelayMs`                                              | integer 0..60000                                                                    |
+| tls `port`                                                  | integer 1..65535                                                                    |
+| tls `warnDays`                                              | integer >= 0, no upper bound                                                        |
+| heartbeat `period`                                          | integer 1000..86400000                                                              |
+| heartbeat `grace`                                           | integer 0..86400000                                                                 |
+| `uptime` (day and total)                                    | null or number 0..100                                                               |
+| `UptimeDay.date`                                            | `YYYY-MM-DD`, a real calendar date (`2030-02-30` is rejected, leap years are right) |
+| maintenance `end`                                           | greater than `start`; the error names `<path>.end`                                  |
+
+`MAX_TIMER_MS` (2147483647, 2^31-1) is exported: Node clamps a longer timer delay to 1 ms, so no
+layer passes a delay above it to a timer.
 
 `validatePostResultRequest` checks `checkId`, integer `timestamp`, `status`, `statusCode` (null or
 integer 100..599), `latencyMs` (finite, >= 0), `reason`, optional string `location`, optional
@@ -150,6 +169,6 @@ full commit SHA on its `main`.
 
 ## Change the contract
 
-Edit `src/` (types in `index.ts`, validators in `validate.ts`, version in `version.ts`), update `test/types.fixture.ts`, the validator tests and the docs, run `npm run build` and commit
+Edit `src/` (exports in `index.ts`, schemas in `schema.ts`, validators in `validate.ts`, version in `version.ts`), update `test/types.fixture.ts`, the validator tests and the docs, run `npm run build` and commit
 `dist/`, then run `npm run check`. A breaking type change needs a matching section for each
 consumer in the spec.
