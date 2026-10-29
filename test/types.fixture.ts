@@ -83,7 +83,8 @@ const result: Result = {
 };
 const locationResult: LocationResult = { location: "default", result, stale: false };
 const request: PostResultRequest = result;
-const minimalRequest: PostResultRequest = { ...result, location: undefined, attempts: undefined };
+const { location: _location, attempts: _attempts, ...minimalBase }: Result = result;
+const minimalRequest: PostResultRequest = minimalBase;
 const incident: Incident = { id: 1, checkId: "a", openedAt: 1, resolvedAt: null, reason: null };
 const withState: CheckWithState = {
   ...withTimeout,

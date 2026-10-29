@@ -35,23 +35,27 @@ test("dist matches a fresh build of src", () => {
 
 test("package entry exports the validators and the wire version", async () => {
   const mod = await import("@lorenzh/pulse-contract");
-  assert.deepEqual(Object.keys(mod).sort(), [
-    "WIRE_VERSION",
-    "WIRE_VERSION_HEADER",
-    "checkWireVersion",
-    "validateCheck",
-    "validateCheckUptime",
-    "validateCheckWithState",
-    "validateChecksResponse",
-    "validateIncident",
-    "validateIncidentsResponse",
-    "validateMaintenanceResponse",
-    "validateMaintenanceWindow",
-    "validatePostResultRequest",
-    "validateResult",
-    "validateResultsResponse",
-    "validateUptimeResponse",
-  ]);
+  const byName = (a: string, b: string): number => a.localeCompare(b);
+  assert.deepEqual(
+    Object.keys(mod).sort(byName),
+    [
+      "WIRE_VERSION",
+      "WIRE_VERSION_HEADER",
+      "checkWireVersion",
+      "validateCheck",
+      "validateCheckUptime",
+      "validateCheckWithState",
+      "validateChecksResponse",
+      "validateIncident",
+      "validateIncidentsResponse",
+      "validateMaintenanceResponse",
+      "validateMaintenanceWindow",
+      "validatePostResultRequest",
+      "validateResult",
+      "validateResultsResponse",
+      "validateUptimeResponse",
+    ].sort(byName),
+  );
 });
 
 test("fixture covers maintenance types", () => {
