@@ -4,7 +4,9 @@
 
 pulse is an uptime monitor with a status page. This repository is its shared contract: the TypeScript types used by every other pulse repository, namely `Check`, `Result`, `Incident`, `MaintenanceWindow`, `CheckWithState`, `LocationResult` and the API request/response shapes (`PostResultRequest`, `ChecksResponse`, `ResultsResponse`, `IncidentsResponse`, `MaintenanceResponse`, `UptimeResponse`, `ErrorResponse`), plus the `CheckStatus` and `CheckState` unions. `CheckState` includes `"maintenance"`: a check whose `MaintenanceWindow` (`checkId`, `start`, `end` as epoch ms with `[start, end)` semantics, `note`) is active is reported with that state and the window in `CheckWithState.maintenance`. `GET /maintenance` returns a `MaintenanceResponse`. `GET /uptime` returns an `UptimeResponse`: per check a `CheckUptime` with 90 UTC `UptimeDay`s (oldest first, `uptime` 0..100 or null without results) and the result-weighted 90-day `uptime`. Types only, no runtime code.
 
-pulse-contract depends on no other pulse repository. It is consumed by [pulse-probe](https://github.com/lorenzh/pulse-probe), [pulse-api](https://github.com/lorenzh/pulse-api) and [pulse-status](https://github.com/lorenzh/pulse-status).
+pulse-contract depends on no other pulse repository. It is consumed by [pulse-api](https://github.com/lorenzh/pulse-api), [pulse-probe](https://github.com/lorenzh/pulse-probe), [pulse-status](https://github.com/lorenzh/pulse-status) and [pulse-notify](https://github.com/lorenzh/pulse-notify).
+
+Documentation: the type reference and the pin bump steps are in [docs/index.md](docs/index.md).
 
 pulse is built by Paragon Factory agents from the issues in [pulse-meta](https://github.com/lorenzh/pulse-meta).
 
