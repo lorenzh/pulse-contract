@@ -57,12 +57,16 @@ type Fields = Record<string, unknown>;
 export const isObject = (value: unknown): value is Fields =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Reads an own property; inherited names such as `constructor` count as absent. */
+/**
+ * Reads an own data property. Inherited names such as `constructor` and accessors count as
+ * absent; a getter never runs.
+ */
 function ownValue(parent: unknown, key: PropertyKey): unknown {
-  if (typeof parent !== "object" || parent === null || !Object.hasOwn(parent, key)) {
+  if (typeof parent !== "object" || parent === null) {
     return undefined;
   }
-  return Reflect.get(parent, key);
+  const descriptor = Object.getOwnPropertyDescriptor(parent, key);
+  return descriptor !== undefined && "value" in descriptor ? descriptor.value : undefined;
 }
 
 /** `checks[2].intervalMs` style: indexes in brackets, keys after a dot. */
@@ -122,8 +126,9 @@ function objectView(shape: Fields, value: Fields): Fields {
     }
   }
   for (const [key, field] of Object.entries(shape)) {
-    if (Object.hasOwn(value, key)) {
-      define(view, key, ownView(field as z.ZodType, Reflect.get(value, key)));
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor !== undefined && "value" in descriptor) {
+      define(view, key, ownView(field as z.ZodType, descriptor.value));
     }
   }
   return view;
@@ -132,24 +137,32 @@ function objectView(shape: Fields, value: Fields): Fields {
 function arrayView(element: z.ZodType, value: unknown[]): unknown[] {
   // Index loop: an own `map` property on the input must never run.
   const items: unknown[] = [];
+  // An accessor element counts as absent, like an accessor field.
   for (let i = 0; i < value.length; i++) {
-    items.push(ownView(element, value[i]));
+    items.push(ownView(element, ownValue(value, i)));
   }
   return items;
+}
+
+/** With exactly one object option, an object can only match that one. Other unions pass as is. */
+function onlyObjectOption(options: readonly z.ZodType[]): z.ZodType | undefined {
+  const objects = options.filter((o) => defOf(o).type === "object");
+  return objects.length === 1 ? objects[0] : undefined;
 }
 
 function recordView(valueType: z.ZodType, value: Fields): Fields {
   const view: Fields = {};
   for (const key of Object.keys(value)) {
-    define(view, key, ownView(valueType, Reflect.get(value, key)));
+    define(view, key, ownView(valueType, ownValue(value, key))); // an accessor reads as undefined
   }
   return view;
 }
 
 /**
- * Copies the own fields the schema declares (enumerable or not), level by level, so the parse
- * never sees an inherited value. Unknown own enumerable keys are kept as keys with an
- * undefined value: their getters never run, and strict objects still reject them.
+ * Copies the own data fields the schema declares (enumerable or not), level by level, so the
+ * parse never sees an inherited value. An accessor counts as absent and its getter never runs.
+ * Unknown own enumerable keys are kept as keys with an undefined value, so strict objects still
+ * reject them.
  */
 function ownView(schema: z.ZodType, value: unknown): unknown {
   const def = defOf(schema);
@@ -164,10 +177,8 @@ function ownView(schema: z.ZodType, value: unknown): unknown {
     return recordView(def.valueType, value);
   }
   if (def.type === "union" && def.options !== undefined && isObject(value)) {
-    // With exactly one object option, an object can only match that one. Other unions pass as is.
-    const objects = def.options.filter((o) => defOf(o).type === "object");
-    const [option] = objects;
-    return objects.length === 1 && option !== undefined ? ownView(option, value) : value;
+    const option = onlyObjectOption(def.options);
+    return option === undefined ? value : ownView(option, value);
   }
   if (def.type === "object" && def.shape !== undefined && isObject(value)) {
     return objectView(def.shape, value);
@@ -175,19 +186,158 @@ function ownView(schema: z.ZodType, value: unknown): unknown {
   return value;
 }
 
+type Walk = (value: unknown) => boolean;
+
+const walks = new WeakMap<z.ZodType, Walk>();
+
+const alwaysOwn: Walk = () => true;
+
+// Returns the getter without calling it, and allocates nothing for a data property.
+// biome-ignore lint/suspicious/noExplicitAny: Annex B method, absent from the lib types.
+const lookupGetter = (Object.prototype as any).__lookupGetter__ as (key: PropertyKey) => unknown;
+
+function compileObjectWalk(shape: Fields): Walk {
+  // Parallel arrays and indexed loops: this runs once per object of a large history.
+  const keys = Object.keys(shape);
+  const fieldWalks = keys.map((key) => walkOf(shape[key] as z.ZodType));
+  const hasNested = fieldWalks.some((walk) => walk !== alwaysOwn);
+  return (value) => {
+    if (!isObject(value)) {
+      return true;
+    }
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) {
+      return false; // the parse would see inherited keys; the copy keeps own keys only
+    }
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i] as string;
+      if (lookupGetter.call(value, key) !== undefined) {
+        return false; // a getter: the copy treats it as absent
+      }
+      if (!Object.hasOwn(value, key)) {
+        if (key in value) {
+          return false; // inherited: the copy treats it as absent
+        }
+        continue;
+      }
+      // A setter-only accessor reads as undefined without running code.
+      if (hasNested && !(fieldWalks[i] as Walk)(value[key])) {
+        return false;
+      }
+    }
+    return true;
+  };
+}
+
+/** The copy keeps own enumerable string keys only, so any other own key takes the copy path. */
+function compileRecordWalk(walk: Walk): Walk {
+  return (value) => {
+    if (!isObject(value)) {
+      return true;
+    }
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) {
+      return false;
+    }
+    const keys = Object.keys(value);
+    if (Reflect.ownKeys(value).length !== keys.length) {
+      return false;
+    }
+    for (const key of keys) {
+      if (lookupGetter.call(value, key) !== undefined || !walk(value[key])) {
+        return false;
+      }
+    }
+    return true;
+  };
+}
+
+function compileWalk(schema: z.ZodType): Walk {
+  const def = defOf(schema);
+  if (def.type !== undefined && WRAPPERS.has(def.type) && def.innerType !== undefined) {
+    return walkOf(def.innerType);
+  }
+  const element = def.element;
+  if (def.type === "array" && element !== undefined) {
+    const walk = walkOf(element);
+    const nested = walk !== alwaysOwn;
+    return (value) => {
+      if (!Array.isArray(value)) {
+        return true;
+      }
+      for (let i = 0; i < value.length; i += 1) {
+        if (lookupGetter.call(value, i) !== undefined) {
+          return false; // a getter element: the copy treats it as absent
+        }
+        if (nested && !walk(value[i])) {
+          return false;
+        }
+      }
+      return true;
+    };
+  }
+  if (def.type === "record" && def.valueType !== undefined) {
+    return compileRecordWalk(walkOf(def.valueType));
+  }
+  if (def.type === "union" && def.options !== undefined) {
+    const option = onlyObjectOption(def.options);
+    if (option === undefined) {
+      return alwaysOwn;
+    }
+    const walk = walkOf(option);
+    return (value) => !isObject(value) || walk(value);
+  }
+  if (def.type === "object" && def.shape !== undefined) {
+    return compileObjectWalk(def.shape);
+  }
+  return alwaysOwn;
+}
+
+function walkOf(schema: z.ZodType): Walk {
+  let walk = walks.get(schema);
+  if (walk === undefined) {
+    walk = compileWalk(schema);
+    walks.set(schema, walk);
+  }
+  return walk;
+}
+
+/**
+ * True when every object is plain (prototype `Object.prototype` or null) and every declared
+ * field is absent or an own property without a getter, level by level. Then the copy would equal
+ * the original, and the parse can read the original. Nothing is allocated, and no getter runs.
+ */
+function isOwnData(schema: z.ZodType, value: unknown): boolean {
+  return walkOf(schema)(value);
+}
+
 /** Returns the error text, or undefined when the value matches the schema. */
 export function problem(schema: z.ZodType, value: unknown, path: string): string | undefined {
-  const parsed = schema.safeParse(ownView(schema, value));
+  const parsed = schema.safeParse(isOwnData(schema, value) ? value : ownView(schema, value));
   return parsed.success ? undefined : firstError(parsed.error, value, path);
 }
 
-export function verdict<T>(error: string | undefined, value: unknown): Validation<T> {
+/**
+ * Runs `check` at the validation boundary. Hostile input, such as a Proxy whose traps throw, can
+ * make inspection throw; that counts as invalid, because validators never throw.
+ */
+export function verdict<T>(
+  value: unknown,
+  path: string,
+  check: () => string | undefined,
+): Validation<T> {
+  let error: string | undefined;
+  try {
+    error = check();
+  } catch {
+    error = `${path}: is not a valid value`;
+  }
   // The caller has checked `value` against the schema of T; the same object is returned.
   return error === undefined ? { ok: true, value: value as T } : { ok: false, error };
 }
 
 export function validateWith<T>(schema: z.ZodType, value: unknown, path: string): Validation<T> {
-  return verdict(problem(schema, value, path), value);
+  return verdict(value, path, () => problem(schema, value, path));
 }
 
 export const arrayProblem = (
@@ -198,8 +348,11 @@ export const arrayProblem = (
   if (!Array.isArray(value)) {
     return `${path}: must be an array`;
   }
-  for (const [i, item] of value.entries()) {
-    const error = check(item, `${path}[${i}]`);
+  for (let i = 0; i < value.length; i += 1) {
+    if (lookupGetter.call(value, i) !== undefined) {
+      return `${path}[${i}]: is required`; // an accessor element is never read
+    }
+    const error = check(value[i], `${path}[${i}]`);
     if (error !== undefined) {
       return error;
     }
@@ -225,7 +378,7 @@ function checkBase(value: unknown, path: string): string | undefined {
   if (!isObject(value)) {
     return `${path}: must be an object`;
   }
-  switch (value.type) {
+  switch (ownValue(value, "type")) {
     case undefined:
     case "http":
       return problem(httpCheckSchema, value, path);
@@ -262,12 +415,12 @@ function checkWithState(value: unknown, path: string): string | undefined {
 
 /** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
 export function validateCheck(value: unknown, path = "check"): Validation<Check> {
-  return verdict(checkBase(value, path), value);
+  return verdict(value, path, () => checkBase(value, path));
 }
 
 /** Validates a `CheckWithState`. Returns the same object. */
 export function validateCheckWithState(value: unknown, path = "check"): Validation<CheckWithState> {
-  return verdict(checkWithState(value, path), value);
+  return verdict(value, path, () => checkWithState(value, path));
 }
 
 /** Validates a `Result`. Returns the same object. */
@@ -310,7 +463,7 @@ export function validateChecksResponse(
   value: unknown,
   path = "checks",
 ): Validation<ChecksResponse> {
-  return verdict(arrayProblem(checkWithState, value, path), value);
+  return verdict(value, path, () => arrayProblem(checkWithState, value, path));
 }
 
 /** Validates `GET /checks/:id/results`; fails on the first bad element. */
@@ -318,9 +471,8 @@ export function validateResultsResponse(
   value: unknown,
   path = "results",
 ): Validation<ResultsResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(resultSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -329,9 +481,8 @@ export function validateIncidentsResponse(
   value: unknown,
   path = "incidents",
 ): Validation<IncidentsResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(incidentSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -340,9 +491,8 @@ export function validateMaintenanceResponse(
   value: unknown,
   path = "maintenance",
 ): Validation<MaintenanceResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(maintenanceWindowSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -356,9 +506,8 @@ export function validateLatencyResponse(
   value: unknown,
   path = "latency",
 ): Validation<LatencyResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(checkLatencySchema, item, p), value, path),
-    value,
   );
 }
 
@@ -372,9 +521,8 @@ export function validateUptimeResponse(
   value: unknown,
   path = "uptime",
 ): Validation<UptimeResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(checkUptimeSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -388,9 +536,8 @@ export function validateLocationsResponse(
   value: unknown,
   path = "locations",
 ): Validation<LocationsResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(locationSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -420,9 +567,8 @@ export function validateComponentsResponse(
   value: unknown,
   path = "components",
 ): Validation<ComponentsResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(componentWithStateSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -431,9 +577,8 @@ export function validateComponentsUptimeResponse(
   value: unknown,
   path = "uptime",
 ): Validation<ComponentsUptimeResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(componentUptimeSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -450,9 +595,8 @@ export function validateManualIncidentsResponse(
   value: unknown,
   path = "manualIncidents",
 ): Validation<ManualIncidentsResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(manualIncidentSchema, item, p), value, path),
-    value,
   );
 }
 

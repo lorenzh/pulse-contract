@@ -56,7 +56,7 @@ export function validateAdminCheckInput(
   value: unknown,
   path = "check",
 ): Validation<AdminCheckInput> {
-  return verdict(checkInputProblem(value, path), value);
+  return verdict(value, path, () => checkInputProblem(value, path));
 }
 
 /** Validates a check as the admin api serves it. A header value, `body` or `secret` is rejected. */

@@ -15,7 +15,7 @@ test("type fixtures are loadable", () => {
 test("dist matches a fresh build of src", () => {
   const out = mkdtempSync(join(tmpdir(), "contract-dist-"));
   try {
-    const tsc = join(root, "node_modules", "typescript", "bin", "tsc");
+    const tsc = join(root, "node_modules", "typescript7", "bin", "tsc");
     execFileSync(
       process.execPath,
       [tsc, "-p", join(root, "tsconfig.build.json"), "--outDir", out],

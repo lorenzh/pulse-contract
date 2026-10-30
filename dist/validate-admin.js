@@ -29,7 +29,7 @@ function checkInputProblem(value, path) {
  * rejected. Returns the same object.
  */
 export function validateAdminCheckInput(value, path = "check") {
-    return verdict(checkInputProblem(value, path), value);
+    return verdict(value, path, () => checkInputProblem(value, path));
 }
 /** Validates a check as the admin api serves it. A header value, `body` or `secret` is rejected. */
 export function validateAdminCheckView(value, path = "check") {

@@ -7,25 +7,25 @@ export declare const MAX_TIMER_MS = 2147483647;
 /** Availability objective in percent: a number >= 90 and < 100. */
 export declare const availabilityTargetSchema: z.ZodNumber;
 export declare const checkStatusSchema: z.ZodEnum<{
-    up: "up";
     degraded: "degraded";
     down: "down";
+    up: "up";
 }>;
 export declare const checkStateSchema: z.ZodEnum<{
-    up: "up";
     degraded: "degraded";
     down: "down";
-    unknown: "unknown";
     maintenance: "maintenance";
+    unknown: "unknown";
+    up: "up";
 }>;
 export declare const httpMethodSchema: z.ZodEnum<{
+    DELETE: "DELETE";
     GET: "GET";
     HEAD: "HEAD";
+    OPTIONS: "OPTIONS";
+    PATCH: "PATCH";
     POST: "POST";
     PUT: "PUT";
-    PATCH: "PATCH";
-    DELETE: "DELETE";
-    OPTIONS: "OPTIONS";
 }>;
 export declare const headerValueSchema: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
     env: z.ZodString;
@@ -57,13 +57,13 @@ export declare const httpCheckSchema: z.ZodObject<{
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
     keyword: z.ZodOptional<z.ZodString>;
     method: z.ZodOptional<z.ZodEnum<{
+        DELETE: "DELETE";
         GET: "GET";
         HEAD: "HEAD";
+        OPTIONS: "OPTIONS";
+        PATCH: "PATCH";
         POST: "POST";
         PUT: "PUT";
-        PATCH: "PATCH";
-        DELETE: "DELETE";
-        OPTIONS: "OPTIONS";
     }>>;
     headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
         env: z.ZodString;
@@ -103,16 +103,10 @@ export declare const dnsRecordTypeSchema: z.ZodEnum<{
     AAAA: "AAAA";
     CNAME: "CNAME";
     MX: "MX";
-    TXT: "TXT";
     NS: "NS";
+    TXT: "TXT";
 }>;
 export declare const tcpCheckSchema: z.ZodObject<{
-    type: z.ZodEnum<{
-        tcp: "tcp";
-    }>;
-    host: z.ZodString;
-    port: z.ZodNumber;
-    intervalMs: z.ZodNumber;
     id: z.ZodString;
     name: z.ZodString;
     timeoutMs: z.ZodOptional<z.ZodNumber>;
@@ -127,8 +121,28 @@ export declare const tcpCheckSchema: z.ZodObject<{
     jsonAssert: z.ZodOptional<z.ZodNever>;
     keyword: z.ZodOptional<z.ZodNever>;
     latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
+    type: z.ZodEnum<{
+        tcp: "tcp";
+    }>;
+    host: z.ZodString;
+    port: z.ZodNumber;
+    intervalMs: z.ZodNumber;
 }, z.core.$strip>;
 export declare const dnsCheckSchema: z.ZodObject<{
+    id: z.ZodString;
+    name: z.ZodString;
+    timeoutMs: z.ZodOptional<z.ZodNumber>;
+    retries: z.ZodOptional<z.ZodNumber>;
+    retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
+    url: z.ZodOptional<z.ZodNever>;
+    method: z.ZodOptional<z.ZodNever>;
+    headers: z.ZodOptional<z.ZodNever>;
+    body: z.ZodOptional<z.ZodNever>;
+    expectedStatus: z.ZodOptional<z.ZodNever>;
+    jsonAssert: z.ZodOptional<z.ZodNever>;
+    keyword: z.ZodOptional<z.ZodNever>;
+    latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
     type: z.ZodEnum<{
         dns: "dns";
     }>;
@@ -138,12 +152,14 @@ export declare const dnsCheckSchema: z.ZodObject<{
         AAAA: "AAAA";
         CNAME: "CNAME";
         MX: "MX";
-        TXT: "TXT";
         NS: "NS";
+        TXT: "TXT";
     }>;
     expected: z.ZodOptional<z.ZodArray<z.ZodString>>;
     resolver: z.ZodOptional<z.ZodString>;
     intervalMs: z.ZodNumber;
+}, z.core.$strip>;
+export declare const domainCheckSchema: z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;
     timeoutMs: z.ZodOptional<z.ZodNumber>;
@@ -158,28 +174,12 @@ export declare const dnsCheckSchema: z.ZodObject<{
     jsonAssert: z.ZodOptional<z.ZodNever>;
     keyword: z.ZodOptional<z.ZodNever>;
     latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
-}, z.core.$strip>;
-export declare const domainCheckSchema: z.ZodObject<{
     type: z.ZodEnum<{
         domain: "domain";
     }>;
     domain: z.ZodString;
     warnDays: z.ZodNumber;
     intervalMs: z.ZodNumber;
-    id: z.ZodString;
-    name: z.ZodString;
-    timeoutMs: z.ZodOptional<z.ZodNumber>;
-    retries: z.ZodOptional<z.ZodNumber>;
-    retryDelayMs: z.ZodOptional<z.ZodNumber>;
-    availabilityTarget: z.ZodOptional<z.ZodNumber>;
-    url: z.ZodOptional<z.ZodNever>;
-    method: z.ZodOptional<z.ZodNever>;
-    headers: z.ZodOptional<z.ZodNever>;
-    body: z.ZodOptional<z.ZodNever>;
-    expectedStatus: z.ZodOptional<z.ZodNever>;
-    jsonAssert: z.ZodOptional<z.ZodNever>;
-    keyword: z.ZodOptional<z.ZodNever>;
-    latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
 }, z.core.$strip>;
 export declare const heartbeatCheckSchema: z.ZodObject<{
     id: z.ZodString;
@@ -201,9 +201,9 @@ export declare const resultSchema: z.ZodObject<{
     checkId: z.ZodString;
     timestamp: z.ZodInt;
     status: z.ZodEnum<{
-        up: "up";
         degraded: "degraded";
         down: "down";
+        up: "up";
     }>;
     statusCode: z.ZodNullable<z.ZodNumber>;
     latencyMs: z.ZodNumber;
@@ -216,9 +216,9 @@ export declare const postResultRequestSchema: z.ZodObject<{
     checkId: z.ZodString;
     timestamp: z.ZodInt;
     status: z.ZodEnum<{
-        up: "up";
         degraded: "degraded";
         down: "down";
+        up: "up";
     }>;
     statusCode: z.ZodNullable<z.ZodNumber>;
     latencyMs: z.ZodNumber;
@@ -246,9 +246,9 @@ export declare const locationResultSchema: z.ZodObject<{
         checkId: z.ZodString;
         timestamp: z.ZodInt;
         status: z.ZodEnum<{
-            up: "up";
             degraded: "degraded";
             down: "down";
+            up: "up";
         }>;
         statusCode: z.ZodNullable<z.ZodNumber>;
         latencyMs: z.ZodNumber;
@@ -277,11 +277,11 @@ export declare const sloSchema: z.ZodObject<{
 }, z.core.$strip>;
 export declare const checkStateFieldsSchema: z.ZodObject<{
     state: z.ZodEnum<{
-        up: "up";
         degraded: "degraded";
         down: "down";
-        unknown: "unknown";
         maintenance: "maintenance";
+        unknown: "unknown";
+        up: "up";
     }>;
     consecutiveDown: z.ZodInt;
     lastResultAt: z.ZodNullable<z.ZodNumber>;
@@ -292,9 +292,9 @@ export declare const checkStateFieldsSchema: z.ZodObject<{
             checkId: z.ZodString;
             timestamp: z.ZodInt;
             status: z.ZodEnum<{
-                up: "up";
                 degraded: "degraded";
                 down: "down";
+                up: "up";
             }>;
             statusCode: z.ZodNullable<z.ZodNumber>;
             latencyMs: z.ZodNumber;
@@ -359,12 +359,18 @@ export declare const componentSchema: z.ZodObject<{
     availabilityTarget: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict>;
 export declare const componentWithStateSchema: z.ZodObject<{
+    id: z.ZodString;
+    name: z.ZodString;
+    description: z.ZodOptional<z.ZodString>;
+    checkIds: z.ZodArray<z.ZodString>;
+    group: z.ZodOptional<z.ZodString>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     state: z.ZodEnum<{
-        up: "up";
         degraded: "degraded";
         down: "down";
-        unknown: "unknown";
         maintenance: "maintenance";
+        unknown: "unknown";
+        up: "up";
     }>;
     uptime: z.ZodNullable<z.ZodNumber>;
     incidentIds: z.ZodArray<z.ZodInt>;
@@ -374,12 +380,6 @@ export declare const componentWithStateSchema: z.ZodObject<{
         availability: z.ZodNullable<z.ZodNumber>;
         budgetRemaining: z.ZodNullable<z.ZodNumber>;
     }, z.core.$strip>>;
-    id: z.ZodString;
-    name: z.ZodString;
-    description: z.ZodOptional<z.ZodString>;
-    checkIds: z.ZodArray<z.ZodString>;
-    group: z.ZodOptional<z.ZodString>;
-    availabilityTarget: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strip>;
 export declare const componentUptimeSchema: z.ZodObject<{
     componentId: z.ZodString;
@@ -401,14 +401,14 @@ export declare const MANUAL_INCIDENT_MAX_BODY_BYTES: number;
 export declare const MANUAL_INCIDENT_IMPACTS: readonly ["none", "minor", "major", "critical"];
 export declare const MANUAL_INCIDENT_STATUSES: readonly ["investigating", "identified", "monitoring", "resolved"];
 export declare const manualIncidentImpactSchema: z.ZodEnum<{
-    none: "none";
-    minor: "minor";
-    major: "major";
     critical: "critical";
+    major: "major";
+    minor: "minor";
+    none: "none";
 }>;
 export declare const manualIncidentStatusSchema: z.ZodEnum<{
-    investigating: "investigating";
     identified: "identified";
+    investigating: "investigating";
     monitoring: "monitoring";
     resolved: "resolved";
 }>;
@@ -416,8 +416,8 @@ export declare const manualIncidentStatusSchema: z.ZodEnum<{
 export declare const manualIncidentUpdateSchema: z.ZodObject<{
     at: z.ZodNumber;
     status: z.ZodEnum<{
-        investigating: "investigating";
         identified: "identified";
+        investigating: "investigating";
         monitoring: "monitoring";
         resolved: "resolved";
     }>;
@@ -427,15 +427,15 @@ export declare const manualIncidentUpdateSchema: z.ZodObject<{
 export declare const manualIncidentInputSchema: z.ZodObject<{
     title: z.ZodString;
     impact: z.ZodEnum<{
-        none: "none";
-        minor: "minor";
-        major: "major";
         critical: "critical";
+        major: "major";
+        minor: "minor";
+        none: "none";
     }>;
     componentIds: z.ZodArray<z.ZodString>;
     status: z.ZodOptional<z.ZodEnum<{
-        investigating: "investigating";
         identified: "identified";
+        investigating: "investigating";
         monitoring: "monitoring";
     }>>;
     message: z.ZodString;
@@ -443,8 +443,8 @@ export declare const manualIncidentInputSchema: z.ZodObject<{
 /** Body of `POST /manual-incidents/{id}/updates`. `status` may be `resolved`. */
 export declare const manualIncidentUpdateInputSchema: z.ZodObject<{
     status: z.ZodEnum<{
-        investigating: "investigating";
         identified: "identified";
+        investigating: "investigating";
         monitoring: "monitoring";
         resolved: "resolved";
     }>;
@@ -460,14 +460,14 @@ export declare const manualIncidentSchema: z.ZodObject<{
     title: z.ZodString;
     componentIds: z.ZodArray<z.ZodString>;
     impact: z.ZodEnum<{
-        none: "none";
-        minor: "minor";
-        major: "major";
         critical: "critical";
+        major: "major";
+        minor: "minor";
+        none: "none";
     }>;
     status: z.ZodEnum<{
-        investigating: "investigating";
         identified: "identified";
+        investigating: "investigating";
         monitoring: "monitoring";
         resolved: "resolved";
     }>;
@@ -476,8 +476,8 @@ export declare const manualIncidentSchema: z.ZodObject<{
     updates: z.ZodArray<z.ZodObject<{
         at: z.ZodNumber;
         status: z.ZodEnum<{
-            investigating: "investigating";
             identified: "identified";
+            investigating: "investigating";
             monitoring: "monitoring";
             resolved: "resolved";
         }>;

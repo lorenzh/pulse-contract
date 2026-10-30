@@ -2,6 +2,7 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
   MAX_TIMER_MS,
+  validateAdminCheckInput,
   validateCheck,
   validateChecksResponse,
   validateCheckUptime,
@@ -400,7 +401,21 @@ test("dates must be real calendar days", () => {
     errorOf(validateCheckUptime({ ...first, days: [{ date, uptime: null, results: 0 }] }));
   assert.equal(dateError("2028-02-29"), undefined);
   assert.equal(dateError("2030-02-28"), undefined);
-  for (const date of ["2030-02-30", "2029-02-29", "2030-13-01", "2030-04-31", "2030-00-10"]) {
+  for (const date of ["2000-02-29", "0000-02-29", "2030-12-31", "2030-04-30"]) {
+    assert.equal(dateError(date), undefined, date);
+  }
+  for (const date of [
+    "2030-02-30",
+    "2029-02-29",
+    "2100-02-29",
+    "2030-13-01",
+    "2030-04-31",
+    "2030-00-10",
+    "2030-01-00",
+    "2030-01-32",
+    "2030-1-01",
+    "2030-01-01\n",
+  ]) {
     assert.equal(dateError(date), "uptime.days[0].date: must be a YYYY-MM-DD date", date);
   }
 });
@@ -464,6 +479,55 @@ test("a throwing getter on an unknown key does not throw", () => {
   assert.equal(validateCheck(input).ok, true);
 });
 
+test("an own accessor on a declared nested field is not run and counts as absent", () => {
+  const [first] = fixture.uptime;
+  let ran = false;
+  const day = Object.defineProperty({ uptime: 1, results: 1 }, "date", {
+    enumerable: true,
+    get(): string {
+      ran = true;
+      throw new Error("declared getter ran");
+    },
+  });
+  const result = validateCheckUptime({ ...first, days: [day] });
+  assert.equal(errorOf(result), "uptime.days[0].date: is required");
+  assert.equal(ran, false);
+});
+
+test("an accessor on a check type is not run", () => {
+  const input = Object.defineProperty({ ...fixture.variants.httpCheck }, "type", {
+    enumerable: true,
+    get(): string {
+      throw new Error("type getter ran");
+    },
+  });
+  assert.equal(validateCheck(input).ok, true); // an absent type means http
+});
+
+test("a null-prototype object validates", () => {
+  const input = Object.assign(Object.create(null), fixture.variants.httpCheck);
+  assert.equal(validateCheck(input).ok, true);
+});
+
+test("an accessor on an array index is not run and counts as absent", () => {
+  const [first] = fixture.uptime;
+  const accessorAt0 = (items: unknown[]): unknown[] =>
+    Object.defineProperty([...items], 0, {
+      enumerable: true,
+      get(): never {
+        throw new Error("index getter ran");
+      },
+    });
+  assert.equal(
+    errorOf(validateCheckUptime({ ...first, days: accessorAt0(first?.days ?? []) })),
+    "uptime.days[0]: is required",
+  );
+  assert.equal(
+    errorOf(validateUptimeResponse(accessorAt0(fixture.uptime))),
+    "uptime[0]: is required",
+  );
+});
+
 test("a header reference that exists only on the prototype is rejected", () => {
   const input = {
     ...fixture.variants.httpCheck,
@@ -491,4 +555,66 @@ test("a throwing enumerable map getter on days does not throw", () => {
   });
   const result = validateCheckUptime({ ...first, days });
   assert.equal(result.ok, true);
+});
+
+test("accessors in headers and header references are not run", () => {
+  const throwing = (target: object, key: string): object =>
+    Object.defineProperty(target, key, {
+      enumerable: true,
+      get(): never {
+        throw new Error("header getter ran");
+      },
+    });
+  const check = fixture.variants.httpCheck;
+  const asValue = { ...check, headers: throwing({}, "Authorization") };
+  const asEnv = { ...check, headers: { Authorization: throwing({}, "env") } };
+  assert.equal(validateCheck(asValue).ok, false);
+  assert.equal(validateCheck(asEnv).ok, false);
+});
+
+test("hostile proxies in header references, records and arrays never throw", () => {
+  const traps = ["getPrototypeOf", "ownKeys", "getOwnPropertyDescriptor", "get", "has"] as const;
+  const hostile = <T extends object>(target: T, trap: (typeof traps)[number]): T =>
+    new Proxy(target, {
+      [trap]: (): never => {
+        throw new Error(`${trap} trap ran`);
+      },
+    });
+  const check = fixture.variants.httpCheck;
+  const [first] = fixture.uptime;
+  for (const trap of traps) {
+    const cases: [string, () => { ok: boolean }][] = [
+      [
+        "header reference",
+        () =>
+          validateCheck({ ...check, headers: { Authorization: hostile({ env: "TOKEN" }, trap) } }),
+      ],
+      [
+        "admin header reference",
+        () =>
+          validateAdminCheckInput({
+            ...check,
+            headers: { Authorization: hostile({ env: "TOKEN" }, trap) },
+          }),
+      ],
+      [
+        "header record",
+        () => validateCheck({ ...check, headers: hostile({ Authorization: "x" }, trap) }),
+      ],
+      [
+        "days array",
+        () => validateCheckUptime({ ...first, days: hostile([...(first?.days ?? [])], trap) }),
+      ],
+      ["response array", () => validateUptimeResponse(hostile([...fixture.uptime], trap))],
+      ["whole check", () => validateCheck(hostile({ ...check }, trap))],
+    ];
+    for (const [where, run] of cases) {
+      assert.doesNotThrow(run, `${trap} in ${where}`);
+    }
+  }
+  const headerRef = { Authorization: hostile({ env: "TOKEN" }, "getPrototypeOf") };
+  assert.equal(
+    errorOf(validateCheck({ ...check, headers: headerRef })),
+    "check: is not a valid value",
+  );
 });

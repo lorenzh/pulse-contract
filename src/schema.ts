@@ -30,18 +30,22 @@ const oneOf = <T extends string>(allowed: readonly [T, ...T[]]): z.ZodEnum<{ [K 
     error: `must be one of ${allowed.map((a) => JSON.stringify(a)).join(", ")}`,
   });
 
+const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+/** A real proleptic Gregorian date, years 0000..9999. Arithmetic, no `Date`: it runs per history day. */
 const isCalendarDate = (value: string): boolean => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (match === null) {
+  if (!CALENDAR_DATE.test(value)) {
     return false;
   }
-  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  // Date.UTC maps years 0..99 to 19xx, so set the year on an existing date.
-  const date = new Date(0);
-  date.setUTCFullYear(year, month - 1, day);
-  return (
-    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
-  );
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(5, 7));
+  const day = Number(value.slice(8, 10));
+  if (month < 1 || month > 12 || day < 1) {
+    return false;
+  }
+  const leapDay = month === 2 && year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 1 : 0;
+  return day <= (DAYS_PER_MONTH[month - 1] as number) + leapDay;
 };
 
 const objectError = { error: "must be an object" } as const;
