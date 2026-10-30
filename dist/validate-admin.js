@@ -1,54 +1,26 @@
-import { adminCheckViewSchema, adminComponentInputSchema, adminConfigResponseSchema, adminMaintenanceInputSchema, adminMaintenanceViewSchema, adminSecretSchema, } from "./admin.js";
-import { dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
+import { adminCheckInputSchemas, adminCheckViewSchema, adminComponentInputSchema, adminConfigResponseSchema, adminMaintenanceInputSchema, adminMaintenanceViewSchema, } from "./admin.js";
 import { isObject, problem, validateCheck, validateWith, verdict, } from "./validate.js";
-function declaredKeys(type) {
-    switch (type) {
-        case "tls":
-            return Object.keys(tlsCheckSchema.shape);
-        case "tcp":
-            return Object.keys(tcpCheckSchema.shape);
-        case "dns":
-            return Object.keys(dnsCheckSchema.shape);
-        case "domain":
-            return Object.keys(domainCheckSchema.shape);
-        case "heartbeat":
-            return Object.keys(heartbeatCheckSchema.shape);
-        default:
-            return Object.keys(httpCheckSchema.shape);
-    }
-}
+/** Picks the schema by `type`, so errors name the field instead of the whole union. */
 function checkInputProblem(value, path) {
     if (!isObject(value)) {
         return `${path}: must be an object`;
     }
-    const isHeartbeat = value.type === "heartbeat";
-    const rest = {};
-    for (const key of Object.keys(value)) {
-        if (key !== "secret") {
-            Object.defineProperty(rest, key, {
-                value: Reflect.get(value, key),
-                enumerable: true,
-                writable: true,
-                configurable: true,
-            });
-        }
+    const type = value.type ?? "http";
+    if (type !== "heartbeat" && Reflect.get(value, "secret") !== undefined) {
+        return `${path}.secret: is only allowed on a heartbeat check`;
     }
-    if (Object.hasOwn(value, "secret") && Reflect.get(value, "secret") !== undefined) {
-        if (!isHeartbeat) {
-            return `${path}.secret: is only allowed on a heartbeat check`;
-        }
-        const secret = problem(adminSecretSchema, Reflect.get(value, "secret"), `${path}.secret`);
-        if (secret !== undefined) {
-            return secret;
-        }
+    const schema = Object.hasOwn(adminCheckInputSchemas, type)
+        ? adminCheckInputSchemas[type]
+        : undefined;
+    if (schema === undefined) {
+        const base = validateCheck(value, path); // only for its type message
+        return base.ok ? undefined : base.error;
     }
-    const base = validateCheck(rest, path);
-    if (!base.ok) {
-        return base.error;
+    const unknown = Object.keys(value).find((key) => !Object.hasOwn(schema.shape, key));
+    if (unknown !== undefined) {
+        return `${path}.${unknown}: is not allowed on this check`;
     }
-    const allowed = declaredKeys(value.type);
-    const unknown = Object.keys(rest).find((key) => !allowed.includes(key));
-    return unknown === undefined ? undefined : `${path}.${unknown}: is not allowed on this check`;
+    return problem(schema, value, path);
 }
 /**
  * Validates the body of `POST /admin/checks` or `PUT /admin/checks/:id`: a check, plus `secret`

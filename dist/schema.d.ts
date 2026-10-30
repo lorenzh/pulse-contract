@@ -34,6 +34,13 @@ export declare const jsonAssertSchema: z.ZodObject<{
     equals: z.ZodOptional<z.ZodJSONSchema>;
     exists: z.ZodOptional<z.ZodLiteral<true>>;
 }, z.core.$strip>;
+/** Cross-field rules of an http check; shared with the admin schemas, which cannot `.omit()` a refined object. */
+export declare function refineHttpCheck(check: {
+    method?: string | undefined;
+    body?: unknown;
+    jsonAssert?: unknown;
+    keyword?: unknown;
+}, ctx: z.RefinementCtx): void;
 export declare const httpCheckSchema: z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;

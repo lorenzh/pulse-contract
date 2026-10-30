@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { componentSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, maintenanceWindowSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
+import { componentSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, maintenanceWindowSchema, refineHttpCheck, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
 /** Request header that carries the revision a write is based on. Required on every write. */
 export const ADMIN_IF_MATCH_HEADER = "if-match";
 /** Response header that carries the revision, quoted: `"sha256-<hex>"`. */
@@ -41,7 +41,7 @@ const revisionSchema = z
 const secretSchema = z
     .string({ error: "must be a non-empty string" })
     .min(1, "must be a non-empty string");
-/** Strict object of a check shape without the fields an admin view must not carry. */
+/** Strict object of a check shape without refinements. */
 const strictView = (shape) => z.strictObject(shape, objectError);
 const { headers: _headers, body: _body, ...httpViewShape } = httpCheckSchema.shape;
 const httpViewSchema = strictView({
@@ -52,21 +52,38 @@ const httpViewSchema = strictView({
         .optional(),
     /** True when the check has a request body; the body itself is never served. */
     hasBody: z.boolean({ error: "must be a boolean" }).optional(),
-});
+}).superRefine(refineHttpCheck);
 const heartbeatViewSchema = strictView({
     ...heartbeatCheckSchema.shape,
     /** Always true: a heartbeat check has a secret, which is never served. */
-    hasSecret: z.boolean({ error: "must be a boolean" }),
+    hasSecret: z.literal(true, { error: "must be true" }),
 });
 /** A check as the admin api serves it: no header values, no body, no secret. Strict. */
 export const adminCheckViewSchema = z.union([
     httpViewSchema,
-    strictView(tlsCheckSchema.shape),
-    strictView(tcpCheckSchema.shape),
-    strictView(dnsCheckSchema.shape),
-    strictView(domainCheckSchema.shape),
+    tlsCheckSchema.strict(),
+    tcpCheckSchema.strict(),
+    dnsCheckSchema.strict(),
+    domainCheckSchema.strict(),
     heartbeatViewSchema,
 ], { error: "must be a check view" });
+/** Strict schema of a check write body, per `type` (absent means `http`). Keeps every check refinement. */
+export const adminCheckInputSchemas = {
+    http: httpCheckSchema.strict(),
+    tls: tlsCheckSchema.strict(),
+    tcp: tcpCheckSchema.strict(),
+    dns: dnsCheckSchema.strict(),
+    domain: domainCheckSchema.strict(),
+    /** `secret` is write-only: a `PUT` without it keeps the old one. */
+    heartbeat: strictView({ ...heartbeatCheckSchema.shape, secret: secretSchema.optional() }),
+};
+/**
+ * Body of `POST /admin/checks` and `PUT /admin/checks/:id`: a `Check`, plus for a heartbeat check
+ * a write-only `secret`. Strict: only the declared fields are allowed.
+ */
+export const adminCheckInputSchema = z.union(Object.values(adminCheckInputSchemas), {
+    error: "must be a check",
+});
 /** A component as configured; the same shape in requests and responses. */
 export const adminComponentSchema = componentSchema;
 export const adminComponentInputSchema = componentSchema;

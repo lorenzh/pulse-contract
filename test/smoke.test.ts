@@ -51,6 +51,7 @@ test("package entry exports the validators and the wire version", async () => {
       "ADMIN_MAX_BODY_BYTES",
       "ADMIN_REVISION_PREFIX",
       "ADMIN_STATUS_ORDER",
+      "adminCheckInputSchema",
       "adminCheckViewSchema",
       "adminComponentInputSchema",
       "adminComponentSchema",

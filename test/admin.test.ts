@@ -4,7 +4,9 @@ import {
   ADMIN_IF_MATCH_HEADER,
   ADMIN_REVISION_PREFIX,
   ADMIN_STATUS_ORDER,
+  type AdminCheckInput,
   type AdminConfigResponse,
+  adminCheckInputSchema,
   isAdminRevision,
   validateAdminCheckInput,
   validateAdminCheckView,
@@ -143,4 +145,38 @@ test("check input accepts each probed type and rejects its stray keys", () => {
     assert.equal(validateAdminCheckInput(check).ok, true, String(check.type));
     assert.equal(validateAdminCheckInput({ ...check, stray: 1 }).ok, false, String(check.type));
   }
+});
+
+test("check input has an exported strict schema that the validator agrees with", () => {
+  const hb = { id: "h", name: "H", type: "heartbeat", period: 1000, grace: 0, secret: SENTINEL };
+  const parsed: AdminCheckInput = adminCheckInputSchema.parse(hb);
+  assert.deepEqual(parsed, hb);
+  const cases = [
+    http,
+    hb,
+    { ...http, extra: 1 },
+    { ...http, secret: "x" },
+    { ...hb, secret: "" },
+    { ...http, method: "HEAD", keyword: "x" },
+    { id: "d", name: "D", type: "domain", domain: "example.com", warnDays: 1, intervalMs: 1 },
+  ];
+  for (const value of cases) {
+    assert.equal(
+      adminCheckInputSchema.safeParse(value).success,
+      validateAdminCheckInput(value).ok,
+      JSON.stringify(value),
+    );
+  }
+});
+
+test("check view keeps the check refinements", () => {
+  const domain = { id: "d", name: "D", type: "domain", domain: "example.com", warnDays: 1 };
+  assert.equal(validateAdminCheckView({ ...domain, intervalMs: 3_600_000 }).ok, true);
+  assert.equal(validateAdminCheckView({ ...domain, intervalMs: 1 }).ok, false);
+  assert.equal(validateAdminCheckView({ ...http, method: "HEAD", keyword: "x" }).ok, false);
+});
+
+test("heartbeat view requires hasSecret: true", () => {
+  const hb = { id: "h", name: "H", type: "heartbeat", period: 1000, grace: 0 };
+  assert.equal(validateAdminCheckView({ ...hb, hasSecret: false }).ok, false);
 });
