@@ -71,14 +71,14 @@ const MAX_HEADER_VALUE_BYTES = 4096;
 const MAX_HEADERS_TOTAL_BYTES = 16 * 1024;
 /** RFC 9110 token. */
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
-/** Tab, space, visible ASCII and obs-text; no CR or LF. */
-const HEADER_VALUE = /^[\t\x20-\x7e\x80-\xff]*$/;
+/** Space, visible ASCII and obs-text; no control characters (tab, CR, LF). */
+const HEADER_VALUE = /^[\x20-\x7e\x80-\xff]*$/;
 const ENV_NAME = /^[A-Za-z_]\w{0,127}$/;
 
 export const headerValueSchema = z.union(
   [
     z.string().refine((v) => v.length <= MAX_HEADER_VALUE_BYTES && HEADER_VALUE.test(v), {
-      error: `must be at most ${MAX_HEADER_VALUE_BYTES} visible ASCII characters without CR or LF`,
+      error: `must be at most ${MAX_HEADER_VALUE_BYTES} visible ASCII/obs-text characters or spaces`,
     }),
     z.object(
       {

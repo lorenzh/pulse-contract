@@ -22,7 +22,13 @@ const errorOf = (value: unknown): string | undefined => {
 const withFields = (fields: Record<string, unknown>): unknown => ({ ...base, ...fields });
 
 test("the fixture with every new option is valid", () => {
-  assert.equal(validateCheck(fixture.variants.requestCheck).ok, true);
+  const check = fixture.variants.requestCheck;
+  assert.equal(validateCheck(check).ok, true);
+  // Each new field is validated, not ignored as an unknown key.
+  const bad = { method: "get", headers: { A: 1 }, body: 1, expectedStatus: [], jsonAssert: [] };
+  for (const [field, value] of Object.entries(bad)) {
+    assert.match(errorOf({ ...check, [field]: value }) ?? "", new RegExp(`^c\\.${field}`), field);
+  }
 });
 
 test("every method is accepted, bad ones are not", () => {
@@ -47,6 +53,8 @@ test("headers: names, forbidden, duplicates, count, size", () => {
   const many = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`H${i}`, "v"]));
   assert.match(errorOf(withFields({ headers: many })) ?? "", /at most 20/);
   assert.match(errorOf(withFields({ headers: { A: "x\r\ny" } })) ?? "", /^c\.headers\.A:/);
+  assert.match(errorOf(withFields({ headers: { A: "x\ty" } })) ?? "", /^c\.headers\.A:/);
+  assert.equal(errorOf(withFields({ headers: { A: "a b\x80" } })), undefined);
   assert.match(errorOf(withFields({ headers: { A: "x".repeat(4097) } })) ?? "", /^c\.headers\.A:/);
   assert.equal(errorOf(withFields({ headers: { A: "x".repeat(4096) } })), undefined);
   assert.match(errorOf(withFields({ headers: { A: 1 } })) ?? "", /^c\.headers\.A:/);

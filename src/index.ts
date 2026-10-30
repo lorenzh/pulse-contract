@@ -32,7 +32,13 @@ export type {
   UptimeDay,
   UptimeResponse,
 } from "./schema.ts";
-export { MAX_TIMER_MS } from "./schema.ts";
+export {
+  expectedStatusSchema,
+  headerValueSchema,
+  httpMethodSchema,
+  jsonAssertSchema,
+  MAX_TIMER_MS,
+} from "./schema.ts";
 export {
   type Validation,
   validateCheck,
