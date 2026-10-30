@@ -244,6 +244,15 @@ export declare const locationResultSchema: z.ZodObject<{
     }, z.core.$strip>;
     stale: z.ZodBoolean;
 }, z.core.$strip>;
+/** One probe location as the api lists it in `GET /locations`. Unknown keys are rejected. */
+export declare const locationSchema: z.ZodObject<{
+    name: z.ZodString;
+    lastResultAt: z.ZodNumber;
+    state: z.ZodEnum<{
+        reporting: "reporting";
+        silent: "silent";
+    }>;
+}, z.core.$strict>;
 export declare const checkStateFieldsSchema: z.ZodObject<{
     state: z.ZodEnum<{
         up: "up";
@@ -474,6 +483,8 @@ export type ManualIncidentUpdateInput = z.infer<typeof manualIncidentUpdateInput
 export type MaintenanceWindow = z.infer<typeof maintenanceWindowSchema>;
 /** The latest result of one probe location for a check. */
 export type LocationResult = z.infer<typeof locationResultSchema>;
+/** A probe location with its last result time and `reporting` or `silent` state. */
+export type Location = z.infer<typeof locationSchema>;
 export type CheckStateFields = z.infer<typeof checkStateFieldsSchema>;
 /** A check with its evaluated state; distributes over the `Check` union. */
 export type CheckWithState = Check & CheckStateFields;
@@ -494,6 +505,8 @@ export type ComponentUptime = z.infer<typeof componentUptimeSchema>;
 export type PostResultRequest = z.infer<typeof postResultRequestSchema>;
 /** GET /checks */
 export type ChecksResponse = CheckWithState[];
+/** GET /locations */
+export type LocationsResponse = Location[];
 /** GET /checks/:id/results */
 export type ResultsResponse = Result[];
 /** GET /incidents */

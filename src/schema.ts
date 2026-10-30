@@ -511,6 +511,22 @@ export const locationResultSchema = z.object(
   objectError,
 );
 
+/** One probe location as the api lists it in `GET /locations`. Unknown keys are rejected. */
+export const locationSchema = z.strictObject(
+  {
+    name: nonEmpty,
+    /** Epoch ms of the newest accepted result timestamp of this location. */
+    lastResultAt: atLeast(0),
+    state: oneOf(["reporting", "silent"]),
+  },
+  {
+    error: (issue) =>
+      issue.code === "unrecognized_keys"
+        ? `has an unknown field: ${issue.keys.join(", ")}`
+        : "must be an object",
+  },
+);
+
 export const checkStateFieldsSchema = z.object(
   {
     state: checkStateSchema,
@@ -815,6 +831,8 @@ export type ManualIncidentUpdateInput = z.infer<typeof manualIncidentUpdateInput
 export type MaintenanceWindow = z.infer<typeof maintenanceWindowSchema>;
 /** The latest result of one probe location for a check. */
 export type LocationResult = z.infer<typeof locationResultSchema>;
+/** A probe location with its last result time and `reporting` or `silent` state. */
+export type Location = z.infer<typeof locationSchema>;
 export type CheckStateFields = z.infer<typeof checkStateFieldsSchema>;
 /** A check with its evaluated state; distributes over the `Check` union. */
 export type CheckWithState = Check & CheckStateFields;
@@ -835,6 +853,8 @@ export type ComponentUptime = z.infer<typeof componentUptimeSchema>;
 export type PostResultRequest = z.infer<typeof postResultRequestSchema>;
 /** GET /checks */
 export type ChecksResponse = CheckWithState[];
+/** GET /locations */
+export type LocationsResponse = Location[];
 /** GET /checks/:id/results */
 export type ResultsResponse = Result[];
 /** GET /incidents */

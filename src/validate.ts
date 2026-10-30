@@ -21,6 +21,9 @@ import {
   type Incident,
   type IncidentsResponse,
   incidentSchema,
+  type Location,
+  type LocationsResponse,
+  locationSchema,
   type MaintenanceResponse,
   type MaintenanceWindow,
   type ManualIncident,
@@ -312,6 +315,22 @@ export function validateUptimeResponse(
 ): Validation<UptimeResponse> {
   return verdict(
     arrayProblem((item, p) => problem(checkUptimeSchema, item, p), value, path),
+    value,
+  );
+}
+
+/** Validates a `Location`; unknown keys are rejected. Returns the same object. */
+export function validateLocation(value: unknown, path = "location"): Validation<Location> {
+  return validateWith(locationSchema, value, path);
+}
+
+/** Validates `GET /locations`; fails on the first bad element. */
+export function validateLocationsResponse(
+  value: unknown,
+  path = "locations",
+): Validation<LocationsResponse> {
+  return verdict(
+    arrayProblem((item, p) => problem(locationSchema, item, p), value, path),
     value,
   );
 }
