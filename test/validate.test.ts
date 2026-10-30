@@ -426,3 +426,12 @@ test("inherited names are never present and extra fields are kept", () => {
   const result = validateCheck(input);
   assert.equal(result.ok && result.value, input);
 });
+
+test("a required field that exists only on the prototype is rejected", () => {
+  const { httpCheck } = fixture.variants;
+  const inherited = Object.assign(Object.create({ id: "from-prototype" }), httpCheck, {
+    id: undefined,
+  });
+  delete inherited.id;
+  assert.equal(errorOf(validateCheck(inherited)), "check.id: is required");
+});
