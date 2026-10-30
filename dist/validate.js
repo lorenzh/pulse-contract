@@ -1,4 +1,4 @@
-import { checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, maintenanceWindowSchema, manualIncidentInputSchema, manualIncidentSchema, manualIncidentUpdateInputSchema, postResultRequestSchema, resultSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
+import { checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, locationSchema, maintenanceWindowSchema, manualIncidentInputSchema, manualIncidentSchema, manualIncidentUpdateInputSchema, postResultRequestSchema, resultSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 /** Reads an own property; inherited names such as `constructor` count as absent. */
 function ownValue(parent, key) {
@@ -192,6 +192,14 @@ export function validateMaintenanceResponse(value, path = "maintenance") {
 /** Validates `GET /uptime`; fails on the first bad element. */
 export function validateUptimeResponse(value, path = "uptime") {
     return verdict(arrayProblem((item, p) => problem(checkUptimeSchema, item, p), value, path), value);
+}
+/** Validates a `Location`; unknown keys are rejected. Returns the same object. */
+export function validateLocation(value, path = "location") {
+    return validateWith(locationSchema, value, path);
+}
+/** Validates `GET /locations`; fails on the first bad element. */
+export function validateLocationsResponse(value, path = "locations") {
+    return verdict(arrayProblem((item, p) => problem(locationSchema, item, p), value, path), value);
 }
 /** Validates a `Component`; unknown keys are rejected. Returns the same object. */
 export function validateComponent(value, path = "component") {

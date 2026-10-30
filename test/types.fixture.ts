@@ -21,7 +21,9 @@ import type {
   Incident,
   IncidentsResponse,
   JsonAssertion,
+  Location,
   LocationResult,
+  LocationsResponse,
   MaintenanceResponse,
   MaintenanceWindow,
   ManualIncident,
@@ -170,6 +172,8 @@ const inMaintenance: CheckWithState = {
   maintenance: window,
 };
 const maintenance: MaintenanceResponse = [window];
+const location: Location = { name: "default", lastResultAt: 1, state: "reporting" };
+const locations: LocationsResponse = [location];
 const checks: ChecksResponse = [withState, inMaintenance];
 const variants = {
   withObjective,
@@ -247,6 +251,8 @@ export const fixture = {
   minimalRequest,
   variants,
   checks,
+  location,
+  locations,
   results,
   incidents,
   maintenance,

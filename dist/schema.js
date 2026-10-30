@@ -419,6 +419,17 @@ export const locationResultSchema = z.object({
     /** True when the latest result is outside the window ending at the check's newest result. */
     stale: bool,
 }, objectError);
+/** One probe location as the api lists it in `GET /locations`. Unknown keys are rejected. */
+export const locationSchema = z.strictObject({
+    name: nonEmpty,
+    /** Epoch ms of the newest accepted result timestamp of this location. */
+    lastResultAt: atLeast(0),
+    state: oneOf(["reporting", "silent"]),
+}, {
+    error: (issue) => issue.code === "unrecognized_keys"
+        ? `has an unknown field: ${issue.keys.join(", ")}`
+        : "must be an object",
+});
 export const checkStateFieldsSchema = z.object({
     state: checkStateSchema,
     consecutiveDown: integer,

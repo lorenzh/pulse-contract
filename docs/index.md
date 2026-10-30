@@ -29,6 +29,8 @@ Every type exported from `src/index.ts`. Import them with `import type`.
 | `Result`                    | One probe result: check id, timestamp, status, status code, latency, reason, location, attempts, optional `certDaysLeft`.                                  |
 | `Incident`                  | A run of down results: check id, `openedAt`, `resolvedAt` (null while open), reason.                                                                       |
 | `LocationResult`            | The latest `Result` of one probe location, with a `stale` flag.                                                                                            |
+| `Location`                  | A probe location in `GET /locations`: `name`, `lastResultAt` (epoch ms), `state` (`reporting` or `silent`). Unknown keys are rejected.                     |
+| `LocationsResponse`         | Response of `GET /locations`: `Location[]`.                                                                                                                |
 | `MaintenanceWindow`         | A planned window for one check, half-open `[start, end)` in epoch ms, with a note.                                                                         |
 | `CheckStateFields`          | The evaluated state added to a check: `state`, `consecutiveDown`, `lastResultAt`, `lastReason`, `locations`, optional `maintenance` and `certDaysLeft`.    |
 | `CheckWithState`            | `Check & CheckStateFields`; distributes over every check variant.                                                                                          |
@@ -242,6 +244,20 @@ Read helpers: `getManualIncidents(baseUrl, options, status?)` (`status` is `open
 `all`) and `getManualIncident(baseUrl, id, options)` wrap `fetchJson`. With
 `isAbsentTolerated: true`, a 404 from an older api gives an empty list.
 
+### Locations
+
+`GET /locations` returns a `LocationsResponse`: one `Location` per probe location that has reported,
+sorted by name. `name` is the location name, `lastResultAt` is the newest accepted result timestamp
+of that location (epoch ms, integer >= 0) and `state` is `reporting` or `silent`. `silent` means the
+api received nothing from the location for longer than its silence threshold; `reporting` means it
+did. Replayed old results make a location `reporting` again while `lastResultAt` still shows their
+old timestamps.
+
+`Location` differs from `LocationResult`: a `LocationResult` is the latest `Result` of one location
+for one check (in `CheckWithState.locations`); a `Location` describes the probe location as a whole.
+The route is an additive minor change: `WIRE_VERSION` stays 1 and the api sends the wire header on
+it as on every route. The heartbeat pseudo-location is never listed.
+
 ## Validators
 
 Exported from the package root, built on the zod schemas in `src/schema.ts` (types are `z.infer` aliases with the names below). Each takes an untrusted
@@ -252,11 +268,11 @@ returns `Validation<T>`: `{ ok: true; value: T } | { ok: false; error: string }`
   `validateResult`, `validateIncident`, `validateMaintenanceWindow`, `validateCheckUptime`,
   `validatePostResultRequest`, `validateComponent` (rejects unknown keys), `validateComponentWithState`,
   `validateComponentUptime`, `validateManualIncident`, `validateManualIncidentInput`,
-  `validateManualIncidentUpdateInput`. Default paths: `check`, `result`, `incident`, `maintenance`, `uptime`, `component`.
+  `validateManualIncidentUpdateInput`, `validateLocation` (rejects unknown keys). Default paths: `check`, `result`, `incident`, `maintenance`, `uptime`, `component`.
 - Array validators, which fail on the first bad element and name its index: `validateChecksResponse`
   (uses `validateCheckWithState`), `validateResultsResponse`, `validateIncidentsResponse`,
   `validateMaintenanceResponse`, `validateUptimeResponse`, `validateComponentsResponse`,
-  `validateComponentsUptimeResponse`, `validateManualIncidentsResponse`. A consumer that skips bad items loops over
+  `validateComponentsUptimeResponse`, `validateManualIncidentsResponse`, `validateLocationsResponse`. A consumer that skips bad items loops over
   the raw array with the item validator and the path `checks[<i>]`; one that fails the whole
   response uses the array validator.
 
