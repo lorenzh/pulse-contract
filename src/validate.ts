@@ -14,6 +14,8 @@ import {
   componentSchema,
   componentUptimeSchema,
   componentWithStateSchema,
+  dnsCheckSchema,
+  domainCheckSchema,
   heartbeatCheckSchema,
   httpCheckSchema,
   type Incident,
@@ -34,6 +36,7 @@ import {
   type Result,
   type ResultsResponse,
   resultSchema,
+  tcpCheckSchema,
   tlsCheckSchema,
   type UptimeResponse,
 } from "./schema.ts";
@@ -164,16 +167,13 @@ const arrayProblem = (
 };
 
 /**
- * Rejects keys outside the heartbeat and state shapes; a heartbeat check never carries a
- * secret or a target. Own keys only, so inherited names such as `constructor` stay unknown.
+ * Rejects keys outside the type's shape and the state shape; own keys only, so inherited names
+ * such as `constructor` stay unknown. A heartbeat check never carries a secret or a target.
  */
-function unknownKey(value: Fields, path: string): string | undefined {
+function unknownKey(value: Fields, path: string, shape: Fields, type: string): string | undefined {
   for (const key of Object.keys(value)) {
-    if (
-      !Object.hasOwn(heartbeatCheckSchema.shape, key) &&
-      !Object.hasOwn(checkStateFieldsSchema.shape, key)
-    ) {
-      return `${path}.${key}: is not allowed on a heartbeat check`;
+    if (!Object.hasOwn(shape, key) && !Object.hasOwn(checkStateFieldsSchema.shape, key)) {
+      return `${path}.${key}: is not allowed on ${type} check`;
     }
   }
   return undefined;
@@ -191,9 +191,27 @@ function checkBase(value: unknown, path: string): string | undefined {
     case "tls":
       return problem(tlsCheckSchema, value, path);
     case "heartbeat":
-      return problem(heartbeatCheckSchema, value, path) ?? unknownKey(value, path);
+      return (
+        problem(heartbeatCheckSchema, value, path) ??
+        unknownKey(value, path, heartbeatCheckSchema.shape, "a heartbeat")
+      );
+    case "tcp":
+      return (
+        problem(tcpCheckSchema, value, path) ??
+        unknownKey(value, path, tcpCheckSchema.shape, "a tcp")
+      );
+    case "dns":
+      return (
+        problem(dnsCheckSchema, value, path) ??
+        unknownKey(value, path, dnsCheckSchema.shape, "a dns")
+      );
+    case "domain":
+      return (
+        problem(domainCheckSchema, value, path) ??
+        unknownKey(value, path, domainCheckSchema.shape, "a domain")
+      );
     default:
-      return `${path}.type: must be "http", "tls" or "heartbeat"`;
+      return `${path}.type: must be "http", "tls", "tcp", "dns", "domain" or "heartbeat"`;
   }
 }
 

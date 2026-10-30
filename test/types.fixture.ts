@@ -120,7 +120,12 @@ const checkTarget = (c: Check): string => {
     case "heartbeat":
       return `every ${c.period}ms`;
     case "tls":
+    case "tcp":
       return c.host;
+    case "dns":
+      return c.dnsName;
+    case "domain":
+      return c.domain;
     case "http":
     case undefined:
       return c.url;

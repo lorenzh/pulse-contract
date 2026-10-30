@@ -85,6 +85,88 @@ export declare const tlsCheckSchema: z.ZodObject<{
     jsonAssert: z.ZodOptional<z.ZodNever>;
     keyword: z.ZodOptional<z.ZodNever>;
 }, z.core.$strip>;
+/** Smallest `intervalMs` of a domain check: 1 hour. */
+export declare const MIN_DOMAIN_INTERVAL_MS = 3600000;
+export declare const dnsRecordTypeSchema: z.ZodEnum<{
+    A: "A";
+    AAAA: "AAAA";
+    CNAME: "CNAME";
+    MX: "MX";
+    TXT: "TXT";
+    NS: "NS";
+}>;
+export declare const tcpCheckSchema: z.ZodObject<{
+    type: z.ZodEnum<{
+        tcp: "tcp";
+    }>;
+    host: z.ZodString;
+    port: z.ZodNumber;
+    intervalMs: z.ZodNumber;
+    id: z.ZodString;
+    name: z.ZodString;
+    timeoutMs: z.ZodOptional<z.ZodNumber>;
+    retries: z.ZodOptional<z.ZodNumber>;
+    retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    url: z.ZodOptional<z.ZodNever>;
+    method: z.ZodOptional<z.ZodNever>;
+    headers: z.ZodOptional<z.ZodNever>;
+    body: z.ZodOptional<z.ZodNever>;
+    expectedStatus: z.ZodOptional<z.ZodNever>;
+    jsonAssert: z.ZodOptional<z.ZodNever>;
+    keyword: z.ZodOptional<z.ZodNever>;
+    latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
+}, z.core.$strip>;
+export declare const dnsCheckSchema: z.ZodObject<{
+    type: z.ZodEnum<{
+        dns: "dns";
+    }>;
+    dnsName: z.ZodString;
+    recordType: z.ZodEnum<{
+        A: "A";
+        AAAA: "AAAA";
+        CNAME: "CNAME";
+        MX: "MX";
+        TXT: "TXT";
+        NS: "NS";
+    }>;
+    expected: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    resolver: z.ZodOptional<z.ZodString>;
+    intervalMs: z.ZodNumber;
+    id: z.ZodString;
+    name: z.ZodString;
+    timeoutMs: z.ZodOptional<z.ZodNumber>;
+    retries: z.ZodOptional<z.ZodNumber>;
+    retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    url: z.ZodOptional<z.ZodNever>;
+    method: z.ZodOptional<z.ZodNever>;
+    headers: z.ZodOptional<z.ZodNever>;
+    body: z.ZodOptional<z.ZodNever>;
+    expectedStatus: z.ZodOptional<z.ZodNever>;
+    jsonAssert: z.ZodOptional<z.ZodNever>;
+    keyword: z.ZodOptional<z.ZodNever>;
+    latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
+}, z.core.$strip>;
+export declare const domainCheckSchema: z.ZodObject<{
+    type: z.ZodEnum<{
+        domain: "domain";
+    }>;
+    domain: z.ZodString;
+    warnDays: z.ZodNumber;
+    intervalMs: z.ZodNumber;
+    id: z.ZodString;
+    name: z.ZodString;
+    timeoutMs: z.ZodOptional<z.ZodNumber>;
+    retries: z.ZodOptional<z.ZodNumber>;
+    retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    url: z.ZodOptional<z.ZodNever>;
+    method: z.ZodOptional<z.ZodNever>;
+    headers: z.ZodOptional<z.ZodNever>;
+    body: z.ZodOptional<z.ZodNever>;
+    expectedStatus: z.ZodOptional<z.ZodNever>;
+    jsonAssert: z.ZodOptional<z.ZodNever>;
+    keyword: z.ZodOptional<z.ZodNever>;
+    latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
+}, z.core.$strip>;
 export declare const heartbeatCheckSchema: z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;
@@ -364,7 +446,18 @@ export type TlsCheck = z.infer<typeof tlsCheckSchema>;
  * The ping secret is not part of this type: the api never serves it.
  */
 export type HeartbeatCheck = z.infer<typeof heartbeatCheckSchema>;
-export type Check = HttpCheck | TlsCheck | HeartbeatCheck;
+/** A TCP port that must accept a connection; the probe sends nothing and closes at once. */
+export type TcpCheck = z.infer<typeof tcpCheckSchema>;
+export type DnsRecordType = z.infer<typeof dnsRecordTypeSchema>;
+/** A DNS record that must resolve, to the `expected` values when set. */
+export type DnsCheck = z.infer<typeof dnsCheckSchema>;
+/**
+ * Watches the registration expiry of a domain (RDAP). `certDaysLeft` carries the whole days
+ * left. Degraded within `warnDays`, down when expired or unknown. `intervalMs` is at least
+ * `MIN_DOMAIN_INTERVAL_MS`.
+ */
+export type DomainCheck = z.infer<typeof domainCheckSchema>;
+export type Check = HttpCheck | TlsCheck | TcpCheck | DnsCheck | DomainCheck | HeartbeatCheck;
 export type Result = z.infer<typeof resultSchema>;
 export type Incident = z.infer<typeof incidentSchema>;
 export type ManualIncidentImpact = z.infer<typeof manualIncidentImpactSchema>;

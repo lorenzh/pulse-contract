@@ -288,6 +288,130 @@ export const tlsCheckSchema = z.object(
   objectError,
 );
 
+/** Smallest `intervalMs` of a domain check: 1 hour. */
+export const MIN_DOMAIN_INTERVAL_MS = 3_600_000;
+
+const HOSTNAME_LABEL = /^\w(?:[\w-]{0,61}\w)?$/;
+const DOMAIN_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const IPV4 = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
+
+const isLabelList = (value: string, label: RegExp, minLabels: number): boolean => {
+  if (value.length > 253) {
+    return false;
+  }
+  const labels = value.split(".");
+  return labels.length >= minLabels && labels.every((l) => label.test(l));
+};
+
+// Browser-safe IPv6 check: the URL parser accepts exactly the bracketed IPv6 literals.
+const isIpv6 = (value: string): boolean => {
+  if (!value.includes(":") || !/^[0-9A-Fa-f:.]+$/.test(value)) {
+    return false;
+  }
+  try {
+    return new URL(`http://[${value}]/`).hostname !== "";
+  } catch {
+    // An unparsable literal is simply not an IPv6 address.
+    return false;
+  }
+};
+
+const hostnameSchema = nonEmpty.refine((v) => isLabelList(v, HOSTNAME_LABEL, 1), {
+  error: "must be a hostname without scheme, port or path",
+});
+
+const domainNameSchema = nonEmpty.refine((v) => isLabelList(v, DOMAIN_LABEL, 2), {
+  error: "must be a lowercase domain name with at least two labels, without scheme, port or path",
+});
+
+const resolverSchema = nonEmpty.refine((v) => IPV4.test(v) || isIpv6(v), {
+  error: "must be an IPv4 or IPv6 address without port",
+});
+
+const DNS_RECORD_TYPES = ["A", "AAAA", "CNAME", "MX", "TXT", "NS"] as const;
+export const dnsRecordTypeSchema = oneOf(DNS_RECORD_TYPES);
+
+const dnsExpectedSchema = z
+  .array(nonEmpty, { error: "must be an array" })
+  .min(1, "must not be empty")
+  .max(20, "must have at most 20 entries");
+
+/** Fields shared by the retrying non-HTTP checks, and the HTTP-only fields they reject. */
+const probedFields = {
+  id: nonEmpty,
+  name: text,
+  /** Integer 1..2147483647 (`MAX_TIMER_MS`). */
+  timeoutMs: timerMs.optional(),
+  /** Extra attempts after a failed one, integer 0..10. Absent means 0; the api serves it resolved. */
+  retries: intBetween(0, 10).optional(),
+  /** Wait in ms between attempts, integer 0..60000. Absent means 1000; the api serves it resolved. */
+  retryDelayMs: intBetween(0, 60_000).optional(),
+  /** Not available on this check type. */
+  url: z.never().optional(),
+  method: z.never().optional(),
+  headers: z.never().optional(),
+  body: z.never().optional(),
+  expectedStatus: z.never().optional(),
+  jsonAssert: z.never().optional(),
+  keyword: z.never().optional(),
+  latencyObjectiveMs: z.never().optional(),
+};
+
+export const tcpCheckSchema = z.object(
+  {
+    ...probedFields,
+    type: oneOf(["tcp"]),
+    /** Non-empty. */
+    host: nonEmpty,
+    /** Integer 1..65535. */
+    port: intBetween(1, 65_535),
+    /** Integer 1..2147483647 (`MAX_TIMER_MS`). */
+    intervalMs: timerMs,
+  },
+  objectError,
+);
+
+export const dnsCheckSchema = z.object(
+  {
+    ...probedFields,
+    type: oneOf(["dns"]),
+    /** Hostname to resolve. `name` is the display name of every check, so the DNS name is `dnsName`. */
+    dnsName: hostnameSchema,
+    recordType: dnsRecordTypeSchema,
+    /** Values the answer must contain, 1..20 entries. Absent means any answer is up. */
+    expected: dnsExpectedSchema.optional(),
+    /** IPv4 or IPv6 address of the resolver, without port. Absent means the system resolver. */
+    resolver: resolverSchema.optional(),
+    /** Integer 1..2147483647 (`MAX_TIMER_MS`). */
+    intervalMs: timerMs,
+  },
+  objectError,
+);
+
+export const domainCheckSchema = z
+  .object(
+    {
+      ...probedFields,
+      type: oneOf(["domain"]),
+      /** Lowercase domain name with at least two labels. */
+      domain: domainNameSchema,
+      /** Integer >= 0. The check is degraded when the domain has this many days or fewer left. */
+      warnDays: atLeast(0),
+      /** Integer `MIN_DOMAIN_INTERVAL_MS`..2147483647. */
+      intervalMs: timerMs,
+    },
+    objectError,
+  )
+  .superRefine((check, ctx) => {
+    if (check.intervalMs < MIN_DOMAIN_INTERVAL_MS) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["intervalMs"],
+        message: `must be at least ${MIN_DOMAIN_INTERVAL_MS} (1 hour) for a domain check`,
+      });
+    }
+  });
+
 export const heartbeatCheckSchema = z.object(
   {
     id: nonEmpty,
@@ -325,7 +449,7 @@ export const resultSchema = z.object(
     location: text,
     /** Attempts made for this result, integer >= 1 (at most `retries` + 1). */
     attempts: atLeast(1),
-    /** TLS checks: floored whole days until expiry, negative when expired, null when unread. */
+    /** TLS and domain checks: floored whole days until expiry, negative when expired, null when unread. */
     certDaysLeft: optionalCertDaysLeft,
   },
   objectError,
@@ -397,7 +521,7 @@ export const checkStateFieldsSchema = z.object(
     locations: z.array(locationResultSchema, { error: "must be an array" }),
     /** The active window; set only when state is "maintenance". */
     maintenance: maintenanceWindowSchema.optional(),
-    /** certDaysLeft of the latest result; absent or null for HTTP and without a certificate. */
+    /** certDaysLeft of the latest result; absent or null for other check types and without a certificate. */
     certDaysLeft: optionalCertDaysLeft,
   },
   objectError,
@@ -663,7 +787,18 @@ export type TlsCheck = z.infer<typeof tlsCheckSchema>;
  * The ping secret is not part of this type: the api never serves it.
  */
 export type HeartbeatCheck = z.infer<typeof heartbeatCheckSchema>;
-export type Check = HttpCheck | TlsCheck | HeartbeatCheck;
+/** A TCP port that must accept a connection; the probe sends nothing and closes at once. */
+export type TcpCheck = z.infer<typeof tcpCheckSchema>;
+export type DnsRecordType = z.infer<typeof dnsRecordTypeSchema>;
+/** A DNS record that must resolve, to the `expected` values when set. */
+export type DnsCheck = z.infer<typeof dnsCheckSchema>;
+/**
+ * Watches the registration expiry of a domain (RDAP). `certDaysLeft` carries the whole days
+ * left. Degraded within `warnDays`, down when expired or unknown. `intervalMs` is at least
+ * `MIN_DOMAIN_INTERVAL_MS`.
+ */
+export type DomainCheck = z.infer<typeof domainCheckSchema>;
+export type Check = HttpCheck | TlsCheck | TcpCheck | DnsCheck | DomainCheck | HeartbeatCheck;
 export type Result = z.infer<typeof resultSchema>;
 export type Incident = z.infer<typeof incidentSchema>;
 export type ManualIncidentImpact = z.infer<typeof manualIncidentImpactSchema>;

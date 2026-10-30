@@ -63,7 +63,10 @@ test("invalid checks name the path", () => {
     [{ ...base, timeoutMs: "5" }, "check.timeoutMs: must be an integer 1..2147483647"],
     [{ ...base, retries: 1.5 }, "check.retries: must be an integer 0..10"],
     [{ ...base, keyword: 3 }, "check.keyword: must be a string"],
-    [{ ...base, type: "ftp" }, 'check.type: must be "http", "tls" or "heartbeat"'],
+    [
+      { ...base, type: "ftp" },
+      'check.type: must be "http", "tls", "tcp", "dns", "domain" or "heartbeat"',
+    ],
   ];
   for (const [input, message] of cases) {
     assert.equal(errorOf(validateCheck(input)), message);
