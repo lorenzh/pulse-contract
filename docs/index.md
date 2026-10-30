@@ -303,6 +303,27 @@ Validators: `validateAdminCheckInput` (also checks `secret`: heartbeat only, non
 `validateAdminCheckView`, `validateAdminComponentInput`, `validateAdminComponent`,
 `validateAdminMaintenanceInput`, `validateAdminMaintenanceView`, `validateAdminConfigResponse`.
 
+## Latency history and availability SLOs
+
+`availabilityTarget` is an optional percent, >= 90 and < 100, on every check type (heartbeat and
+TLS included) and on a `Component`. Components keep it in `ComponentWithState` too.
+
+`CheckLatency` is `{ checkId, days }` with exactly 90 UTC `LatencyDay`s, oldest first, today last:
+`{ date, p50Ms, p95Ms, count }`. The percentiles are nearest-rank over the up and degraded results of
+the day (all locations): the value at 1-based index `ceil(p * n)` of the sorted `latencyMs`, without
+interpolation (p50 of [10,20,30,40] is 20). Unit: ms. A day with `count` 0 has `null` percentiles;
+a day with `count` > 0 has numbers. `GET /latency` returns a `LatencyResponse` (`CheckLatency[]`).
+
+`Slo` is `{ target, windowDays, availability, budgetRemaining }`. `windowDays` is 30 (UTC days,
+today included). `availability` is the result-weighted percent over the window (degraded counts as
+up), 0..100. `budgetRemaining = 100 * (1 - (1 - availability/100) / (1 - target/100))` in percent of the
+error budget; it is negative when the budget is exceeded. Both are `null` without results. Target 99.9
+with availability 99.95 gives 50; availability 99.8 gives -100. `slo` is optional on `CheckWithState` and
+`ComponentWithState` and present only when a target is set. The api metric reports the budget as a
+ratio (0.5 = 50 %), not a percent.
+
+Validators: `validateCheckLatency`, `validateLatencyResponse`, `validateSlo`.
+
 ## Validators
 
 Exported from the package root, built on the zod schemas in `src/schema.ts` (types are `z.infer` aliases with the names below). Each takes an untrusted
@@ -334,20 +355,23 @@ Service-specific bounds (timestamp windows, length limits) stay in the service.
 
 Bounds (a value outside them is rejected):
 
-| Field                                                               | Rule                                                                                |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `intervalMs` (all but heartbeat), `timeoutMs`, `latencyObjectiveMs` | integer 1..2147483647 (`MAX_TIMER_MS`)                                              |
-| domain `intervalMs`                                                 | integer 3600000..2147483647 (`MIN_DOMAIN_INTERVAL_MS`..`MAX_TIMER_MS`)              |
-| `retries`                                                           | integer 0..10                                                                       |
-| `retryDelayMs`                                                      | integer 0..60000                                                                    |
-| tls and tcp `port`                                                  | integer 1..65535                                                                    |
-| tls and domain `warnDays`                                           | integer 0..`Number.MAX_SAFE_INTEGER` (the `z.int()` cap)                            |
-| dns `expected`                                                      | 1..20 non-empty strings                                                             |
-| heartbeat `period`                                                  | integer 1000..86400000                                                              |
-| heartbeat `grace`                                                   | integer 0..86400000                                                                 |
-| `uptime` (day and total)                                            | null or number 0..100                                                               |
-| `UptimeDay.date`                                                    | `YYYY-MM-DD`, a real calendar date (`2030-02-30` is rejected, leap years are right) |
-| maintenance `end`                                                   | greater than `start`; the error names `<path>.end`                                  |
+| Field                                                               | Rule                                                                                         |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `intervalMs` (all but heartbeat), `timeoutMs`, `latencyObjectiveMs` | integer 1..2147483647 (`MAX_TIMER_MS`)                                                       |
+| domain `intervalMs`                                                 | integer 3600000..2147483647 (`MIN_DOMAIN_INTERVAL_MS`..`MAX_TIMER_MS`)                       |
+| `retries`                                                           | integer 0..10                                                                                |
+| `retryDelayMs`                                                      | integer 0..60000                                                                             |
+| tls and tcp `port`                                                  | integer 1..65535                                                                             |
+| tls and domain `warnDays`                                           | integer 0..`Number.MAX_SAFE_INTEGER` (the `z.int()` cap)                                     |
+| dns `expected`                                                      | 1..20 non-empty strings                                                                      |
+| heartbeat `period`                                                  | integer 1000..86400000                                                                       |
+| heartbeat `grace`                                                   | integer 0..86400000                                                                          |
+| `uptime` (day and total)                                            | null or number 0..100                                                                        |
+| `UptimeDay.date`                                                    | `YYYY-MM-DD`, a real calendar date (`2030-02-30` is rejected, leap years are right)          |
+| `availabilityTarget` (every check type, `Component`)                | number >= 90 and < 100 (percent); 89.9, 100, NaN and strings are rejected                    |
+| `CheckLatency.days`                                                 | exactly 90 `LatencyDay`s; `count` 0 needs `p50Ms` and `p95Ms` null, `count` > 0 numbers >= 0 |
+| `Slo.windowDays`                                                    | 30                                                                                           |
+| maintenance `end`                                                   | greater than `start`; the error names `<path>.end`                                           |
 
 `MAX_TIMER_MS` (2147483647, 2^31-1) is exported: Node clamps a longer timer delay to 1 ms, so no
 layer passes a delay above it to a timer.

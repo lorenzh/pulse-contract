@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import {
   type Check,
+  type CheckLatency,
   type ChecksResponse,
   type CheckUptime,
   type CheckWithState,
@@ -9,6 +10,7 @@ import {
   type ComponentsUptimeResponse,
   type ComponentUptime,
   type ComponentWithState,
+  checkLatencySchema,
   checkStateFieldsSchema,
   checkUptimeSchema,
   componentSchema,
@@ -21,6 +23,7 @@ import {
   type Incident,
   type IncidentsResponse,
   incidentSchema,
+  type LatencyResponse,
   type Location,
   type LocationsResponse,
   locationSchema,
@@ -39,6 +42,8 @@ import {
   type Result,
   type ResultsResponse,
   resultSchema,
+  type Slo,
+  sloSchema,
   tcpCheckSchema,
   tlsCheckSchema,
   type UptimeResponse,
@@ -306,6 +311,27 @@ export function validateMaintenanceResponse(
     arrayProblem((item, p) => problem(maintenanceWindowSchema, item, p), value, path),
     value,
   );
+}
+
+/** Validates a `CheckLatency`: exactly 90 days, null values exactly on days with `count` 0. */
+export function validateCheckLatency(value: unknown, path = "latency"): Validation<CheckLatency> {
+  return validateWith(checkLatencySchema, value, path);
+}
+
+/** Validates `GET /latency`; fails on the first bad element. */
+export function validateLatencyResponse(
+  value: unknown,
+  path = "latency",
+): Validation<LatencyResponse> {
+  return verdict(
+    arrayProblem((item, p) => problem(checkLatencySchema, item, p), value, path),
+    value,
+  );
+}
+
+/** Validates an `Slo`. Returns the same object. */
+export function validateSlo(value: unknown, path = "slo"): Validation<Slo> {
+  return validateWith(sloSchema, value, path);
 }
 
 /** Validates `GET /uptime`; fails on the first bad element. */
