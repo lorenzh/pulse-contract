@@ -21,7 +21,14 @@ import {
   incidentSchema,
   type MaintenanceResponse,
   type MaintenanceWindow,
+  type ManualIncident,
+  type ManualIncidentInput,
+  type ManualIncidentsResponse,
+  type ManualIncidentUpdateInput,
   maintenanceWindowSchema,
+  manualIncidentInputSchema,
+  manualIncidentSchema,
+  manualIncidentUpdateInputSchema,
   type PostResultRequest,
   postResultRequestSchema,
   type Result,
@@ -279,4 +286,39 @@ export function validateComponentsUptimeResponse(
     arrayProblem((item, p) => problem(componentUptimeSchema, item, p), value, path),
     value,
   );
+}
+
+/** Validates a `ManualIncident` including its invariants. Returns the same object. */
+export function validateManualIncident(
+  value: unknown,
+  path = "manualIncident",
+): Validation<ManualIncident> {
+  return validateWith(manualIncidentSchema, value, path);
+}
+
+/** Validates `GET /manual-incidents`; fails on the first bad element. */
+export function validateManualIncidentsResponse(
+  value: unknown,
+  path = "manualIncidents",
+): Validation<ManualIncidentsResponse> {
+  return verdict(
+    arrayProblem((item, p) => problem(manualIncidentSchema, item, p), value, path),
+    value,
+  );
+}
+
+/** Validates the body of `POST /manual-incidents`. Returns the same object. */
+export function validateManualIncidentInput(
+  value: unknown,
+  path = "manualIncident",
+): Validation<ManualIncidentInput> {
+  return validateWith(manualIncidentInputSchema, value, path);
+}
+
+/** Validates the body of `POST /manual-incidents/{id}/updates`. Returns the same object. */
+export function validateManualIncidentUpdateInput(
+  value: unknown,
+  path = "update",
+): Validation<ManualIncidentUpdateInput> {
+  return validateWith(manualIncidentUpdateInputSchema, value, path);
 }

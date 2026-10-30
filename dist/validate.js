@@ -1,4 +1,4 @@
-import { checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, maintenanceWindowSchema, postResultRequestSchema, resultSchema, tlsCheckSchema, } from "./schema.js";
+import { checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, maintenanceWindowSchema, manualIncidentInputSchema, manualIncidentSchema, manualIncidentUpdateInputSchema, postResultRequestSchema, resultSchema, tlsCheckSchema, } from "./schema.js";
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 /** Reads an own property; inherited names such as `constructor` count as absent. */
 function ownValue(parent, key) {
@@ -157,4 +157,20 @@ export function validateComponentsResponse(value, path = "components") {
 /** Validates `GET /components/uptime`; fails on the first bad element. */
 export function validateComponentsUptimeResponse(value, path = "uptime") {
     return verdict(arrayProblem((item, p) => problem(componentUptimeSchema, item, p), value, path), value);
+}
+/** Validates a `ManualIncident` including its invariants. Returns the same object. */
+export function validateManualIncident(value, path = "manualIncident") {
+    return validateWith(manualIncidentSchema, value, path);
+}
+/** Validates `GET /manual-incidents`; fails on the first bad element. */
+export function validateManualIncidentsResponse(value, path = "manualIncidents") {
+    return verdict(arrayProblem((item, p) => problem(manualIncidentSchema, item, p), value, path), value);
+}
+/** Validates the body of `POST /manual-incidents`. Returns the same object. */
+export function validateManualIncidentInput(value, path = "manualIncident") {
+    return validateWith(manualIncidentInputSchema, value, path);
+}
+/** Validates the body of `POST /manual-incidents/{id}/updates`. Returns the same object. */
+export function validateManualIncidentUpdateInput(value, path = "update") {
+    return validateWith(manualIncidentUpdateInputSchema, value, path);
 }

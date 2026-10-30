@@ -43,3 +43,23 @@ export function aggregateUptime(members) {
 }
 // ISO dates sort lexically.
 const byDate = (a, b) => Number(a > b) - Number(a < b);
+/**
+ * The component state that an open manual incident of this impact implies: `none` gives
+ * `undefined` (no change), `minor` gives `degraded`, `major` and `critical` give `down`.
+ * Only open incidents count; the caller combines the result with `combineStates`.
+ */
+export function incidentImpactState(impact) {
+    switch (impact) {
+        case "none":
+            return undefined;
+        case "minor":
+            return "degraded";
+        case "major":
+        case "critical":
+            return "down";
+        default: {
+            const unreachable = impact;
+            return unreachable;
+        }
+    }
+}

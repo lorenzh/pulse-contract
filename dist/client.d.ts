@@ -1,4 +1,5 @@
-import type { Validation } from "./validate.ts";
+import type { ManualIncident, ManualIncidentsResponse } from "./schema.ts";
+import { type Validation } from "./validate.ts";
 import { type WireVersionCheck } from "./version.ts";
 /** Default cap for a response body: 5 MiB. */
 export declare const DEFAULT_MAX_BODY_BYTES: number;
@@ -62,3 +63,14 @@ export type FetchJsonOptions<T> = {
  * Order of checks: HTTP status, wire header, size, JSON, validation.
  */
 export declare function fetchJson<T>(url: string | URL, options: FetchJsonOptions<T>): Promise<FetchJsonResult<T>>;
+export type ManualIncidentReadOptions = Omit<FetchJsonOptions<unknown>, "validate"> & {
+    /** Treat a 404 (an older api without the route) as "no manual incidents". */
+    isAbsentTolerated?: boolean;
+};
+/**
+ * GETs `<baseUrl>/manual-incidents`, optionally filtered by `status`. With `isAbsentTolerated`,
+ * a 404 gives an empty list (`wire` is `absent`); every other failure is returned as is.
+ */
+export declare function getManualIncidents(baseUrl: string, options: ManualIncidentReadOptions, status?: "open" | "resolved" | "all"): Promise<FetchJsonResult<ManualIncidentsResponse>>;
+/** GETs `<baseUrl>/manual-incidents/<id>`. A 404 is returned as an `http` error. */
+export declare function getManualIncident(baseUrl: string, id: number, options: ManualIncidentReadOptions): Promise<FetchJsonResult<ManualIncident>>;

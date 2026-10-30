@@ -1,4 +1,9 @@
-import type { Validation } from "./validate.ts";
+import type { ManualIncident, ManualIncidentsResponse } from "./schema.ts";
+import {
+  type Validation,
+  validateManualIncident,
+  validateManualIncidentsResponse,
+} from "./validate.ts";
 import { checkWireVersion, WIRE_VERSION_HEADER, type WireVersionCheck } from "./version.ts";
 
 /** Default cap for a response body: 5 MiB. */
@@ -198,4 +203,54 @@ export async function fetchJson<T>(
     stop();
     own.abort(); // frees a pending fetch or body read after a timeout, abort or cap
   }
+}
+
+export type ManualIncidentReadOptions = Omit<FetchJsonOptions<unknown>, "validate"> & {
+  /** Treat a 404 (an older api without the route) as "no manual incidents". */
+  isAbsentTolerated?: boolean;
+};
+
+function withValidator<T>(
+  options: ManualIncidentReadOptions,
+  validate: (raw: unknown) => Validation<T>,
+): FetchJsonOptions<T> {
+  return { ...options, validate };
+}
+
+/**
+ * GETs `<baseUrl>/manual-incidents`, optionally filtered by `status`. With `isAbsentTolerated`,
+ * a 404 gives an empty list (`wire` is `absent`); every other failure is returned as is.
+ */
+export async function getManualIncidents(
+  baseUrl: string,
+  options: ManualIncidentReadOptions,
+  status?: "open" | "resolved" | "all",
+): Promise<FetchJsonResult<ManualIncidentsResponse>> {
+  const url = new URL("manual-incidents", baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+  if (status !== undefined) {
+    url.searchParams.set("status", status);
+  }
+  const result = await fetchJson(url, withValidator(options, validateManualIncidentsResponse));
+  if (
+    !result.ok &&
+    options.isAbsentTolerated === true &&
+    result.error.kind === "http" &&
+    result.error.status === 404
+  ) {
+    return { ok: true, value: [], wire: "absent" };
+  }
+  return result;
+}
+
+/** GETs `<baseUrl>/manual-incidents/<id>`. A 404 is returned as an `http` error. */
+export function getManualIncident(
+  baseUrl: string,
+  id: number,
+  options: ManualIncidentReadOptions,
+): Promise<FetchJsonResult<ManualIncident>> {
+  const url = new URL(
+    `manual-incidents/${encodeURIComponent(String(id))}`,
+    baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`,
+  );
+  return fetchJson(url, withValidator(options, validateManualIncident));
 }

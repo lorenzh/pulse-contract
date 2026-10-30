@@ -24,6 +24,10 @@ import type {
   LocationResult,
   MaintenanceResponse,
   MaintenanceWindow,
+  ManualIncident,
+  ManualIncidentInput,
+  ManualIncidentsResponse,
+  ManualIncidentUpdateInput,
   PostResultRequest,
   Result,
   ResultsResponse,
@@ -178,6 +182,27 @@ const variants = {
 };
 const results: ResultsResponse = [result, tlsResult, degradedResult];
 const incidents: IncidentsResponse = [incident];
+const manualIncident: ManualIncident = {
+  id: 1,
+  title: "Slow checkout",
+  componentIds: ["web"],
+  impact: "minor",
+  status: "resolved",
+  createdAt: 1000,
+  resolvedAt: 3000,
+  updates: [
+    { at: 1000, status: "investigating", message: "Looking into it." },
+    { at: 3000, status: "resolved", message: "Resolved." },
+  ],
+};
+const manualIncidents: ManualIncidentsResponse = [manualIncident];
+const manualInput: ManualIncidentInput = {
+  title: "Slow checkout",
+  impact: "minor",
+  componentIds: [],
+  message: "Looking into it.",
+};
+const manualUpdateInput: ManualIncidentUpdateInput = { status: "monitoring", message: "Fix out." };
 const error: ErrorResponse = { error: "bad" };
 
 const noDataDay: UptimeDay = { date: "2026-10-26", uptime: null, results: 0 };
@@ -226,4 +251,8 @@ export const fixture = {
   minimalComponent,
   components,
   componentsUptime,
+  manualIncident,
+  manualIncidents,
+  manualInput,
+  manualUpdateInput,
 };

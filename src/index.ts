@@ -4,8 +4,11 @@ export {
   type FetchJsonOptions,
   type FetchJsonResult,
   fetchJson,
+  getManualIncident,
+  getManualIncidents,
+  type ManualIncidentReadOptions,
 } from "./client.ts";
-export { aggregateUptime, combineStates } from "./components.ts";
+export { aggregateUptime, combineStates, incidentImpactState } from "./components.ts";
 export type {
   Check,
   CheckState,
@@ -31,6 +34,13 @@ export type {
   LocationResult,
   MaintenanceResponse,
   MaintenanceWindow,
+  ManualIncident,
+  ManualIncidentImpact,
+  ManualIncidentInput,
+  ManualIncidentStatus,
+  ManualIncidentsResponse,
+  ManualIncidentUpdate,
+  ManualIncidentUpdateInput,
   PostResultRequest,
   Result,
   ResultsResponse,
@@ -43,6 +53,13 @@ export {
   headerValueSchema,
   httpMethodSchema,
   jsonAssertSchema,
+  MANUAL_INCIDENT_IMPACTS,
+  MANUAL_INCIDENT_MAX_BODY_BYTES,
+  MANUAL_INCIDENT_MAX_COMPONENTS,
+  MANUAL_INCIDENT_MAX_UPDATES,
+  MANUAL_INCIDENT_MESSAGE_MAX,
+  MANUAL_INCIDENT_STATUSES,
+  MANUAL_INCIDENT_TITLE_MAX,
   MAX_TIMER_MS,
 } from "./schema.ts";
 export {
@@ -60,6 +77,10 @@ export {
   validateIncidentsResponse,
   validateMaintenanceResponse,
   validateMaintenanceWindow,
+  validateManualIncident,
+  validateManualIncidentInput,
+  validateManualIncidentsResponse,
+  validateManualIncidentUpdateInput,
   validatePostResultRequest,
   validateResult,
   validateResultsResponse,

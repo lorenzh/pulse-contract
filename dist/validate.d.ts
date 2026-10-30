@@ -1,4 +1,4 @@
-import { type Check, type ChecksResponse, type CheckUptime, type CheckWithState, type Component, type ComponentsResponse, type ComponentsUptimeResponse, type ComponentUptime, type ComponentWithState, type Incident, type IncidentsResponse, type MaintenanceResponse, type MaintenanceWindow, type PostResultRequest, type Result, type ResultsResponse, type UptimeResponse } from "./schema.ts";
+import { type Check, type ChecksResponse, type CheckUptime, type CheckWithState, type Component, type ComponentsResponse, type ComponentsUptimeResponse, type ComponentUptime, type ComponentWithState, type Incident, type IncidentsResponse, type MaintenanceResponse, type MaintenanceWindow, type ManualIncident, type ManualIncidentInput, type ManualIncidentsResponse, type ManualIncidentUpdateInput, type PostResultRequest, type Result, type ResultsResponse, type UptimeResponse } from "./schema.ts";
 /** Outcome of a validator. Validators never throw. */
 export type Validation<T> = {
     ok: true;
@@ -45,3 +45,11 @@ export declare function validateComponentUptime(value: unknown, path?: string): 
 export declare function validateComponentsResponse(value: unknown, path?: string): Validation<ComponentsResponse>;
 /** Validates `GET /components/uptime`; fails on the first bad element. */
 export declare function validateComponentsUptimeResponse(value: unknown, path?: string): Validation<ComponentsUptimeResponse>;
+/** Validates a `ManualIncident` including its invariants. Returns the same object. */
+export declare function validateManualIncident(value: unknown, path?: string): Validation<ManualIncident>;
+/** Validates `GET /manual-incidents`; fails on the first bad element. */
+export declare function validateManualIncidentsResponse(value: unknown, path?: string): Validation<ManualIncidentsResponse>;
+/** Validates the body of `POST /manual-incidents`. Returns the same object. */
+export declare function validateManualIncidentInput(value: unknown, path?: string): Validation<ManualIncidentInput>;
+/** Validates the body of `POST /manual-incidents/{id}/updates`. Returns the same object. */
+export declare function validateManualIncidentUpdateInput(value: unknown, path?: string): Validation<ManualIncidentUpdateInput>;
