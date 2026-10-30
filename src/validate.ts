@@ -77,10 +77,63 @@ function firstError(error: z.ZodError, value: unknown, base: string): string {
   return `${path}: ${at === undefined && issue.path.length > 0 ? "is required" : issue.message}`;
 }
 
+type Def = { type?: string; shape?: Fields; element?: z.ZodType; innerType?: z.ZodType };
+
+function defOf(schema: z.ZodType): Def {
+  // Zod keeps the schema description in `_zod.def`; only the fields read here are typed.
+  return schema._zod.def as Def;
+}
+
+function define(target: Fields, key: string, value: unknown): void {
+  // defineProperty, because assigning `__proto__` would replace the prototype.
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
+
+const WRAPPERS = new Set(["optional", "nullable", "default", "readonly"]);
+
+function objectView(shape: Fields, value: Fields): Fields {
+  const view: Fields = {};
+  for (const key of Object.keys(value)) {
+    if (!Object.hasOwn(shape, key)) {
+      define(view, key, undefined);
+    }
+  }
+  for (const [key, field] of Object.entries(shape)) {
+    if (Object.hasOwn(value, key)) {
+      define(view, key, ownView(field as z.ZodType, Reflect.get(value, key)));
+    }
+  }
+  return view;
+}
+
+/**
+ * Copies the own fields the schema declares (enumerable or not), level by level, so the parse
+ * never sees an inherited value. Unknown own enumerable keys are kept as keys with an
+ * undefined value: their getters never run, and strict objects still reject them.
+ */
+function ownView(schema: z.ZodType, value: unknown): unknown {
+  const def = defOf(schema);
+  if (def.type !== undefined && WRAPPERS.has(def.type) && def.innerType !== undefined) {
+    return ownView(def.innerType, value);
+  }
+  const element = def.element;
+  if (def.type === "array" && element !== undefined && Array.isArray(value)) {
+    return value.map((item) => ownView(element, item));
+  }
+  if (def.type === "object" && def.shape !== undefined && isObject(value)) {
+    return objectView(def.shape, value);
+  }
+  return value;
+}
+
 /** Returns the error text, or undefined when the value matches the schema. */
 function problem(schema: z.ZodType, value: unknown, path: string): string | undefined {
-  // Spread keeps own enumerable keys only, so a field found only on the prototype counts as missing.
-  const parsed = schema.safeParse(isObject(value) ? { ...value } : value);
+  const parsed = schema.safeParse(ownView(schema, value));
   return parsed.success ? undefined : firstError(parsed.error, value, path);
 }
 
