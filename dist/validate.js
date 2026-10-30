@@ -1,5 +1,5 @@
 import { checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, locationSchema, maintenanceWindowSchema, manualIncidentInputSchema, manualIncidentSchema, manualIncidentUpdateInputSchema, postResultRequestSchema, resultSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
-const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+export const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 /** Reads an own property; inherited names such as `constructor` count as absent. */
 function ownValue(parent, key) {
     if (typeof parent !== "object" || parent === null || !Object.hasOwn(parent, key)) {
@@ -76,18 +76,18 @@ function ownView(schema, value) {
     return value;
 }
 /** Returns the error text, or undefined when the value matches the schema. */
-function problem(schema, value, path) {
+export function problem(schema, value, path) {
     const parsed = schema.safeParse(ownView(schema, value));
     return parsed.success ? undefined : firstError(parsed.error, value, path);
 }
-function verdict(error, value) {
+export function verdict(error, value) {
     // The caller has checked `value` against the schema of T; the same object is returned.
     return error === undefined ? { ok: true, value: value } : { ok: false, error };
 }
-function validateWith(schema, value, path) {
+export function validateWith(schema, value, path) {
     return verdict(problem(schema, value, path), value);
 }
-const arrayProblem = (check, value, path) => {
+export const arrayProblem = (check, value, path) => {
     if (!Array.isArray(value)) {
         return `${path}: must be an array`;
     }

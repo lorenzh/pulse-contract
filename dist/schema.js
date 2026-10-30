@@ -159,6 +159,20 @@ const jsonAssertListSchema = z
     .array(jsonAssertSchema, { error: "must be an array" })
     .min(1, "must not be empty")
     .max(10, "must have at most 10 entries");
+/** Cross-field rules of an http check; shared with the admin schemas, which cannot `.omit()` a refined object. */
+export function refineHttpCheck(check, ctx) {
+    const method = check.method ?? "GET";
+    if (check.body !== undefined && (method === "GET" || method === "HEAD")) {
+        ctx.addIssue({ code: "custom", path: ["body"], message: `is not allowed with ${method}` });
+    }
+    if (method === "HEAD") {
+        for (const key of ["jsonAssert", "keyword"]) {
+            if (check[key] !== undefined) {
+                ctx.addIssue({ code: "custom", path: [key], message: "is not allowed with HEAD" });
+            }
+        }
+    }
+}
 export const httpCheckSchema = z
     .object({
     id: nonEmpty,
@@ -207,19 +221,7 @@ export const httpCheckSchema = z
     /** Assertions on the JSON response body, at most 10. Not allowed with HEAD. */
     jsonAssert: jsonAssertListSchema.optional(),
 }, objectError)
-    .superRefine((check, ctx) => {
-    const method = check.method ?? "GET";
-    if (check.body !== undefined && (method === "GET" || method === "HEAD")) {
-        ctx.addIssue({ code: "custom", path: ["body"], message: `is not allowed with ${method}` });
-    }
-    if (method === "HEAD") {
-        for (const key of ["jsonAssert", "keyword"]) {
-            if (check[key] !== undefined) {
-                ctx.addIssue({ code: "custom", path: [key], message: "is not allowed with HEAD" });
-            }
-        }
-    }
-});
+    .superRefine(refineHttpCheck);
 export const tlsCheckSchema = z.object({
     id: nonEmpty,
     name: text,

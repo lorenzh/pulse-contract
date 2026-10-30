@@ -49,7 +49,7 @@ export type Validation<T> = { ok: true; value: T } | { ok: false; error: string 
 
 type Fields = Record<string, unknown>;
 
-const isObject = (value: unknown): value is Fields =>
+export const isObject = (value: unknown): value is Fields =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** Reads an own property; inherited names such as `constructor` count as absent. */
@@ -138,21 +138,21 @@ function ownView(schema: z.ZodType, value: unknown): unknown {
 }
 
 /** Returns the error text, or undefined when the value matches the schema. */
-function problem(schema: z.ZodType, value: unknown, path: string): string | undefined {
+export function problem(schema: z.ZodType, value: unknown, path: string): string | undefined {
   const parsed = schema.safeParse(ownView(schema, value));
   return parsed.success ? undefined : firstError(parsed.error, value, path);
 }
 
-function verdict<T>(error: string | undefined, value: unknown): Validation<T> {
+export function verdict<T>(error: string | undefined, value: unknown): Validation<T> {
   // The caller has checked `value` against the schema of T; the same object is returned.
   return error === undefined ? { ok: true, value: value as T } : { ok: false, error };
 }
 
-function validateWith<T>(schema: z.ZodType, value: unknown, path: string): Validation<T> {
+export function validateWith<T>(schema: z.ZodType, value: unknown, path: string): Validation<T> {
   return verdict(problem(schema, value, path), value);
 }
 
-const arrayProblem = (
+export const arrayProblem = (
   check: (item: unknown, path: string) => string | undefined,
   value: unknown,
   path: string,
