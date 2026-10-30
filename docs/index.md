@@ -9,33 +9,38 @@ repository. The main README is [README.md](../README.md).
 
 Every type exported from `src/index.ts`. Import them with `import type`.
 
-| Type                  | Meaning                                                                                                                                                    |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CheckStatus`         | Result status: `"up"`, `"degraded"` or `"down"`.                                                                                                           |
-| `CheckState`          | A `CheckStatus`, or `"unknown"` (no result yet) or `"maintenance"` (active window).                                                                        |
-| `HttpCheck`           | An HTTP check: `url`, interval, optional timeout, latency objective, retries, retry delay and keyword.                                                     |
-| `HttpMethod`          | `"GET"`, `"HEAD"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"` or `"OPTIONS"`.                                                                                |
-| `HeaderValue`         | A literal header value string, or `{ env: NAME }` that the probe resolves from its environment.                                                            |
-| `ExpectedStatus`      | An accepted status: an integer 100..599 or a range string `"lo-hi"`.                                                                                       |
-| `JsonAssertion`       | `{ pointer, equals }` or `{ pointer, exists: true }`.                                                                                                      |
-| `TlsCheck`            | A check of the leaf certificate of a TLS endpoint: `host`, `port`, `warnDays`, interval.                                                                   |
-| `HeartbeatCheck`      | A check that a job pings: `period` and `grace` in ms. The probe never runs it.                                                                             |
-| `Check`               | `HttpCheck \| TlsCheck \| HeartbeatCheck`.                                                                                                                 |
-| `Result`              | One probe result: check id, timestamp, status, status code, latency, reason, location, attempts, optional `certDaysLeft`.                                  |
-| `Incident`            | A run of down results: check id, `openedAt`, `resolvedAt` (null while open), reason.                                                                       |
-| `LocationResult`      | The latest `Result` of one probe location, with a `stale` flag.                                                                                            |
-| `MaintenanceWindow`   | A planned window for one check, half-open `[start, end)` in epoch ms, with a note.                                                                         |
-| `CheckStateFields`    | The evaluated state added to a check: `state`, `consecutiveDown`, `lastResultAt`, `lastReason`, `locations`, optional `maintenance` and `certDaysLeft`.    |
-| `CheckWithState`      | `Check & CheckStateFields`; distributes over both check variants.                                                                                          |
-| `UptimeDay`           | Uptime of one UTC day (`date`, `uptime` 0..100 or null, `results`).                                                                                        |
-| `CheckUptime`         | The 90-day uptime of one check: `checkId`, 90 `days` oldest first, weighted `uptime`.                                                                      |
-| `PostResultRequest`   | Body of `POST /results`: a `Result` where `location` and `attempts` may be absent (absent `attempts` means 1, absent or blank `location` means `default`). |
-| `ChecksResponse`      | Response of `GET /checks`: `CheckWithState[]`.                                                                                                             |
-| `ResultsResponse`     | Response of `GET /checks/:id/results`: `Result[]`.                                                                                                         |
-| `IncidentsResponse`   | Response of `GET /incidents`: `Incident[]`.                                                                                                                |
-| `MaintenanceResponse` | Response of `GET /maintenance`: `MaintenanceWindow[]`.                                                                                                     |
-| `UptimeResponse`      | Response of `GET /uptime`: `CheckUptime[]`, one per check, in the order of `GET /checks`.                                                                  |
-| `ErrorResponse`       | Error body: `{ error: string }`.                                                                                                                           |
+| Type                       | Meaning                                                                                                                                                    |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CheckStatus`              | Result status: `"up"`, `"degraded"` or `"down"`.                                                                                                           |
+| `CheckState`               | A `CheckStatus`, or `"unknown"` (no result yet) or `"maintenance"` (active window).                                                                        |
+| `HttpCheck`                | An HTTP check: `url`, interval, optional timeout, latency objective, retries, retry delay and keyword.                                                     |
+| `HttpMethod`               | `"GET"`, `"HEAD"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"` or `"OPTIONS"`.                                                                                |
+| `HeaderValue`              | A literal header value string, or `{ env: NAME }` that the probe resolves from its environment.                                                            |
+| `ExpectedStatus`           | An accepted status: an integer 100..599 or a range string `"lo-hi"`.                                                                                       |
+| `JsonAssertion`            | `{ pointer, equals }` or `{ pointer, exists: true }`.                                                                                                      |
+| `TlsCheck`                 | A check of the leaf certificate of a TLS endpoint: `host`, `port`, `warnDays`, interval.                                                                   |
+| `HeartbeatCheck`           | A check that a job pings: `period` and `grace` in ms. The probe never runs it.                                                                             |
+| `Check`                    | `HttpCheck \| TlsCheck \| HeartbeatCheck`.                                                                                                                 |
+| `Result`                   | One probe result: check id, timestamp, status, status code, latency, reason, location, attempts, optional `certDaysLeft`.                                  |
+| `Incident`                 | A run of down results: check id, `openedAt`, `resolvedAt` (null while open), reason.                                                                       |
+| `LocationResult`           | The latest `Result` of one probe location, with a `stale` flag.                                                                                            |
+| `MaintenanceWindow`        | A planned window for one check, half-open `[start, end)` in epoch ms, with a note.                                                                         |
+| `CheckStateFields`         | The evaluated state added to a check: `state`, `consecutiveDown`, `lastResultAt`, `lastReason`, `locations`, optional `maintenance` and `certDaysLeft`.    |
+| `CheckWithState`           | `Check & CheckStateFields`; distributes over both check variants.                                                                                          |
+| `UptimeDay`                | Uptime of one UTC day (`date`, `uptime` 0..100 or null, `results`).                                                                                        |
+| `CheckUptime`              | The 90-day uptime of one check: `checkId`, 90 `days` oldest first, weighted `uptime`.                                                                      |
+| `Component`                | A customer-facing group of checks: `id`, `name`, optional `description`, `checkIds`, optional `group`. Unknown keys are rejected.                          |
+| `ComponentWithState`       | `Component` plus `state` (`CheckState`), window `uptime` (0..100 or null) and `incidentIds` (open incidents of the member checks, ascending).              |
+| `ComponentUptime`          | The 90-day uptime of one component: `componentId`, 90 `days` oldest first, weighted `uptime`.                                                              |
+| `PostResultRequest`        | Body of `POST /results`: a `Result` where `location` and `attempts` may be absent (absent `attempts` means 1, absent or blank `location` means `default`). |
+| `ChecksResponse`           | Response of `GET /checks`: `CheckWithState[]`.                                                                                                             |
+| `ResultsResponse`          | Response of `GET /checks/:id/results`: `Result[]`.                                                                                                         |
+| `IncidentsResponse`        | Response of `GET /incidents`: `Incident[]`.                                                                                                                |
+| `MaintenanceResponse`      | Response of `GET /maintenance`: `MaintenanceWindow[]`.                                                                                                     |
+| `UptimeResponse`           | Response of `GET /uptime`: `CheckUptime[]`, one per check, in the order of `GET /checks`.                                                                  |
+| `ComponentsResponse`       | Response of `GET /components`: `ComponentWithState[]` in configured order.                                                                                 |
+| `ComponentsUptimeResponse` | Response of `GET /components/uptime`: `ComponentUptime[]` in configured order.                                                                             |
+| `ErrorResponse`            | Error body: `{ error: string }`.                                                                                                                           |
 
 ## Details of the shared shapes
 
@@ -45,6 +50,32 @@ in `CheckWithState.maintenance`. `GET /maintenance` returns a `MaintenanceRespon
 
 `GET /uptime` returns an `UptimeResponse`: per check a `CheckUptime` with 90 UTC `UptimeDay`s (oldest
 first, `uptime` 0..100 or null without results) and the result-weighted 90-day `uptime`.
+
+## Components
+
+A component groups checks under a customer-facing name. `GET /components` returns a
+`ComponentsResponse`; `GET /components/uptime` returns a `ComponentsUptimeResponse` (90 days per
+component). `GET /uptime` and `Incident` are unchanged. Components keep configured order.
+
+Id rules: `id` matches `^[a-z0-9][a-z0-9._-]*$`, at most 64 characters, unique among components
+(the api checks this); it is a separate namespace from check ids. `name` is 1..100 characters,
+`description` at most 500, `group` 1..100; all are plain text, trimmed, without control
+characters. `checkIds` is non-empty without duplicates; the api rejects unknown check ids.
+
+`combineStates(states)` gives the state of a component. First match wins:
+
+| Member states                                           | Component state |
+| ------------------------------------------------------- | --------------- |
+| any `down`                                              | `down`          |
+| any `degraded`                                          | `degraded`      |
+| else any `up` (`maintenance` and `unknown` are ignored) | `up`            |
+| else any `maintenance`                                  | `maintenance`   |
+| else (all `unknown`, or no members)                     | `unknown`       |
+
+`aggregateUptime(members)` takes the `UptimeDay[]` of each member check and returns
+`{ days, uptime }`. Per UTC date: sum(up + degraded results) / sum(results) * 100, using each
+day's `results`; `uptime` null and `results` 0 when no member has results that day. `uptime` is
+the same over all days. A check in several components counts in each.
 
 ## Check types
 
@@ -163,10 +194,12 @@ returns `Validation<T>`: `{ ok: true; value: T } | { ok: false; error: string }`
 
 - Item validators: `validateCheck` (http, tls or heartbeat; ignores state fields), `validateCheckWithState`,
   `validateResult`, `validateIncident`, `validateMaintenanceWindow`, `validateCheckUptime`,
-  `validatePostResultRequest`. Default paths: `check`, `result`, `incident`, `maintenance`, `uptime`.
+  `validatePostResultRequest`, `validateComponent` (rejects unknown keys), `validateComponentWithState`,
+  `validateComponentUptime`. Default paths: `check`, `result`, `incident`, `maintenance`, `uptime`, `component`.
 - Array validators, which fail on the first bad element and name its index: `validateChecksResponse`
   (uses `validateCheckWithState`), `validateResultsResponse`, `validateIncidentsResponse`,
-  `validateMaintenanceResponse`, `validateUptimeResponse`. A consumer that skips bad items loops over
+  `validateMaintenanceResponse`, `validateUptimeResponse`, `validateComponentsResponse`,
+  `validateComponentsUptimeResponse`. A consumer that skips bad items loops over
   the raw array with the item validator and the path `checks[<i>]`; one that fails the whole
   response uses the array validator.
 

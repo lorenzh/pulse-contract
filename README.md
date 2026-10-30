@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/lorenzh/pulse-contract/actions/workflows/ci.yml/badge.svg)](https://github.com/lorenzh/pulse-contract/actions/workflows/ci.yml)
 
-pulse is an uptime monitor with a status page. This repository is its shared contract: the TypeScript types used by every other pulse repository (checks, results, incidents, maintenance windows, uptime and the API request and response shapes). It also holds runtime validators for those shapes and the wire-format version, so every service checks the wire format the same way. Types and validators come from one set of [zod](https://zod.dev) schemas; `zod` is the only runtime dependency.
+pulse is an uptime monitor with a status page. This repository is its shared contract: the TypeScript types used by every other pulse repository (checks, results, incidents, maintenance windows, uptime, status page components and the API request and response shapes). It also holds runtime validators for those shapes and the wire-format version, so every service checks the wire format the same way. Types and validators come from one set of [zod](https://zod.dev) schemas; `zod` is the only runtime dependency.
 
 pulse-contract depends on no other pulse repository. It is consumed by [pulse-api](https://github.com/lorenzh/pulse-api), [pulse-probe](https://github.com/lorenzh/pulse-probe), [pulse-status](https://github.com/lorenzh/pulse-status) and [pulse-notify](https://github.com/lorenzh/pulse-notify).
 

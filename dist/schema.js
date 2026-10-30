@@ -353,3 +353,57 @@ export const checkUptimeSchema = z.object({
     /** Result-weighted over the window: sum(up + degraded) / sum(all) * 100; 0..100 or null. */
     uptime: percent,
 }, objectError);
+const MAX_COMPONENT_ID = 64;
+const COMPONENT_ID = /^[a-z0-9][a-z0-9._-]*$/;
+// Control characters (C0, DEL, C1) are not allowed in customer-facing text.
+const CONTROL_CHARACTER = /\p{Cc}/u;
+/** Plain text of 1..max (or 0..max) characters: trimmed, without control characters. */
+const plainText = (min, max) => {
+    const range = min === 0 ? `at most ${max}` : `${min}..${max}`;
+    return z
+        .string({ error: "must be a string" })
+        .min(min, `must be ${range} characters`)
+        .max(max, `must be ${range} characters`)
+        .refine((v) => v === v.trim(), { error: "must not start or end with whitespace" })
+        .refine((v) => !CONTROL_CHARACTER.test(v), { error: "must not contain control characters" });
+};
+const componentFields = {
+    /** `^[a-z0-9][a-z0-9._-]*$`, at most 64 characters. Own namespace, apart from check ids. */
+    id: z
+        .string({ error: "must be a string" })
+        .max(MAX_COMPONENT_ID, `must be at most ${MAX_COMPONENT_ID} characters`)
+        .regex(COMPONENT_ID, { error: "must match ^[a-z0-9][a-z0-9._-]*$" }),
+    /** Plain text, 1..100 characters. */
+    name: plainText(1, 100),
+    /** Plain text, at most 500 characters. */
+    description: plainText(0, 500).optional(),
+    /** Ids of the member checks: non-empty, without duplicates. Unknown ids are the api's concern. */
+    checkIds: z
+        .array(nonEmpty, { error: "must be an array" })
+        .min(1, "must not be empty")
+        .refine((ids) => new Set(ids).size === ids.length, { error: "must not contain duplicates" }),
+    /** Section heading, plain text, 1..100 characters. */
+    group: plainText(1, 100).optional(),
+};
+/** A customer-facing group of checks, as configured. Unknown keys are rejected. */
+export const componentSchema = z.strictObject(componentFields, {
+    error: (issue) => issue.code === "unrecognized_keys"
+        ? `has an unknown field: ${issue.keys.join(", ")}`
+        : "must be an object",
+});
+export const componentWithStateSchema = z.object({
+    ...componentFields,
+    /** Combined state of the member checks; see `combineStates`. */
+    state: checkStateSchema,
+    /** Window uptime as in `ComponentUptime.uptime`. */
+    uptime: percent,
+    /** Ids of the open incidents of the member checks, ascending. */
+    incidentIds: z.array(integer, { error: "must be an array" }),
+}, objectError);
+export const componentUptimeSchema = z.object({
+    componentId: nonEmpty,
+    /** Exactly 90 UTC days, oldest first; aggregated by `aggregateUptime`. */
+    days: z.array(uptimeDaySchema, { error: "must be an array" }),
+    /** Result-weighted over the window; 0..100 or null. */
+    uptime: percent,
+}, objectError);

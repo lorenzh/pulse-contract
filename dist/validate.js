@@ -1,4 +1,4 @@
-import { checkStateFieldsSchema, checkUptimeSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, maintenanceWindowSchema, postResultRequestSchema, resultSchema, tlsCheckSchema, } from "./schema.js";
+import { checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, maintenanceWindowSchema, postResultRequestSchema, resultSchema, tlsCheckSchema, } from "./schema.js";
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 /** Reads an own property; inherited names such as `constructor` count as absent. */
 function ownValue(parent, key) {
@@ -137,4 +137,24 @@ export function validateMaintenanceResponse(value, path = "maintenance") {
 /** Validates `GET /uptime`; fails on the first bad element. */
 export function validateUptimeResponse(value, path = "uptime") {
     return verdict(arrayProblem((item, p) => problem(checkUptimeSchema, item, p), value, path), value);
+}
+/** Validates a `Component`; unknown keys are rejected. Returns the same object. */
+export function validateComponent(value, path = "component") {
+    return validateWith(componentSchema, value, path);
+}
+/** Validates a `ComponentWithState`. Returns the same object. */
+export function validateComponentWithState(value, path = "component") {
+    return validateWith(componentWithStateSchema, value, path);
+}
+/** Validates a `ComponentUptime`. Returns the same object. */
+export function validateComponentUptime(value, path = "uptime") {
+    return validateWith(componentUptimeSchema, value, path);
+}
+/** Validates `GET /components`; fails on the first bad element. */
+export function validateComponentsResponse(value, path = "components") {
+    return verdict(arrayProblem((item, p) => problem(componentWithStateSchema, item, p), value, path), value);
+}
+/** Validates `GET /components/uptime`; fails on the first bad element. */
+export function validateComponentsUptimeResponse(value, path = "uptime") {
+    return verdict(arrayProblem((item, p) => problem(componentUptimeSchema, item, p), value, path), value);
 }

@@ -4,8 +4,16 @@ import {
   type ChecksResponse,
   type CheckUptime,
   type CheckWithState,
+  type Component,
+  type ComponentsResponse,
+  type ComponentsUptimeResponse,
+  type ComponentUptime,
+  type ComponentWithState,
   checkStateFieldsSchema,
   checkUptimeSchema,
+  componentSchema,
+  componentUptimeSchema,
+  componentWithStateSchema,
   heartbeatCheckSchema,
   httpCheckSchema,
   type Incident,
@@ -226,6 +234,49 @@ export function validateUptimeResponse(
 ): Validation<UptimeResponse> {
   return verdict(
     arrayProblem((item, p) => problem(checkUptimeSchema, item, p), value, path),
+    value,
+  );
+}
+
+/** Validates a `Component`; unknown keys are rejected. Returns the same object. */
+export function validateComponent(value: unknown, path = "component"): Validation<Component> {
+  return validateWith(componentSchema, value, path);
+}
+
+/** Validates a `ComponentWithState`. Returns the same object. */
+export function validateComponentWithState(
+  value: unknown,
+  path = "component",
+): Validation<ComponentWithState> {
+  return validateWith(componentWithStateSchema, value, path);
+}
+
+/** Validates a `ComponentUptime`. Returns the same object. */
+export function validateComponentUptime(
+  value: unknown,
+  path = "uptime",
+): Validation<ComponentUptime> {
+  return validateWith(componentUptimeSchema, value, path);
+}
+
+/** Validates `GET /components`; fails on the first bad element. */
+export function validateComponentsResponse(
+  value: unknown,
+  path = "components",
+): Validation<ComponentsResponse> {
+  return verdict(
+    arrayProblem((item, p) => problem(componentWithStateSchema, item, p), value, path),
+    value,
+  );
+}
+
+/** Validates `GET /components/uptime`; fails on the first bad element. */
+export function validateComponentsUptimeResponse(
+  value: unknown,
+  path = "uptime",
+): Validation<ComponentsUptimeResponse> {
+  return verdict(
+    arrayProblem((item, p) => problem(componentUptimeSchema, item, p), value, path),
     value,
   );
 }
