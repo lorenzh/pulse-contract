@@ -464,19 +464,29 @@ test("a throwing getter on an unknown key does not throw", () => {
   assert.equal(validateCheck(input).ok, true);
 });
 
-test("an own accessor on a declared nested field is not run", () => {
+test("an own accessor on a declared nested field is not run and counts as absent", () => {
   const [first] = fixture.uptime;
   let ran = false;
   const day = Object.defineProperty({ uptime: 1, results: 1 }, "date", {
     enumerable: true,
     get(): string {
       ran = true;
-      return "2026-10-26";
+      throw new Error("declared getter ran");
     },
   });
   const result = validateCheckUptime({ ...first, days: [day] });
-  assert.equal(result.ok, true);
-  assert.equal(ran, true); // declared fields are read once through the copy
+  assert.equal(errorOf(result), "uptime.days[0].date: is required");
+  assert.equal(ran, false);
+});
+
+test("an accessor on a check type is not run", () => {
+  const input = Object.defineProperty({ ...fixture.variants.httpCheck }, "type", {
+    enumerable: true,
+    get(): string {
+      throw new Error("type getter ran");
+    },
+  });
+  assert.equal(validateCheck(input).ok, true); // an absent type means http
 });
 
 test("a null-prototype object validates", () => {

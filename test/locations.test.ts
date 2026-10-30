@@ -40,3 +40,12 @@ test("validateLocationsResponse names the bad index", () => {
     'locations[1].state: must be one of "reporting", "silent"',
   );
 });
+
+test("an inherited extra key is ignored, not an unknown field", () => {
+  const input = Object.assign(Object.create({ extra: 1 }), fixture.location);
+  assert.equal(validateLocation(input).ok, true);
+  assert.equal(
+    errorOf(validateLocation({ ...fixture.location, extra: 1 })),
+    "location: has an unknown field: extra",
+  );
+});

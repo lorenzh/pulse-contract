@@ -57,12 +57,16 @@ type Fields = Record<string, unknown>;
 export const isObject = (value: unknown): value is Fields =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Reads an own property; inherited names such as `constructor` count as absent. */
+/**
+ * Reads an own data property. Inherited names such as `constructor` and accessors count as
+ * absent; a getter never runs.
+ */
 function ownValue(parent: unknown, key: PropertyKey): unknown {
-  if (typeof parent !== "object" || parent === null || !Object.hasOwn(parent, key)) {
+  if (typeof parent !== "object" || parent === null) {
     return undefined;
   }
-  return Reflect.get(parent, key);
+  const descriptor = Object.getOwnPropertyDescriptor(parent, key);
+  return descriptor !== undefined && "value" in descriptor ? descriptor.value : undefined;
 }
 
 /** `checks[2].intervalMs` style: indexes in brackets, keys after a dot. */
@@ -115,17 +119,19 @@ function objectView(shape: Fields, value: Fields): Fields {
     }
   }
   for (const [key, field] of Object.entries(shape)) {
-    if (Object.hasOwn(value, key)) {
-      define(view, key, ownView(field as z.ZodType, Reflect.get(value, key)));
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor !== undefined && "value" in descriptor) {
+      define(view, key, ownView(field as z.ZodType, descriptor.value));
     }
   }
   return view;
 }
 
 /**
- * Copies the own fields the schema declares (enumerable or not), level by level, so the parse
- * never sees an inherited value. Unknown own enumerable keys are kept as keys with an
- * undefined value: their getters never run, and strict objects still reject them.
+ * Copies the own data fields the schema declares (enumerable or not), level by level, so the
+ * parse never sees an inherited value. An accessor counts as absent and its getter never runs.
+ * Unknown own enumerable keys are kept as keys with an undefined value, so strict objects still
+ * reject them.
  */
 function ownView(schema: z.ZodType, value: unknown): unknown {
   const def = defOf(schema);
@@ -148,30 +154,36 @@ const walks = new WeakMap<z.ZodType, Walk>();
 
 const alwaysOwn: Walk = () => true;
 
+// Returns the getter without calling it, and allocates nothing for a data property.
+// biome-ignore lint/suspicious/noExplicitAny: Annex B method, absent from the lib types.
+const lookupGetter = (Object.prototype as any).__lookupGetter__ as (key: string) => unknown;
+
 function compileObjectWalk(shape: Fields): Walk {
-  const fields: [string, Walk][] = [];
-  let hasNested = false;
-  for (const [key, field] of Object.entries(shape)) {
-    const walk = walkOf(field as z.ZodType);
-    hasNested ||= walk !== alwaysOwn;
-    fields.push([key, walk]);
-  }
+  // Parallel arrays and indexed loops: this runs once per object of a large history.
+  const keys = Object.keys(shape);
+  const fieldWalks = keys.map((key) => walkOf(shape[key] as z.ZodType));
+  const hasNested = fieldWalks.some((walk) => walk !== alwaysOwn);
   return (value) => {
     if (!isObject(value)) {
       return true;
     }
-    for (const [key, walk] of fields) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (descriptor === undefined) {
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) {
+      return false; // the parse would see inherited keys; the copy keeps own keys only
+    }
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i] as string;
+      if (lookupGetter.call(value, key) !== undefined) {
+        return false; // a getter: the copy treats it as absent
+      }
+      if (!Object.hasOwn(value, key)) {
         if (key in value) {
           return false; // inherited: the copy treats it as absent
         }
         continue;
       }
-      if (!("value" in descriptor)) {
-        return false;
-      }
-      if (hasNested && !walk(descriptor.value)) {
+      // A setter-only accessor reads as undefined without running code.
+      if (hasNested && !(fieldWalks[i] as Walk)(value[key])) {
         return false;
       }
     }
@@ -190,7 +202,17 @@ function compileWalk(schema: z.ZodType): Walk {
     if (walk === alwaysOwn) {
       return alwaysOwn;
     }
-    return (value) => !Array.isArray(value) || value.every((item) => walk(item));
+    return (value) => {
+      if (!Array.isArray(value)) {
+        return true;
+      }
+      for (let i = 0; i < value.length; i += 1) {
+        if (!walk(value[i])) {
+          return false;
+        }
+      }
+      return true;
+    };
   }
   if (def.type === "object" && def.shape !== undefined) {
     return compileObjectWalk(def.shape);
@@ -208,9 +230,9 @@ function walkOf(schema: z.ZodType): Walk {
 }
 
 /**
- * True when every declared field that `ownView` would copy is absent or an own data property,
- * level by level. Then the copy would equal the original, and the parse can read the original.
- * Nothing is allocated except one descriptor per present declared field, and no getter runs.
+ * True when every object is plain (prototype `Object.prototype` or null) and every declared
+ * field is absent or an own property without a getter, level by level. Then the copy would equal
+ * the original, and the parse can read the original. Nothing is allocated, and no getter runs.
  */
 function isOwnData(schema: z.ZodType, value: unknown): boolean {
   return walkOf(schema)(value);
@@ -266,7 +288,7 @@ function checkBase(value: unknown, path: string): string | undefined {
   if (!isObject(value)) {
     return `${path}: must be an object`;
   }
-  switch (value.type) {
+  switch (ownValue(value, "type")) {
     case undefined:
     case "http":
       return problem(httpCheckSchema, value, path);

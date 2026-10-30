@@ -47,4 +47,4 @@ test("history validation time (1,000 checks x 90 days), median of several runs",
   console.log(`history validation median of ${RUNS}: ${median(times).toFixed(0)} ms`);
   // A loose sanity bound only; timing is not asserted tightly.
   expect(median(times)).toBeLessThan(5000);
-});
+}, 60_000); // two warmups and seven runs can exceed the default 5 s on a loaded machine
