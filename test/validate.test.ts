@@ -2,6 +2,7 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
   MAX_TIMER_MS,
+  validateAdminCheckInput,
   validateCheck,
   validateChecksResponse,
   validateCheckUptime,
@@ -569,4 +570,51 @@ test("accessors in headers and header references are not run", () => {
   const asEnv = { ...check, headers: { Authorization: throwing({}, "env") } };
   assert.equal(validateCheck(asValue).ok, false);
   assert.equal(validateCheck(asEnv).ok, false);
+});
+
+test("hostile proxies in header references, records and arrays never throw", () => {
+  const traps = ["getPrototypeOf", "ownKeys", "getOwnPropertyDescriptor", "get", "has"] as const;
+  const hostile = <T extends object>(target: T, trap: (typeof traps)[number]): T =>
+    new Proxy(target, {
+      [trap]: (): never => {
+        throw new Error(`${trap} trap ran`);
+      },
+    });
+  const check = fixture.variants.httpCheck;
+  const [first] = fixture.uptime;
+  for (const trap of traps) {
+    const cases: [string, () => { ok: boolean }][] = [
+      [
+        "header reference",
+        () =>
+          validateCheck({ ...check, headers: { Authorization: hostile({ env: "TOKEN" }, trap) } }),
+      ],
+      [
+        "admin header reference",
+        () =>
+          validateAdminCheckInput({
+            ...check,
+            headers: { Authorization: hostile({ env: "TOKEN" }, trap) },
+          }),
+      ],
+      [
+        "header record",
+        () => validateCheck({ ...check, headers: hostile({ Authorization: "x" }, trap) }),
+      ],
+      [
+        "days array",
+        () => validateCheckUptime({ ...first, days: hostile([...(first?.days ?? [])], trap) }),
+      ],
+      ["response array", () => validateUptimeResponse(hostile([...fixture.uptime], trap))],
+      ["whole check", () => validateCheck(hostile({ ...check }, trap))],
+    ];
+    for (const [where, run] of cases) {
+      assert.doesNotThrow(run, `${trap} in ${where}`);
+    }
+  }
+  const headerRef = { Authorization: hostile({ env: "TOKEN" }, "getPrototypeOf") };
+  assert.equal(
+    errorOf(validateCheck({ ...check, headers: headerRef })),
+    "check: is not a valid value",
+  );
 });

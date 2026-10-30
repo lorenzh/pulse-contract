@@ -229,12 +229,23 @@ export function problem(schema, value, path) {
     const parsed = schema.safeParse(isOwnData(schema, value) ? value : ownView(schema, value));
     return parsed.success ? undefined : firstError(parsed.error, value, path);
 }
-export function verdict(error, value) {
+/**
+ * Runs `check` at the validation boundary. Hostile input, such as a Proxy whose traps throw, can
+ * make inspection throw; that counts as invalid, because validators never throw.
+ */
+export function verdict(value, path, check) {
+    let error;
+    try {
+        error = check();
+    }
+    catch {
+        error = `${path}: is not a valid value`;
+    }
     // The caller has checked `value` against the schema of T; the same object is returned.
     return error === undefined ? { ok: true, value: value } : { ok: false, error };
 }
 export function validateWith(schema, value, path) {
-    return verdict(problem(schema, value, path), value);
+    return verdict(value, path, () => problem(schema, value, path));
 }
 export const arrayProblem = (check, value, path) => {
     if (!Array.isArray(value)) {
@@ -295,11 +306,11 @@ function checkWithState(value, path) {
 }
 /** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
 export function validateCheck(value, path = "check") {
-    return verdict(checkBase(value, path), value);
+    return verdict(value, path, () => checkBase(value, path));
 }
 /** Validates a `CheckWithState`. Returns the same object. */
 export function validateCheckWithState(value, path = "check") {
-    return verdict(checkWithState(value, path), value);
+    return verdict(value, path, () => checkWithState(value, path));
 }
 /** Validates a `Result`. Returns the same object. */
 export function validateResult(value, path = "result") {
@@ -327,19 +338,19 @@ export function validateCheckUptime(value, path = "uptime") {
 }
 /** Validates `GET /checks`; fails on the first bad element. */
 export function validateChecksResponse(value, path = "checks") {
-    return verdict(arrayProblem(checkWithState, value, path), value);
+    return verdict(value, path, () => arrayProblem(checkWithState, value, path));
 }
 /** Validates `GET /checks/:id/results`; fails on the first bad element. */
 export function validateResultsResponse(value, path = "results") {
-    return verdict(arrayProblem((item, p) => problem(resultSchema, item, p), value, path), value);
+    return verdict(value, path, () => arrayProblem((item, p) => problem(resultSchema, item, p), value, path));
 }
 /** Validates `GET /incidents`; fails on the first bad element. */
 export function validateIncidentsResponse(value, path = "incidents") {
-    return verdict(arrayProblem((item, p) => problem(incidentSchema, item, p), value, path), value);
+    return verdict(value, path, () => arrayProblem((item, p) => problem(incidentSchema, item, p), value, path));
 }
 /** Validates `GET /maintenance`; fails on the first bad element. */
 export function validateMaintenanceResponse(value, path = "maintenance") {
-    return verdict(arrayProblem((item, p) => problem(maintenanceWindowSchema, item, p), value, path), value);
+    return verdict(value, path, () => arrayProblem((item, p) => problem(maintenanceWindowSchema, item, p), value, path));
 }
 /** Validates a `CheckLatency`: exactly 90 days, null values exactly on days with `count` 0. */
 export function validateCheckLatency(value, path = "latency") {
@@ -347,7 +358,7 @@ export function validateCheckLatency(value, path = "latency") {
 }
 /** Validates `GET /latency`; fails on the first bad element. */
 export function validateLatencyResponse(value, path = "latency") {
-    return verdict(arrayProblem((item, p) => problem(checkLatencySchema, item, p), value, path), value);
+    return verdict(value, path, () => arrayProblem((item, p) => problem(checkLatencySchema, item, p), value, path));
 }
 /** Validates an `Slo`. Returns the same object. */
 export function validateSlo(value, path = "slo") {
@@ -355,7 +366,7 @@ export function validateSlo(value, path = "slo") {
 }
 /** Validates `GET /uptime`; fails on the first bad element. */
 export function validateUptimeResponse(value, path = "uptime") {
-    return verdict(arrayProblem((item, p) => problem(checkUptimeSchema, item, p), value, path), value);
+    return verdict(value, path, () => arrayProblem((item, p) => problem(checkUptimeSchema, item, p), value, path));
 }
 /** Validates a `Location`; unknown keys are rejected. Returns the same object. */
 export function validateLocation(value, path = "location") {
@@ -363,7 +374,7 @@ export function validateLocation(value, path = "location") {
 }
 /** Validates `GET /locations`; fails on the first bad element. */
 export function validateLocationsResponse(value, path = "locations") {
-    return verdict(arrayProblem((item, p) => problem(locationSchema, item, p), value, path), value);
+    return verdict(value, path, () => arrayProblem((item, p) => problem(locationSchema, item, p), value, path));
 }
 /** Validates a `Component`; unknown keys are rejected. Returns the same object. */
 export function validateComponent(value, path = "component") {
@@ -379,11 +390,11 @@ export function validateComponentUptime(value, path = "uptime") {
 }
 /** Validates `GET /components`; fails on the first bad element. */
 export function validateComponentsResponse(value, path = "components") {
-    return verdict(arrayProblem((item, p) => problem(componentWithStateSchema, item, p), value, path), value);
+    return verdict(value, path, () => arrayProblem((item, p) => problem(componentWithStateSchema, item, p), value, path));
 }
 /** Validates `GET /components/uptime`; fails on the first bad element. */
 export function validateComponentsUptimeResponse(value, path = "uptime") {
-    return verdict(arrayProblem((item, p) => problem(componentUptimeSchema, item, p), value, path), value);
+    return verdict(value, path, () => arrayProblem((item, p) => problem(componentUptimeSchema, item, p), value, path));
 }
 /** Validates a `ManualIncident` including its invariants. Returns the same object. */
 export function validateManualIncident(value, path = "manualIncident") {
@@ -391,7 +402,7 @@ export function validateManualIncident(value, path = "manualIncident") {
 }
 /** Validates `GET /manual-incidents`; fails on the first bad element. */
 export function validateManualIncidentsResponse(value, path = "manualIncidents") {
-    return verdict(arrayProblem((item, p) => problem(manualIncidentSchema, item, p), value, path), value);
+    return verdict(value, path, () => arrayProblem((item, p) => problem(manualIncidentSchema, item, p), value, path));
 }
 /** Validates the body of `POST /manual-incidents`. Returns the same object. */
 export function validateManualIncidentInput(value, path = "manualIncident") {

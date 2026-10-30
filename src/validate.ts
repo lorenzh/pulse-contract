@@ -317,13 +317,27 @@ export function problem(schema: z.ZodType, value: unknown, path: string): string
   return parsed.success ? undefined : firstError(parsed.error, value, path);
 }
 
-export function verdict<T>(error: string | undefined, value: unknown): Validation<T> {
+/**
+ * Runs `check` at the validation boundary. Hostile input, such as a Proxy whose traps throw, can
+ * make inspection throw; that counts as invalid, because validators never throw.
+ */
+export function verdict<T>(
+  value: unknown,
+  path: string,
+  check: () => string | undefined,
+): Validation<T> {
+  let error: string | undefined;
+  try {
+    error = check();
+  } catch {
+    error = `${path}: is not a valid value`;
+  }
   // The caller has checked `value` against the schema of T; the same object is returned.
   return error === undefined ? { ok: true, value: value as T } : { ok: false, error };
 }
 
 export function validateWith<T>(schema: z.ZodType, value: unknown, path: string): Validation<T> {
-  return verdict(problem(schema, value, path), value);
+  return verdict(value, path, () => problem(schema, value, path));
 }
 
 export const arrayProblem = (
@@ -401,12 +415,12 @@ function checkWithState(value: unknown, path: string): string | undefined {
 
 /** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
 export function validateCheck(value: unknown, path = "check"): Validation<Check> {
-  return verdict(checkBase(value, path), value);
+  return verdict(value, path, () => checkBase(value, path));
 }
 
 /** Validates a `CheckWithState`. Returns the same object. */
 export function validateCheckWithState(value: unknown, path = "check"): Validation<CheckWithState> {
-  return verdict(checkWithState(value, path), value);
+  return verdict(value, path, () => checkWithState(value, path));
 }
 
 /** Validates a `Result`. Returns the same object. */
@@ -449,7 +463,7 @@ export function validateChecksResponse(
   value: unknown,
   path = "checks",
 ): Validation<ChecksResponse> {
-  return verdict(arrayProblem(checkWithState, value, path), value);
+  return verdict(value, path, () => arrayProblem(checkWithState, value, path));
 }
 
 /** Validates `GET /checks/:id/results`; fails on the first bad element. */
@@ -457,9 +471,8 @@ export function validateResultsResponse(
   value: unknown,
   path = "results",
 ): Validation<ResultsResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(resultSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -468,9 +481,8 @@ export function validateIncidentsResponse(
   value: unknown,
   path = "incidents",
 ): Validation<IncidentsResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(incidentSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -479,9 +491,8 @@ export function validateMaintenanceResponse(
   value: unknown,
   path = "maintenance",
 ): Validation<MaintenanceResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(maintenanceWindowSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -495,9 +506,8 @@ export function validateLatencyResponse(
   value: unknown,
   path = "latency",
 ): Validation<LatencyResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(checkLatencySchema, item, p), value, path),
-    value,
   );
 }
 
@@ -511,9 +521,8 @@ export function validateUptimeResponse(
   value: unknown,
   path = "uptime",
 ): Validation<UptimeResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(checkUptimeSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -527,9 +536,8 @@ export function validateLocationsResponse(
   value: unknown,
   path = "locations",
 ): Validation<LocationsResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(locationSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -559,9 +567,8 @@ export function validateComponentsResponse(
   value: unknown,
   path = "components",
 ): Validation<ComponentsResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(componentWithStateSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -570,9 +577,8 @@ export function validateComponentsUptimeResponse(
   value: unknown,
   path = "uptime",
 ): Validation<ComponentsUptimeResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(componentUptimeSchema, item, p), value, path),
-    value,
   );
 }
 
@@ -589,9 +595,8 @@ export function validateManualIncidentsResponse(
   value: unknown,
   path = "manualIncidents",
 ): Validation<ManualIncidentsResponse> {
-  return verdict(
+  return verdict(value, path, () =>
     arrayProblem((item, p) => problem(manualIncidentSchema, item, p), value, path),
-    value,
   );
 }
 

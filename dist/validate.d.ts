@@ -12,7 +12,11 @@ type Fields = Record<string, unknown>;
 export declare const isObject: (value: unknown) => value is Fields;
 /** Returns the error text, or undefined when the value matches the schema. */
 export declare function problem(schema: z.ZodType, value: unknown, path: string): string | undefined;
-export declare function verdict<T>(error: string | undefined, value: unknown): Validation<T>;
+/**
+ * Runs `check` at the validation boundary. Hostile input, such as a Proxy whose traps throw, can
+ * make inspection throw; that counts as invalid, because validators never throw.
+ */
+export declare function verdict<T>(value: unknown, path: string, check: () => string | undefined): Validation<T>;
 export declare function validateWith<T>(schema: z.ZodType, value: unknown, path: string): Validation<T>;
 export declare const arrayProblem: (check: (item: unknown, path: string) => string | undefined, value: unknown, path: string) => string | undefined;
 /** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
