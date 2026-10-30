@@ -1,6 +1,6 @@
 {
   "name": "@lorenzh/pulse-contract",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "license": "MIT",
   "description": "Shared TypeScript types, plain-TS runtime validators and the wire-format version used by all pulse repos.",
   "type": "module",

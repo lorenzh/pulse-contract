@@ -1,4 +1,4 @@
-import type { CheckState, UptimeDay } from "./schema.ts";
+import type { CheckState, ManualIncidentImpact, UptimeDay } from "./schema.ts";
 
 /**
  * The state of a component from the states of its member checks. First match wins: any `down`
@@ -54,3 +54,24 @@ export function aggregateUptime(members: readonly (readonly UptimeDay[])[]): Agg
 
 // ISO dates sort lexically.
 const byDate = (a: string, b: string): number => Number(a > b) - Number(a < b);
+
+/**
+ * The component state that an open manual incident of this impact implies: `none` gives
+ * `undefined` (no change), `minor` gives `degraded`, `major` and `critical` give `down`.
+ * Only open incidents count; the caller combines the result with `combineStates`.
+ */
+export function incidentImpactState(impact: ManualIncidentImpact): CheckState | undefined {
+  switch (impact) {
+    case "none":
+      return undefined;
+    case "minor":
+      return "degraded";
+    case "major":
+    case "critical":
+      return "down";
+    default: {
+      const unreachable: never = impact;
+      return unreachable;
+    }
+  }
+}

@@ -248,6 +248,99 @@ export declare const componentUptimeSchema: z.ZodObject<{
     uptime: z.ZodNullable<z.ZodNumber>;
 }, z.core.$strip>;
 /** "degraded": the check answered successfully but slower than its latency objective. */
+/** Limits of manual incidents. Lengths count UTF-16 code units, as `String.length` does. */
+export declare const MANUAL_INCIDENT_TITLE_MAX = 200;
+export declare const MANUAL_INCIDENT_MESSAGE_MAX = 2000;
+export declare const MANUAL_INCIDENT_MAX_UPDATES = 100;
+export declare const MANUAL_INCIDENT_MAX_COMPONENTS = 50;
+/** Largest request body the api accepts for a write: 16 KiB. */
+export declare const MANUAL_INCIDENT_MAX_BODY_BYTES: number;
+export declare const MANUAL_INCIDENT_IMPACTS: readonly ["none", "minor", "major", "critical"];
+export declare const MANUAL_INCIDENT_STATUSES: readonly ["investigating", "identified", "monitoring", "resolved"];
+export declare const manualIncidentImpactSchema: z.ZodEnum<{
+    critical: "critical";
+    major: "major";
+    minor: "minor";
+    none: "none";
+}>;
+export declare const manualIncidentStatusSchema: z.ZodEnum<{
+    identified: "identified";
+    investigating: "investigating";
+    monitoring: "monitoring";
+    resolved: "resolved";
+}>;
+/** One timed message of a manual incident. */
+export declare const manualIncidentUpdateSchema: z.ZodObject<{
+    at: z.ZodNumber;
+    status: z.ZodEnum<{
+        identified: "identified";
+        investigating: "investigating";
+        monitoring: "monitoring";
+        resolved: "resolved";
+    }>;
+    message: z.ZodString;
+}, z.core.$strip>;
+/** Body of `POST /manual-incidents`. `status` defaults to `investigating`; not `resolved`. */
+export declare const manualIncidentInputSchema: z.ZodObject<{
+    title: z.ZodString;
+    impact: z.ZodEnum<{
+        critical: "critical";
+        major: "major";
+        minor: "minor";
+        none: "none";
+    }>;
+    componentIds: z.ZodArray<z.ZodString>;
+    status: z.ZodOptional<z.ZodEnum<{
+        identified: "identified";
+        investigating: "investigating";
+        monitoring: "monitoring";
+    }>>;
+    message: z.ZodString;
+}, z.core.$strip>;
+/** Body of `POST /manual-incidents/{id}/updates`. `status` may be `resolved`. */
+export declare const manualIncidentUpdateInputSchema: z.ZodObject<{
+    status: z.ZodEnum<{
+        identified: "identified";
+        investigating: "investigating";
+        monitoring: "monitoring";
+        resolved: "resolved";
+    }>;
+    message: z.ZodString;
+}, z.core.$strip>;
+/**
+ * A manual incident. Invariants: `status` is `resolved` iff `resolvedAt` is set; `updates` is
+ * non-empty, ordered by `at`; the last update has the incident status and, when resolved, `at`
+ * equal to `resolvedAt`.
+ */
+export declare const manualIncidentSchema: z.ZodObject<{
+    id: z.ZodInt;
+    title: z.ZodString;
+    componentIds: z.ZodArray<z.ZodString>;
+    impact: z.ZodEnum<{
+        critical: "critical";
+        major: "major";
+        minor: "minor";
+        none: "none";
+    }>;
+    status: z.ZodEnum<{
+        identified: "identified";
+        investigating: "investigating";
+        monitoring: "monitoring";
+        resolved: "resolved";
+    }>;
+    createdAt: z.ZodNumber;
+    resolvedAt: z.ZodNullable<z.ZodNumber>;
+    updates: z.ZodArray<z.ZodObject<{
+        at: z.ZodNumber;
+        status: z.ZodEnum<{
+            identified: "identified";
+            investigating: "investigating";
+            monitoring: "monitoring";
+            resolved: "resolved";
+        }>;
+        message: z.ZodString;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
 export type CheckStatus = z.infer<typeof checkStatusSchema>;
 /** A `CheckStatus`, or "unknown" (no result yet) or "maintenance" (active window). */
 export type CheckState = z.infer<typeof checkStateSchema>;
@@ -274,6 +367,16 @@ export type HeartbeatCheck = z.infer<typeof heartbeatCheckSchema>;
 export type Check = HttpCheck | TlsCheck | HeartbeatCheck;
 export type Result = z.infer<typeof resultSchema>;
 export type Incident = z.infer<typeof incidentSchema>;
+export type ManualIncidentImpact = z.infer<typeof manualIncidentImpactSchema>;
+export type ManualIncidentStatus = z.infer<typeof manualIncidentStatusSchema>;
+/** One timed message of a manual incident; its index is the stable update number. */
+export type ManualIncidentUpdate = z.infer<typeof manualIncidentUpdateSchema>;
+/** An incident that an operator posts by hand. */
+export type ManualIncident = z.infer<typeof manualIncidentSchema>;
+/** Body of `POST /manual-incidents`. */
+export type ManualIncidentInput = z.infer<typeof manualIncidentInputSchema>;
+/** Body of `POST /manual-incidents/{id}/updates`. */
+export type ManualIncidentUpdateInput = z.infer<typeof manualIncidentUpdateInputSchema>;
 /** A planned maintenance window for one check, half-open `[start, end)`. */
 export type MaintenanceWindow = z.infer<typeof maintenanceWindowSchema>;
 /** The latest result of one probe location for a check. */
@@ -302,6 +405,8 @@ export type ChecksResponse = CheckWithState[];
 export type ResultsResponse = Result[];
 /** GET /incidents */
 export type IncidentsResponse = Incident[];
+/** GET /manual-incidents */
+export type ManualIncidentsResponse = ManualIncident[];
 /** GET /maintenance */
 export type MaintenanceResponse = MaintenanceWindow[];
 /** GET /uptime: one entry per configured check, in the order of GET /checks. */

@@ -505,6 +505,141 @@ export const componentUptimeSchema = z.object(
 );
 
 /** "degraded": the check answered successfully but slower than its latency objective. */
+/** Limits of manual incidents. Lengths count UTF-16 code units, as `String.length` does. */
+export const MANUAL_INCIDENT_TITLE_MAX = 200;
+export const MANUAL_INCIDENT_MESSAGE_MAX = 2000;
+export const MANUAL_INCIDENT_MAX_UPDATES = 100;
+export const MANUAL_INCIDENT_MAX_COMPONENTS = 50;
+/** Largest request body the api accepts for a write: 16 KiB. */
+export const MANUAL_INCIDENT_MAX_BODY_BYTES = 16 * 1024;
+
+export const MANUAL_INCIDENT_IMPACTS = ["none", "minor", "major", "critical"] as const;
+export const MANUAL_INCIDENT_STATUSES = [
+  "investigating",
+  "identified",
+  "monitoring",
+  "resolved",
+] as const;
+
+export const manualIncidentImpactSchema = oneOf(MANUAL_INCIDENT_IMPACTS);
+export const manualIncidentStatusSchema = oneOf(MANUAL_INCIDENT_STATUSES);
+const openStatusSchema = oneOf(["investigating", "identified", "monitoring"]);
+
+/** Plain text: control characters are refused, newline only where `multiline` is set. */
+const plainBody = (max: number, multiline: boolean): z.ZodString =>
+  z
+    .string({ error: "must be a string" })
+    .min(1, `must be 1..${max} characters`)
+    .max(max, `must be 1..${max} characters`)
+    .refine((v) => !(multiline ? /[^\P{Cc}\n]/u : /\p{Cc}/u).test(v), {
+      error: multiline
+        ? "must not contain control characters except newline"
+        : "must not contain control characters",
+    });
+
+const manualTitle = plainBody(MANUAL_INCIDENT_TITLE_MAX, false);
+const manualMessage = plainBody(MANUAL_INCIDENT_MESSAGE_MAX, true);
+
+const manualComponentIds = z
+  .array(
+    z
+      .string({ error: "must be a string" })
+      .max(MAX_COMPONENT_ID, `must be at most ${MAX_COMPONENT_ID} characters`)
+      .regex(COMPONENT_ID, { error: "must match ^[a-z0-9][a-z0-9._-]*$" }),
+    { error: "must be an array" },
+  )
+  .max(MANUAL_INCIDENT_MAX_COMPONENTS, `must have at most ${MANUAL_INCIDENT_MAX_COMPONENTS} ids`)
+  .refine((ids) => new Set(ids).size === ids.length, { error: "must not contain duplicates" });
+
+/** One timed message of a manual incident. */
+export const manualIncidentUpdateSchema = z.object(
+  { at: finite, status: manualIncidentStatusSchema, message: manualMessage },
+  objectError,
+);
+
+/** Body of `POST /manual-incidents`. `status` defaults to `investigating`; not `resolved`. */
+export const manualIncidentInputSchema = z.object(
+  {
+    title: manualTitle,
+    impact: manualIncidentImpactSchema,
+    componentIds: manualComponentIds,
+    status: openStatusSchema.optional(),
+    message: manualMessage,
+  },
+  objectError,
+);
+
+/** Body of `POST /manual-incidents/{id}/updates`. `status` may be `resolved`. */
+export const manualIncidentUpdateInputSchema = z.object(
+  { status: manualIncidentStatusSchema, message: manualMessage },
+  objectError,
+);
+
+/**
+ * A manual incident. Invariants: `status` is `resolved` iff `resolvedAt` is set; `updates` is
+ * non-empty, ordered by `at`; the last update has the incident status and, when resolved, `at`
+ * equal to `resolvedAt`.
+ */
+export const manualIncidentSchema = z
+  .object(
+    {
+      id: integer,
+      title: manualTitle,
+      componentIds: manualComponentIds,
+      impact: manualIncidentImpactSchema,
+      status: manualIncidentStatusSchema,
+      createdAt: finite,
+      resolvedAt: finite.nullable(),
+      updates: z
+        .array(manualIncidentUpdateSchema, { error: "must be an array" })
+        .min(1, "must not be empty")
+        .max(
+          MANUAL_INCIDENT_MAX_UPDATES,
+          `must have at most ${MANUAL_INCIDENT_MAX_UPDATES} updates`,
+        ),
+    },
+    objectError,
+  )
+  .superRefine((incident, ctx) => {
+    const isResolved = incident.status === "resolved";
+    if (isResolved !== (incident.resolvedAt !== null)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["resolvedAt"],
+        message: "must be set exactly when status is resolved",
+      });
+    }
+    for (const [i, update] of incident.updates.entries()) {
+      const previous = incident.updates[i - 1];
+      if (previous !== undefined && update.at < previous.at) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["updates", i, "at"],
+          message: "must not precede the previous update",
+        });
+      }
+    }
+    const last = incident.updates.at(-1);
+    if (last === undefined) {
+      return;
+    }
+    const index = incident.updates.length - 1;
+    if (last.status !== incident.status) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["updates", index, "status"],
+        message: "must equal the incident status",
+      });
+    }
+    if (incident.resolvedAt !== null && last.at !== incident.resolvedAt) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["updates", index, "at"],
+        message: "must equal resolvedAt",
+      });
+    }
+  });
+
 export type CheckStatus = z.infer<typeof checkStatusSchema>;
 /** A `CheckStatus`, or "unknown" (no result yet) or "maintenance" (active window). */
 export type CheckState = z.infer<typeof checkStateSchema>;
@@ -531,6 +666,16 @@ export type HeartbeatCheck = z.infer<typeof heartbeatCheckSchema>;
 export type Check = HttpCheck | TlsCheck | HeartbeatCheck;
 export type Result = z.infer<typeof resultSchema>;
 export type Incident = z.infer<typeof incidentSchema>;
+export type ManualIncidentImpact = z.infer<typeof manualIncidentImpactSchema>;
+export type ManualIncidentStatus = z.infer<typeof manualIncidentStatusSchema>;
+/** One timed message of a manual incident; its index is the stable update number. */
+export type ManualIncidentUpdate = z.infer<typeof manualIncidentUpdateSchema>;
+/** An incident that an operator posts by hand. */
+export type ManualIncident = z.infer<typeof manualIncidentSchema>;
+/** Body of `POST /manual-incidents`. */
+export type ManualIncidentInput = z.infer<typeof manualIncidentInputSchema>;
+/** Body of `POST /manual-incidents/{id}/updates`. */
+export type ManualIncidentUpdateInput = z.infer<typeof manualIncidentUpdateInputSchema>;
 /** A planned maintenance window for one check, half-open `[start, end)`. */
 export type MaintenanceWindow = z.infer<typeof maintenanceWindowSchema>;
 /** The latest result of one probe location for a check. */
@@ -559,6 +704,8 @@ export type ChecksResponse = CheckWithState[];
 export type ResultsResponse = Result[];
 /** GET /incidents */
 export type IncidentsResponse = Incident[];
+/** GET /manual-incidents */
+export type ManualIncidentsResponse = ManualIncident[];
 /** GET /maintenance */
 export type MaintenanceResponse = MaintenanceWindow[];
 /** GET /uptime: one entry per configured check, in the order of GET /checks. */

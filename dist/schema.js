@@ -407,3 +407,110 @@ export const componentUptimeSchema = z.object({
     /** Result-weighted over the window; 0..100 or null. */
     uptime: percent,
 }, objectError);
+/** "degraded": the check answered successfully but slower than its latency objective. */
+/** Limits of manual incidents. Lengths count UTF-16 code units, as `String.length` does. */
+export const MANUAL_INCIDENT_TITLE_MAX = 200;
+export const MANUAL_INCIDENT_MESSAGE_MAX = 2000;
+export const MANUAL_INCIDENT_MAX_UPDATES = 100;
+export const MANUAL_INCIDENT_MAX_COMPONENTS = 50;
+/** Largest request body the api accepts for a write: 16 KiB. */
+export const MANUAL_INCIDENT_MAX_BODY_BYTES = 16 * 1024;
+export const MANUAL_INCIDENT_IMPACTS = ["none", "minor", "major", "critical"];
+export const MANUAL_INCIDENT_STATUSES = [
+    "investigating",
+    "identified",
+    "monitoring",
+    "resolved",
+];
+export const manualIncidentImpactSchema = oneOf(MANUAL_INCIDENT_IMPACTS);
+export const manualIncidentStatusSchema = oneOf(MANUAL_INCIDENT_STATUSES);
+const openStatusSchema = oneOf(["investigating", "identified", "monitoring"]);
+/** Plain text: control characters are refused, newline only where `multiline` is set. */
+const plainBody = (max, multiline) => z
+    .string({ error: "must be a string" })
+    .min(1, `must be 1..${max} characters`)
+    .max(max, `must be 1..${max} characters`)
+    .refine((v) => !(multiline ? /[^\P{Cc}\n]/u : /\p{Cc}/u).test(v), {
+    error: multiline
+        ? "must not contain control characters except newline"
+        : "must not contain control characters",
+});
+const manualTitle = plainBody(MANUAL_INCIDENT_TITLE_MAX, false);
+const manualMessage = plainBody(MANUAL_INCIDENT_MESSAGE_MAX, true);
+const manualComponentIds = z
+    .array(z
+    .string({ error: "must be a string" })
+    .max(MAX_COMPONENT_ID, `must be at most ${MAX_COMPONENT_ID} characters`)
+    .regex(COMPONENT_ID, { error: "must match ^[a-z0-9][a-z0-9._-]*$" }), { error: "must be an array" })
+    .max(MANUAL_INCIDENT_MAX_COMPONENTS, `must have at most ${MANUAL_INCIDENT_MAX_COMPONENTS} ids`)
+    .refine((ids) => new Set(ids).size === ids.length, { error: "must not contain duplicates" });
+/** One timed message of a manual incident. */
+export const manualIncidentUpdateSchema = z.object({ at: finite, status: manualIncidentStatusSchema, message: manualMessage }, objectError);
+/** Body of `POST /manual-incidents`. `status` defaults to `investigating`; not `resolved`. */
+export const manualIncidentInputSchema = z.object({
+    title: manualTitle,
+    impact: manualIncidentImpactSchema,
+    componentIds: manualComponentIds,
+    status: openStatusSchema.optional(),
+    message: manualMessage,
+}, objectError);
+/** Body of `POST /manual-incidents/{id}/updates`. `status` may be `resolved`. */
+export const manualIncidentUpdateInputSchema = z.object({ status: manualIncidentStatusSchema, message: manualMessage }, objectError);
+/**
+ * A manual incident. Invariants: `status` is `resolved` iff `resolvedAt` is set; `updates` is
+ * non-empty, ordered by `at`; the last update has the incident status and, when resolved, `at`
+ * equal to `resolvedAt`.
+ */
+export const manualIncidentSchema = z
+    .object({
+    id: integer,
+    title: manualTitle,
+    componentIds: manualComponentIds,
+    impact: manualIncidentImpactSchema,
+    status: manualIncidentStatusSchema,
+    createdAt: finite,
+    resolvedAt: finite.nullable(),
+    updates: z
+        .array(manualIncidentUpdateSchema, { error: "must be an array" })
+        .min(1, "must not be empty")
+        .max(MANUAL_INCIDENT_MAX_UPDATES, `must have at most ${MANUAL_INCIDENT_MAX_UPDATES} updates`),
+}, objectError)
+    .superRefine((incident, ctx) => {
+    const isResolved = incident.status === "resolved";
+    if (isResolved !== (incident.resolvedAt !== null)) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["resolvedAt"],
+            message: "must be set exactly when status is resolved",
+        });
+    }
+    for (const [i, update] of incident.updates.entries()) {
+        const previous = incident.updates[i - 1];
+        if (previous !== undefined && update.at < previous.at) {
+            ctx.addIssue({
+                code: "custom",
+                path: ["updates", i, "at"],
+                message: "must not precede the previous update",
+            });
+        }
+    }
+    const last = incident.updates.at(-1);
+    if (last === undefined) {
+        return;
+    }
+    const index = incident.updates.length - 1;
+    if (last.status !== incident.status) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["updates", index, "status"],
+            message: "must equal the incident status",
+        });
+    }
+    if (incident.resolvedAt !== null && last.at !== incident.resolvedAt) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["updates", index, "at"],
+            message: "must equal resolvedAt",
+        });
+    }
+});

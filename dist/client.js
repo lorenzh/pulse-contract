@@ -1,3 +1,4 @@
+import { validateManualIncident, validateManualIncidentsResponse, } from "./validate.js";
 import { checkWireVersion, WIRE_VERSION_HEADER } from "./version.js";
 /** Default cap for a response body: 5 MiB. */
 export const DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -144,4 +145,30 @@ export async function fetchJson(url, options) {
         stop();
         own.abort(); // frees a pending fetch or body read after a timeout, abort or cap
     }
+}
+function withValidator(options, validate) {
+    return { ...options, validate };
+}
+/**
+ * GETs `<baseUrl>/manual-incidents`, optionally filtered by `status`. With `isAbsentTolerated`,
+ * a 404 gives an empty list (`wire` is `absent`); every other failure is returned as is.
+ */
+export async function getManualIncidents(baseUrl, options, status) {
+    const url = new URL("manual-incidents", baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+    if (status !== undefined) {
+        url.searchParams.set("status", status);
+    }
+    const result = await fetchJson(url, withValidator(options, validateManualIncidentsResponse));
+    if (!result.ok &&
+        options.isAbsentTolerated === true &&
+        result.error.kind === "http" &&
+        result.error.status === 404) {
+        return { ok: true, value: [], wire: "absent" };
+    }
+    return result;
+}
+/** GETs `<baseUrl>/manual-incidents/<id>`. A 404 is returned as an `http` error. */
+export function getManualIncident(baseUrl, id, options) {
+    const url = new URL(`manual-incidents/${encodeURIComponent(String(id))}`, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+    return fetchJson(url, withValidator(options, validateManualIncident));
 }
