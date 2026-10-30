@@ -4,6 +4,8 @@ import { z } from "zod";
  * so no layer may pass a delay above it to a timer.
  */
 export declare const MAX_TIMER_MS = 2147483647;
+/** Availability objective in percent: a number >= 90 and < 100. */
+export declare const availabilityTargetSchema: z.ZodNumber;
 export declare const checkStatusSchema: z.ZodEnum<{
     up: "up";
     degraded: "degraded";
@@ -73,6 +75,7 @@ export declare const httpCheckSchema: z.ZodObject<{
         equals: z.ZodOptional<z.ZodJSONSchema>;
         exists: z.ZodOptional<z.ZodLiteral<true>>;
     }, z.core.$strip>>>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strip>;
 export declare const tlsCheckSchema: z.ZodObject<{
     id: z.ZodString;
@@ -85,6 +88,7 @@ export declare const tlsCheckSchema: z.ZodObject<{
     warnDays: z.ZodNumber;
     intervalMs: z.ZodNumber;
     timeoutMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
     body: z.ZodOptional<z.ZodNever>;
@@ -114,6 +118,7 @@ export declare const tcpCheckSchema: z.ZodObject<{
     timeoutMs: z.ZodOptional<z.ZodNumber>;
     retries: z.ZodOptional<z.ZodNumber>;
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     url: z.ZodOptional<z.ZodNever>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
@@ -144,6 +149,7 @@ export declare const dnsCheckSchema: z.ZodObject<{
     timeoutMs: z.ZodOptional<z.ZodNumber>;
     retries: z.ZodOptional<z.ZodNumber>;
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     url: z.ZodOptional<z.ZodNever>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
@@ -165,6 +171,7 @@ export declare const domainCheckSchema: z.ZodObject<{
     timeoutMs: z.ZodOptional<z.ZodNumber>;
     retries: z.ZodOptional<z.ZodNumber>;
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     url: z.ZodOptional<z.ZodNever>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
@@ -182,6 +189,7 @@ export declare const heartbeatCheckSchema: z.ZodObject<{
     }>;
     period: z.ZodNumber;
     grace: z.ZodNumber;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
     body: z.ZodOptional<z.ZodNever>;
@@ -260,6 +268,13 @@ export declare const locationSchema: z.ZodObject<{
         silent: "silent";
     }>;
 }, z.core.$strict>;
+/** The 30-day availability objective of a check or component, with the measured outcome. */
+export declare const sloSchema: z.ZodObject<{
+    target: z.ZodNumber;
+    windowDays: z.ZodLiteral<30>;
+    availability: z.ZodNullable<z.ZodNumber>;
+    budgetRemaining: z.ZodNullable<z.ZodNumber>;
+}, z.core.$strip>;
 export declare const checkStateFieldsSchema: z.ZodObject<{
     state: z.ZodEnum<{
         up: "up";
@@ -297,6 +312,12 @@ export declare const checkStateFieldsSchema: z.ZodObject<{
         note: z.ZodString;
     }, z.core.$strip>>;
     certDaysLeft: z.ZodOptional<z.ZodNullable<z.ZodInt>>;
+    slo: z.ZodOptional<z.ZodObject<{
+        target: z.ZodNumber;
+        windowDays: z.ZodLiteral<30>;
+        availability: z.ZodNullable<z.ZodNumber>;
+        budgetRemaining: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const uptimeDaySchema: z.ZodObject<{
     date: z.ZodString;
@@ -312,6 +333,22 @@ export declare const checkUptimeSchema: z.ZodObject<{
     }, z.core.$strip>>;
     uptime: z.ZodNullable<z.ZodNumber>;
 }, z.core.$strip>;
+export declare const latencyDaySchema: z.ZodObject<{
+    date: z.ZodString;
+    p50Ms: z.ZodNullable<z.ZodNumber>;
+    p95Ms: z.ZodNullable<z.ZodNumber>;
+    count: z.ZodNumber;
+}, z.core.$strip>;
+/** The 90-day latency history of one check. */
+export declare const checkLatencySchema: z.ZodObject<{
+    checkId: z.ZodString;
+    days: z.ZodArray<z.ZodObject<{
+        date: z.ZodString;
+        p50Ms: z.ZodNullable<z.ZodNumber>;
+        p95Ms: z.ZodNullable<z.ZodNumber>;
+        count: z.ZodNumber;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
 /** A customer-facing group of checks, as configured. Unknown keys are rejected. */
 export declare const componentSchema: z.ZodObject<{
     id: z.ZodString;
@@ -319,6 +356,7 @@ export declare const componentSchema: z.ZodObject<{
     description: z.ZodOptional<z.ZodString>;
     checkIds: z.ZodArray<z.ZodString>;
     group: z.ZodOptional<z.ZodString>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict>;
 export declare const componentWithStateSchema: z.ZodObject<{
     state: z.ZodEnum<{
@@ -330,11 +368,18 @@ export declare const componentWithStateSchema: z.ZodObject<{
     }>;
     uptime: z.ZodNullable<z.ZodNumber>;
     incidentIds: z.ZodArray<z.ZodInt>;
+    slo: z.ZodOptional<z.ZodObject<{
+        target: z.ZodNumber;
+        windowDays: z.ZodLiteral<30>;
+        availability: z.ZodNullable<z.ZodNumber>;
+        budgetRemaining: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
     id: z.ZodString;
     name: z.ZodString;
     description: z.ZodOptional<z.ZodString>;
     checkIds: z.ZodArray<z.ZodString>;
     group: z.ZodOptional<z.ZodString>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strip>;
 export declare const componentUptimeSchema: z.ZodObject<{
     componentId: z.ZodString;
@@ -499,6 +544,12 @@ export type CheckWithState = Check & CheckStateFields;
 export type UptimeDay = z.infer<typeof uptimeDaySchema>;
 /** The 90-day uptime of one check. */
 export type CheckUptime = z.infer<typeof checkUptimeSchema>;
+/** One UTC calendar day of a check's latency percentiles. */
+export type LatencyDay = z.infer<typeof latencyDaySchema>;
+/** The 90-day latency history (p50 and p95 per UTC day) of one check. */
+export type CheckLatency = z.infer<typeof checkLatencySchema>;
+/** The 30-day availability objective of a check or component and how much budget is left. */
+export type Slo = z.infer<typeof sloSchema>;
 /** A named, customer-facing group of checks. */
 export type Component = z.infer<typeof componentSchema>;
 /** A component with its combined state, window uptime and open incident ids. */
@@ -524,6 +575,8 @@ export type ManualIncidentsResponse = ManualIncident[];
 export type MaintenanceResponse = MaintenanceWindow[];
 /** GET /uptime: one entry per configured check, in the order of GET /checks. */
 export type UptimeResponse = CheckUptime[];
+/** GET /latency: one entry per active http check, in the order of GET /checks. */
+export type LatencyResponse = CheckLatency[];
 /** GET /components: one entry per configured component, in configured order. */
 export type ComponentsResponse = ComponentWithState[];
 /** GET /components/uptime: one entry per configured component, in configured order. */

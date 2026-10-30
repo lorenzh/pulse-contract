@@ -36,6 +36,7 @@ export {
 export { aggregateUptime, combineStates, incidentImpactState } from "./components.ts";
 export type {
   Check,
+  CheckLatency,
   CheckState,
   CheckStateFields,
   CheckStatus,
@@ -59,6 +60,8 @@ export type {
   Incident,
   IncidentsResponse,
   JsonAssertion,
+  LatencyDay,
+  LatencyResponse,
   Location,
   LocationResult,
   LocationsResponse,
@@ -74,12 +77,15 @@ export type {
   PostResultRequest,
   Result,
   ResultsResponse,
+  Slo,
   TcpCheck,
   TlsCheck,
   UptimeDay,
   UptimeResponse,
 } from "./schema.ts";
 export {
+  availabilityTargetSchema,
+  checkLatencySchema,
   dnsCheckSchema,
   dnsRecordTypeSchema,
   domainCheckSchema,
@@ -87,6 +93,7 @@ export {
   headerValueSchema,
   httpMethodSchema,
   jsonAssertSchema,
+  latencyDaySchema,
   locationSchema,
   MANUAL_INCIDENT_IMPACTS,
   MANUAL_INCIDENT_MAX_BODY_BYTES,
@@ -97,11 +104,13 @@ export {
   MANUAL_INCIDENT_TITLE_MAX,
   MAX_TIMER_MS,
   MIN_DOMAIN_INTERVAL_MS,
+  sloSchema,
   tcpCheckSchema,
 } from "./schema.ts";
 export {
   type Validation,
   validateCheck,
+  validateCheckLatency,
   validateChecksResponse,
   validateCheckUptime,
   validateCheckWithState,
@@ -112,6 +121,7 @@ export {
   validateComponentWithState,
   validateIncident,
   validateIncidentsResponse,
+  validateLatencyResponse,
   validateLocation,
   validateLocationsResponse,
   validateMaintenanceResponse,
@@ -123,6 +133,7 @@ export {
   validatePostResultRequest,
   validateResult,
   validateResultsResponse,
+  validateSlo,
   validateUptimeResponse,
 } from "./validate.ts";
 export {

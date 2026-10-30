@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { type Check, type ChecksResponse, type CheckUptime, type CheckWithState, type Component, type ComponentsResponse, type ComponentsUptimeResponse, type ComponentUptime, type ComponentWithState, type Incident, type IncidentsResponse, type Location, type LocationsResponse, type MaintenanceResponse, type MaintenanceWindow, type ManualIncident, type ManualIncidentInput, type ManualIncidentsResponse, type ManualIncidentUpdateInput, type PostResultRequest, type Result, type ResultsResponse, type UptimeResponse } from "./schema.ts";
+import { type Check, type CheckLatency, type ChecksResponse, type CheckUptime, type CheckWithState, type Component, type ComponentsResponse, type ComponentsUptimeResponse, type ComponentUptime, type ComponentWithState, type Incident, type IncidentsResponse, type LatencyResponse, type Location, type LocationsResponse, type MaintenanceResponse, type MaintenanceWindow, type ManualIncident, type ManualIncidentInput, type ManualIncidentsResponse, type ManualIncidentUpdateInput, type PostResultRequest, type Result, type ResultsResponse, type Slo, type UptimeResponse } from "./schema.ts";
 /** Outcome of a validator. Validators never throw. */
 export type Validation<T> = {
     ok: true;
@@ -41,6 +41,12 @@ export declare function validateResultsResponse(value: unknown, path?: string): 
 export declare function validateIncidentsResponse(value: unknown, path?: string): Validation<IncidentsResponse>;
 /** Validates `GET /maintenance`; fails on the first bad element. */
 export declare function validateMaintenanceResponse(value: unknown, path?: string): Validation<MaintenanceResponse>;
+/** Validates a `CheckLatency`: exactly 90 days, null values exactly on days with `count` 0. */
+export declare function validateCheckLatency(value: unknown, path?: string): Validation<CheckLatency>;
+/** Validates `GET /latency`; fails on the first bad element. */
+export declare function validateLatencyResponse(value: unknown, path?: string): Validation<LatencyResponse>;
+/** Validates an `Slo`. Returns the same object. */
+export declare function validateSlo(value: unknown, path?: string): Validation<Slo>;
 /** Validates `GET /uptime`; fails on the first bad element. */
 export declare function validateUptimeResponse(value: unknown, path?: string): Validation<UptimeResponse>;
 /** Validates a `Location`; unknown keys are rejected. Returns the same object. */

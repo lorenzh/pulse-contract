@@ -46,6 +46,12 @@ const isCalendarDate = (value: string): boolean => {
 
 const objectError = { error: "must be an object" } as const;
 
+/** Availability objective in percent: a number >= 90 and < 100. */
+export const availabilityTargetSchema = z
+  .number({ error: "must be a number >= 90 and < 100" })
+  .min(90, "must be a number >= 90 and < 100")
+  .refine((v) => v < 100, { error: "must be a number >= 90 and < 100" });
+
 // Delays and durations in ms: integers that a timer can hold.
 const timerMs = intBetween(1, MAX_TIMER_MS);
 
@@ -263,6 +269,8 @@ export const httpCheckSchema = z
       expectedStatus: expectedStatusSchema.optional(),
       /** Assertions on the JSON response body, at most 10. Not allowed with HEAD. */
       jsonAssert: jsonAssertListSchema.optional(),
+      /** Availability objective in percent, >= 90 and < 100. Absent means no objective. */
+      availabilityTarget: availabilityTargetSchema.optional(),
     },
     objectError,
   )
@@ -283,6 +291,8 @@ export const tlsCheckSchema = z.object(
     intervalMs: timerMs,
     /** Integer 1..2147483647. */
     timeoutMs: timerMs.optional(),
+    /** Availability objective in percent, >= 90 and < 100. Absent means no objective. */
+    availabilityTarget: availabilityTargetSchema.optional(),
     /** Not available on this check type. */
     method: z.never().optional(),
     headers: z.never().optional(),
@@ -352,6 +362,8 @@ const probedFields = {
   retries: intBetween(0, 10).optional(),
   /** Wait in ms between attempts, integer 0..60000. Absent means 1000; the api serves it resolved. */
   retryDelayMs: intBetween(0, 60_000).optional(),
+  /** Availability objective in percent, >= 90 and < 100. Absent means no objective. */
+  availabilityTarget: availabilityTargetSchema.optional(),
   /** Not available on this check type. */
   url: z.never().optional(),
   method: z.never().optional(),
@@ -427,6 +439,8 @@ export const heartbeatCheckSchema = z.object(
     period: intBetween(1000, 86_400_000),
     /** Extra wait in ms before the check is down, integer 0..86400000. Always set in served data. */
     grace: intBetween(0, 86_400_000),
+    /** Availability objective in percent, >= 90 and < 100. Absent means no objective. */
+    availabilityTarget: availabilityTargetSchema.optional(),
     /** Not available on this check type. */
     method: z.never().optional(),
     headers: z.never().optional(),
@@ -533,6 +547,28 @@ export const locationSchema = z.strictObject(
   },
 );
 
+/** The 30-day availability objective of a check or component, with the measured outcome. */
+export const sloSchema = z.object(
+  {
+    /** The configured `availabilityTarget`, >= 90 and < 100. */
+    target: availabilityTargetSchema,
+    /** Window length in UTC calendar days; always 30. */
+    windowDays: z.literal(30, { error: "must be 30" }),
+    /** Result-weighted availability in percent over the window, 0..100; null without results. */
+    availability: z
+      .number({ error: "must be null or a number 0..100" })
+      .min(0, "must be null or a number 0..100")
+      .max(100, "must be null or a number 0..100")
+      .nullable(),
+    /**
+     * `100 * (1 - (1 - availability/100) / (1 - target/100))`: percent of the error budget left.
+     * Negative when exceeded; null exactly when `availability` is null.
+     */
+    budgetRemaining: finite.nullable(),
+  },
+  objectError,
+);
+
 export const checkStateFieldsSchema = z.object(
   {
     state: checkStateSchema,
@@ -545,6 +581,8 @@ export const checkStateFieldsSchema = z.object(
     maintenance: maintenanceWindowSchema.optional(),
     /** certDaysLeft of the latest result; absent or null for other check types and without a certificate. */
     certDaysLeft: optionalCertDaysLeft,
+    /** Present only when the check has an `availabilityTarget`. */
+    slo: sloSchema.optional(),
   },
   objectError,
 );
@@ -583,6 +621,54 @@ export const checkUptimeSchema = z.object(
   objectError,
 );
 
+const LATENCY_DAYS = 90;
+
+const latencyMs = z
+  .number({ error: "must be null or a number >= 0" })
+  .min(0, "must be null or a number >= 0")
+  .nullable();
+
+export const latencyDaySchema = z
+  .object(
+    {
+      /** UTC calendar day, YYYY-MM-DD, a real date. */
+      date: z
+        .string({ error: "must be a YYYY-MM-DD date" })
+        .refine(isCalendarDate, "must be a YYYY-MM-DD date"),
+      /** Nearest-rank median of `latencyMs` of the day's up and degraded results; null when `count` is 0. */
+      p50Ms: latencyMs,
+      /** Nearest-rank 95th percentile, as `p50Ms`. */
+      p95Ms: latencyMs,
+      /** Number of up and degraded results of the day. */
+      count: atLeast(0),
+    },
+    objectError,
+  )
+  .superRefine((day, ctx) => {
+    const isEmpty = day.count === 0;
+    for (const key of ["p50Ms", "p95Ms"] as const) {
+      if (isEmpty !== (day[key] === null)) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: isEmpty ? "must be null when count is 0" : "must be a number when count > 0",
+        });
+      }
+    }
+  });
+
+/** The 90-day latency history of one check. */
+export const checkLatencySchema = z.object(
+  {
+    checkId: nonEmpty,
+    /** Exactly 90 UTC days, oldest first; the last is the date of the service's `now()`. */
+    days: z
+      .array(latencyDaySchema, { error: "must be an array" })
+      .length(LATENCY_DAYS, `must have exactly ${LATENCY_DAYS} days`),
+  },
+  objectError,
+);
+
 const MAX_COMPONENT_ID = 64;
 const COMPONENT_ID = /^[a-z0-9][a-z0-9._-]*$/;
 // Control characters (C0, DEL, C1) are not allowed in customer-facing text.
@@ -616,6 +702,8 @@ const componentFields = {
     .refine((ids) => new Set(ids).size === ids.length, { error: "must not contain duplicates" }),
   /** Section heading, plain text, 1..100 characters. */
   group: plainText(1, 100).optional(),
+  /** Availability objective in percent, >= 90 and < 100. Absent means no objective. */
+  availabilityTarget: availabilityTargetSchema.optional(),
 };
 
 /** A customer-facing group of checks, as configured. Unknown keys are rejected. */
@@ -635,6 +723,8 @@ export const componentWithStateSchema = z.object(
     uptime: percent,
     /** Ids of the open incidents of the member checks, ascending. */
     incidentIds: z.array(integer, { error: "must be an array" }),
+    /** Present only when the component has an `availabilityTarget`. */
+    slo: sloSchema.optional(),
   },
   objectError,
 );
@@ -846,6 +936,12 @@ export type CheckWithState = Check & CheckStateFields;
 export type UptimeDay = z.infer<typeof uptimeDaySchema>;
 /** The 90-day uptime of one check. */
 export type CheckUptime = z.infer<typeof checkUptimeSchema>;
+/** One UTC calendar day of a check's latency percentiles. */
+export type LatencyDay = z.infer<typeof latencyDaySchema>;
+/** The 90-day latency history (p50 and p95 per UTC day) of one check. */
+export type CheckLatency = z.infer<typeof checkLatencySchema>;
+/** The 30-day availability objective of a check or component and how much budget is left. */
+export type Slo = z.infer<typeof sloSchema>;
 /** A named, customer-facing group of checks. */
 export type Component = z.infer<typeof componentSchema>;
 /** A component with its combined state, window uptime and open incident ids. */
@@ -871,6 +967,8 @@ export type ManualIncidentsResponse = ManualIncident[];
 export type MaintenanceResponse = MaintenanceWindow[];
 /** GET /uptime: one entry per configured check, in the order of GET /checks. */
 export type UptimeResponse = CheckUptime[];
+/** GET /latency: one entry per active http check, in the order of GET /checks. */
+export type LatencyResponse = CheckLatency[];
 /** GET /components: one entry per configured component, in configured order. */
 export type ComponentsResponse = ComponentWithState[];
 /** GET /components/uptime: one entry per configured component, in configured order. */

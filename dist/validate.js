@@ -1,4 +1,4 @@
-import { checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, locationSchema, maintenanceWindowSchema, manualIncidentInputSchema, manualIncidentSchema, manualIncidentUpdateInputSchema, postResultRequestSchema, resultSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
+import { checkLatencySchema, checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, locationSchema, maintenanceWindowSchema, manualIncidentInputSchema, manualIncidentSchema, manualIncidentUpdateInputSchema, postResultRequestSchema, resultSchema, sloSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
 export const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 /** Reads an own property; inherited names such as `constructor` count as absent. */
 function ownValue(parent, key) {
@@ -188,6 +188,18 @@ export function validateIncidentsResponse(value, path = "incidents") {
 /** Validates `GET /maintenance`; fails on the first bad element. */
 export function validateMaintenanceResponse(value, path = "maintenance") {
     return verdict(arrayProblem((item, p) => problem(maintenanceWindowSchema, item, p), value, path), value);
+}
+/** Validates a `CheckLatency`: exactly 90 days, null values exactly on days with `count` 0. */
+export function validateCheckLatency(value, path = "latency") {
+    return validateWith(checkLatencySchema, value, path);
+}
+/** Validates `GET /latency`; fails on the first bad element. */
+export function validateLatencyResponse(value, path = "latency") {
+    return verdict(arrayProblem((item, p) => problem(checkLatencySchema, item, p), value, path), value);
+}
+/** Validates an `Slo`. Returns the same object. */
+export function validateSlo(value, path = "slo") {
+    return validateWith(sloSchema, value, path);
 }
 /** Validates `GET /uptime`; fails on the first bad element. */
 export function validateUptimeResponse(value, path = "uptime") {

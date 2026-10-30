@@ -80,6 +80,7 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
         equals: z.ZodOptional<z.ZodJSONSchema>;
         exists: z.ZodOptional<z.ZodLiteral<true>>;
     }, z.core.$strip>>>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict>, z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;
@@ -91,6 +92,7 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
     warnDays: z.ZodNumber;
     intervalMs: z.ZodNumber;
     timeoutMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
     body: z.ZodOptional<z.ZodNever>;
@@ -109,6 +111,7 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
     timeoutMs: z.ZodOptional<z.ZodNumber>;
     retries: z.ZodOptional<z.ZodNumber>;
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     url: z.ZodOptional<z.ZodNever>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
@@ -138,6 +141,7 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
     timeoutMs: z.ZodOptional<z.ZodNumber>;
     retries: z.ZodOptional<z.ZodNumber>;
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     url: z.ZodOptional<z.ZodNever>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
@@ -158,6 +162,7 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
     timeoutMs: z.ZodOptional<z.ZodNumber>;
     retries: z.ZodOptional<z.ZodNumber>;
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     url: z.ZodOptional<z.ZodNever>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
@@ -176,6 +181,7 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
     }>;
     period: z.ZodNumber;
     grace: z.ZodNumber;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
     body: z.ZodOptional<z.ZodNever>;
@@ -217,6 +223,7 @@ export declare const adminCheckInputSchemas: {
             equals: z.ZodOptional<z.ZodJSONSchema>;
             exists: z.ZodOptional<z.ZodLiteral<true>>;
         }, z.core.$strip>>>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>;
     readonly tls: z.ZodObject<{
         id: z.ZodString;
@@ -229,6 +236,7 @@ export declare const adminCheckInputSchemas: {
         warnDays: z.ZodNumber;
         intervalMs: z.ZodNumber;
         timeoutMs: z.ZodOptional<z.ZodNumber>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
         method: z.ZodOptional<z.ZodNever>;
         headers: z.ZodOptional<z.ZodNever>;
         body: z.ZodOptional<z.ZodNever>;
@@ -248,6 +256,7 @@ export declare const adminCheckInputSchemas: {
         timeoutMs: z.ZodOptional<z.ZodNumber>;
         retries: z.ZodOptional<z.ZodNumber>;
         retryDelayMs: z.ZodOptional<z.ZodNumber>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
         url: z.ZodOptional<z.ZodNever>;
         method: z.ZodOptional<z.ZodNever>;
         headers: z.ZodOptional<z.ZodNever>;
@@ -278,6 +287,7 @@ export declare const adminCheckInputSchemas: {
         timeoutMs: z.ZodOptional<z.ZodNumber>;
         retries: z.ZodOptional<z.ZodNumber>;
         retryDelayMs: z.ZodOptional<z.ZodNumber>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
         url: z.ZodOptional<z.ZodNever>;
         method: z.ZodOptional<z.ZodNever>;
         headers: z.ZodOptional<z.ZodNever>;
@@ -299,6 +309,7 @@ export declare const adminCheckInputSchemas: {
         timeoutMs: z.ZodOptional<z.ZodNumber>;
         retries: z.ZodOptional<z.ZodNumber>;
         retryDelayMs: z.ZodOptional<z.ZodNumber>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
         url: z.ZodOptional<z.ZodNever>;
         method: z.ZodOptional<z.ZodNever>;
         headers: z.ZodOptional<z.ZodNever>;
@@ -318,6 +329,7 @@ export declare const adminCheckInputSchemas: {
         }>;
         period: z.ZodNumber;
         grace: z.ZodNumber;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
         method: z.ZodOptional<z.ZodNever>;
         headers: z.ZodOptional<z.ZodNever>;
         body: z.ZodOptional<z.ZodNever>;
@@ -341,6 +353,7 @@ export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
     warnDays: z.ZodNumber;
     intervalMs: z.ZodNumber;
     timeoutMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
     body: z.ZodOptional<z.ZodNever>;
@@ -359,6 +372,7 @@ export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
     timeoutMs: z.ZodOptional<z.ZodNumber>;
     retries: z.ZodOptional<z.ZodNumber>;
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     url: z.ZodOptional<z.ZodNever>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
@@ -388,6 +402,7 @@ export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
     timeoutMs: z.ZodOptional<z.ZodNumber>;
     retries: z.ZodOptional<z.ZodNumber>;
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     url: z.ZodOptional<z.ZodNever>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
@@ -408,6 +423,7 @@ export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
     timeoutMs: z.ZodOptional<z.ZodNumber>;
     retries: z.ZodOptional<z.ZodNumber>;
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     url: z.ZodOptional<z.ZodNever>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
@@ -448,6 +464,7 @@ export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
         equals: z.ZodOptional<z.ZodJSONSchema>;
         exists: z.ZodOptional<z.ZodLiteral<true>>;
     }, z.core.$strip>>>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict> | z.ZodObject<{
     secret: z.ZodOptional<z.ZodString>;
     id: z.ZodString;
@@ -457,6 +474,7 @@ export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
     }>;
     period: z.ZodNumber;
     grace: z.ZodNumber;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
     method: z.ZodOptional<z.ZodNever>;
     headers: z.ZodOptional<z.ZodNever>;
     body: z.ZodOptional<z.ZodNever>;
@@ -471,6 +489,7 @@ export declare const adminComponentSchema: z.ZodObject<{
     description: z.ZodOptional<z.ZodString>;
     checkIds: z.ZodArray<z.ZodString>;
     group: z.ZodOptional<z.ZodString>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict>;
 export declare const adminComponentInputSchema: z.ZodObject<{
     id: z.ZodString;
@@ -478,6 +497,7 @@ export declare const adminComponentInputSchema: z.ZodObject<{
     description: z.ZodOptional<z.ZodString>;
     checkIds: z.ZodArray<z.ZodString>;
     group: z.ZodOptional<z.ZodString>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict>;
 /** A maintenance window as written in a request. Strict. */
 export declare const adminMaintenanceInputSchema: z.ZodObject<{
@@ -529,6 +549,7 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
             equals: z.ZodOptional<z.ZodJSONSchema>;
             exists: z.ZodOptional<z.ZodLiteral<true>>;
         }, z.core.$strip>>>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>, z.ZodObject<{
         id: z.ZodString;
         name: z.ZodString;
@@ -540,6 +561,7 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         warnDays: z.ZodNumber;
         intervalMs: z.ZodNumber;
         timeoutMs: z.ZodOptional<z.ZodNumber>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
         method: z.ZodOptional<z.ZodNever>;
         headers: z.ZodOptional<z.ZodNever>;
         body: z.ZodOptional<z.ZodNever>;
@@ -558,6 +580,7 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         timeoutMs: z.ZodOptional<z.ZodNumber>;
         retries: z.ZodOptional<z.ZodNumber>;
         retryDelayMs: z.ZodOptional<z.ZodNumber>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
         url: z.ZodOptional<z.ZodNever>;
         method: z.ZodOptional<z.ZodNever>;
         headers: z.ZodOptional<z.ZodNever>;
@@ -587,6 +610,7 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         timeoutMs: z.ZodOptional<z.ZodNumber>;
         retries: z.ZodOptional<z.ZodNumber>;
         retryDelayMs: z.ZodOptional<z.ZodNumber>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
         url: z.ZodOptional<z.ZodNever>;
         method: z.ZodOptional<z.ZodNever>;
         headers: z.ZodOptional<z.ZodNever>;
@@ -607,6 +631,7 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         timeoutMs: z.ZodOptional<z.ZodNumber>;
         retries: z.ZodOptional<z.ZodNumber>;
         retryDelayMs: z.ZodOptional<z.ZodNumber>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
         url: z.ZodOptional<z.ZodNever>;
         method: z.ZodOptional<z.ZodNever>;
         headers: z.ZodOptional<z.ZodNever>;
@@ -625,6 +650,7 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         }>;
         period: z.ZodNumber;
         grace: z.ZodNumber;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
         method: z.ZodOptional<z.ZodNever>;
         headers: z.ZodOptional<z.ZodNever>;
         body: z.ZodOptional<z.ZodNever>;
@@ -638,6 +664,7 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         description: z.ZodOptional<z.ZodString>;
         checkIds: z.ZodArray<z.ZodString>;
         group: z.ZodOptional<z.ZodString>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     maintenance: z.ZodArray<z.ZodObject<{
         index: z.ZodInt;
