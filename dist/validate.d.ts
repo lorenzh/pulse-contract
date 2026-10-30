@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import { type Check, type ChecksResponse, type CheckUptime, type CheckWithState, type Component, type ComponentsResponse, type ComponentsUptimeResponse, type ComponentUptime, type ComponentWithState, type Incident, type IncidentsResponse, type Location, type LocationsResponse, type MaintenanceResponse, type MaintenanceWindow, type ManualIncident, type ManualIncidentInput, type ManualIncidentsResponse, type ManualIncidentUpdateInput, type PostResultRequest, type Result, type ResultsResponse, type UptimeResponse } from "./schema.ts";
 /** Outcome of a validator. Validators never throw. */
 export type Validation<T> = {
@@ -7,6 +8,13 @@ export type Validation<T> = {
     ok: false;
     error: string;
 };
+type Fields = Record<string, unknown>;
+export declare const isObject: (value: unknown) => value is Fields;
+/** Returns the error text, or undefined when the value matches the schema. */
+export declare function problem(schema: z.ZodType, value: unknown, path: string): string | undefined;
+export declare function verdict<T>(error: string | undefined, value: unknown): Validation<T>;
+export declare function validateWith<T>(schema: z.ZodType, value: unknown, path: string): Validation<T>;
+export declare const arrayProblem: (check: (item: unknown, path: string) => string | undefined, value: unknown, path: string) => string | undefined;
 /** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
 export declare function validateCheck(value: unknown, path?: string): Validation<Check>;
 /** Validates a `CheckWithState`. Returns the same object. */
@@ -57,3 +65,4 @@ export declare function validateManualIncidentsResponse(value: unknown, path?: s
 export declare function validateManualIncidentInput(value: unknown, path?: string): Validation<ManualIncidentInput>;
 /** Validates the body of `POST /manual-incidents/{id}/updates`. Returns the same object. */
 export declare function validateManualIncidentUpdateInput(value: unknown, path?: string): Validation<ManualIncidentUpdateInput>;
+export {};

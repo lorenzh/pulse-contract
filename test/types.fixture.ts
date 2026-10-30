@@ -1,4 +1,11 @@
 import type {
+  AdminCheckInput,
+  AdminCheckView,
+  AdminComponentInput,
+  AdminConfigResponse,
+  AdminMaintenanceInput,
+  AdminMaintenanceView,
+  AdminWriteResponse,
   Check,
   CheckState,
   CheckStatus,
@@ -267,3 +274,34 @@ export const fixture = {
   manualInput,
   manualUpdateInput,
 };
+
+// Admin config api.
+const adminInput: AdminCheckInput = {
+  id: "h",
+  name: "H",
+  type: "heartbeat",
+  period: 1000,
+  grace: 0,
+  secret: "s",
+};
+const adminHttpInput: AdminCheckInput = { ...check, headers: { "X-A": "b" }, body: "x" };
+const adminView: AdminCheckView = { ...check, headers: ["X-A"], hasBody: true };
+const adminComponent: AdminComponentInput = { id: "web", name: "Web", checkIds: ["a"] };
+const adminWindow: AdminMaintenanceInput = { checkId: "a", start: 1, end: 2, note: "" };
+const adminWindowView: AdminMaintenanceView = { ...adminWindow, index: 0 };
+const adminConfig: AdminConfigResponse = {
+  revision: "sha256-x",
+  checks: [adminView],
+  components: [adminComponent],
+  maintenance: [adminWindowView],
+};
+const adminWrite: AdminWriteResponse = adminView;
+// @ts-expect-error a secret is for heartbeat checks only
+const adminSecretOnHttp: AdminCheckInput = { ...check, secret: "s" };
+export const adminFixtures = [
+  adminInput,
+  adminHttpInput,
+  adminConfig,
+  adminWrite,
+  adminSecretOnHttp,
+];

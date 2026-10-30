@@ -21,10 +21,14 @@ test("dist matches a fresh build of src", () => {
       [tsc, "-p", join(root, "tsconfig.build.json"), "--outDir", out],
       { cwd: root },
     );
-    for (const file of ["index", "schema", "validate", "version"].flatMap((n) => [
-      `${n}.d.ts`,
-      `${n}.js`,
-    ])) {
+    for (const file of [
+      "admin",
+      "index",
+      "schema",
+      "validate",
+      "validate-admin",
+      "version",
+    ].flatMap((n) => [`${n}.d.ts`, `${n}.js`])) {
       assert.equal(
         readFileSync(join(root, "dist", file), "utf8"),
         readFileSync(join(out, file), "utf8"),
@@ -42,6 +46,25 @@ test("package entry exports the validators and the wire version", async () => {
   assert.deepEqual(
     Object.keys(mod).sort(byName),
     [
+      "ADMIN_ETAG_HEADER",
+      "ADMIN_IF_MATCH_HEADER",
+      "ADMIN_MAX_BODY_BYTES",
+      "ADMIN_REVISION_PREFIX",
+      "ADMIN_STATUS_ORDER",
+      "adminCheckViewSchema",
+      "adminComponentInputSchema",
+      "adminComponentSchema",
+      "adminConfigResponseSchema",
+      "adminMaintenanceInputSchema",
+      "adminMaintenanceViewSchema",
+      "isAdminRevision",
+      "validateAdminCheckInput",
+      "validateAdminCheckView",
+      "validateAdminComponent",
+      "validateAdminComponentInput",
+      "validateAdminConfigResponse",
+      "validateAdminMaintenanceInput",
+      "validateAdminMaintenanceView",
       "DEFAULT_MAX_BODY_BYTES",
       "MANUAL_INCIDENT_IMPACTS",
       "MANUAL_INCIDENT_MAX_BODY_BYTES",

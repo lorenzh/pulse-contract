@@ -1,3 +1,27 @@
+export type {
+  AdminCheckInput,
+  AdminCheckView,
+  AdminComponent,
+  AdminComponentInput,
+  AdminConfigResponse,
+  AdminMaintenanceInput,
+  AdminMaintenanceView,
+  AdminWriteResponse,
+} from "./admin.ts";
+export {
+  ADMIN_ETAG_HEADER,
+  ADMIN_IF_MATCH_HEADER,
+  ADMIN_MAX_BODY_BYTES,
+  ADMIN_REVISION_PREFIX,
+  ADMIN_STATUS_ORDER,
+  adminCheckViewSchema,
+  adminComponentInputSchema,
+  adminComponentSchema,
+  adminConfigResponseSchema,
+  adminMaintenanceInputSchema,
+  adminMaintenanceViewSchema,
+  isAdminRevision,
+} from "./admin.ts";
 export {
   DEFAULT_MAX_BODY_BYTES,
   type FetchJsonError,
@@ -100,6 +124,15 @@ export {
   validateResultsResponse,
   validateUptimeResponse,
 } from "./validate.ts";
+export {
+  validateAdminCheckInput,
+  validateAdminCheckView,
+  validateAdminComponent,
+  validateAdminComponentInput,
+  validateAdminConfigResponse,
+  validateAdminMaintenanceInput,
+  validateAdminMaintenanceView,
+} from "./validate-admin.ts";
 export {
   checkWireVersion,
   WIRE_VERSION,
