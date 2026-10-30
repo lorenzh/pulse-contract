@@ -298,3 +298,15 @@ test("check input keeps its data property results", () => {
     });
   }
 });
+
+test("admin check view and http input reject a non-http url", () => {
+  const message = "check.url: must be an http: or https: URL";
+  assert.deepEqual(validateAdminCheckView({ ...http, url: "file:///x" }), {
+    ok: false,
+    error: message,
+  });
+  assert.deepEqual(validateAdminCheckInput({ ...http, url: "file:///x" }), {
+    ok: false,
+    error: message,
+  });
+});
