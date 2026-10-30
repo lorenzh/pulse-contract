@@ -88,7 +88,14 @@ function firstError(error: z.ZodError, value: unknown, base: string): string {
   return `${path}: ${at === undefined && issue.path.length > 0 ? "is required" : issue.message}`;
 }
 
-type Def = { type?: string; shape?: Fields; element?: z.ZodType; innerType?: z.ZodType };
+type Def = {
+  type?: string;
+  shape?: Fields;
+  element?: z.ZodType;
+  innerType?: z.ZodType;
+  valueType?: z.ZodType;
+  options?: z.ZodType[];
+};
 
 function defOf(schema: z.ZodType): Def {
   // Zod keeps the schema description in `_zod.def`; only the fields read here are typed.
@@ -122,6 +129,23 @@ function objectView(shape: Fields, value: Fields): Fields {
   return view;
 }
 
+function arrayView(element: z.ZodType, value: unknown[]): unknown[] {
+  // Index loop: an own `map` property on the input must never run.
+  const items: unknown[] = [];
+  for (let i = 0; i < value.length; i++) {
+    items.push(ownView(element, value[i]));
+  }
+  return items;
+}
+
+function recordView(valueType: z.ZodType, value: Fields): Fields {
+  const view: Fields = {};
+  for (const key of Object.keys(value)) {
+    define(view, key, ownView(valueType, Reflect.get(value, key)));
+  }
+  return view;
+}
+
 /**
  * Copies the own fields the schema declares (enumerable or not), level by level, so the parse
  * never sees an inherited value. Unknown own enumerable keys are kept as keys with an
@@ -134,7 +158,16 @@ function ownView(schema: z.ZodType, value: unknown): unknown {
   }
   const element = def.element;
   if (def.type === "array" && element !== undefined && Array.isArray(value)) {
-    return value.map((item) => ownView(element, item));
+    return arrayView(element, value);
+  }
+  if (def.type === "record" && def.valueType !== undefined && isObject(value)) {
+    return recordView(def.valueType, value);
+  }
+  if (def.type === "union" && def.options !== undefined && isObject(value)) {
+    // With exactly one object option, an object can only match that one. Other unions pass as is.
+    const objects = def.options.filter((o) => defOf(o).type === "object");
+    const [option] = objects;
+    return objects.length === 1 && option !== undefined ? ownView(option, value) : value;
   }
   if (def.type === "object" && def.shape !== undefined && isObject(value)) {
     return objectView(def.shape, value);
