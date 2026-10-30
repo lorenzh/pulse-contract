@@ -528,20 +528,13 @@ test("an accessor on an array index is not run and counts as absent", () => {
   );
 });
 
-test("a header reference that exists only on the prototype is rejected", () => {
-  const input = {
+test("a header reference is accepted when own and rejected when inherited", () => {
+  const withReference = (reference: object): unknown => ({
     ...fixture.variants.httpCheck,
-    headers: { Authorization: Object.create({ env: "TOKEN" }) },
-  };
-  assert.equal(validateCheck(input).ok, false);
-});
-
-test("an own header reference is accepted", () => {
-  const input = {
-    ...fixture.variants.httpCheck,
-    headers: { Authorization: { env: "TOKEN" } },
-  };
-  assert.equal(validateCheck(input).ok, true);
+    headers: { Authorization: reference },
+  });
+  assert.equal(validateCheck(withReference({ env: "TOKEN" })).ok, true);
+  assert.equal(validateCheck(withReference(Object.create({ env: "TOKEN" }))).ok, false);
 });
 
 test("a throwing enumerable map getter on days does not throw", () => {
