@@ -56,6 +56,21 @@ function objectView(shape, value) {
     }
     return view;
 }
+function arrayView(element, value) {
+    // Index loop: an own `map` property on the input must never run.
+    const items = [];
+    for (let i = 0; i < value.length; i++) {
+        items.push(ownView(element, value[i]));
+    }
+    return items;
+}
+function recordView(valueType, value) {
+    const view = {};
+    for (const key of Object.keys(value)) {
+        define(view, key, ownView(valueType, Reflect.get(value, key)));
+    }
+    return view;
+}
 /**
  * Copies the own fields the schema declares (enumerable or not), level by level, so the parse
  * never sees an inherited value. Unknown own enumerable keys are kept as keys with an
@@ -68,7 +83,16 @@ function ownView(schema, value) {
     }
     const element = def.element;
     if (def.type === "array" && element !== undefined && Array.isArray(value)) {
-        return value.map((item) => ownView(element, item));
+        return arrayView(element, value);
+    }
+    if (def.type === "record" && def.valueType !== undefined && isObject(value)) {
+        return recordView(def.valueType, value);
+    }
+    if (def.type === "union" && def.options !== undefined && isObject(value)) {
+        // With exactly one object option, an object can only match that one. Other unions pass as is.
+        const objects = def.options.filter((o) => defOf(o).type === "object");
+        const [option] = objects;
+        return objects.length === 1 && option !== undefined ? ownView(option, value) : value;
     }
     if (def.type === "object" && def.shape !== undefined && isObject(value)) {
         return objectView(def.shape, value);
