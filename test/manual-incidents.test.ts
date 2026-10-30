@@ -1,5 +1,5 @@
+import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { test } from "node:test";
 import {
   getManualIncident,
   getManualIncidents,
@@ -16,6 +16,8 @@ import {
   WIRE_VERSION_HEADER,
 } from "../src/index.ts";
 import { fixture } from "./types.fixture.ts";
+
+type FetchFn = Parameters<typeof getManualIncidents>[1]["fetch"];
 
 const base = fixture.manualIncident;
 const open = (): ManualIncident => ({
@@ -109,7 +111,7 @@ test("incidentImpactState maps impact to a component state", () => {
 });
 
 const json =
-  (status: number, body: unknown): typeof fetch =>
+  (status: number, body: unknown): FetchFn =>
   () =>
     Promise.resolve(
       new Response(JSON.stringify(body), {
@@ -120,7 +122,7 @@ const json =
 
 test("getManualIncidents reads, filters and tolerates 404 on request", async () => {
   let seen = "";
-  const spy: typeof fetch = (url) => {
+  const spy: FetchFn = (url) => {
     seen = String(url);
     return json(200, [base])(url);
   };
@@ -154,7 +156,7 @@ test("getManualIncidents reads, filters and tolerates 404 on request", async () 
 
 test("getManualIncident reads one incident", async () => {
   let seen = "";
-  const spy: typeof fetch = (url) => {
+  const spy: FetchFn = (url) => {
     seen = String(url);
     return json(200, base)(url);
   };

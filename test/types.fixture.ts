@@ -36,7 +36,7 @@ import type {
   UptimeResponse,
 } from "../src/index.ts";
 
-// Compile-time fixture: covered by `npm run typecheck`.
+// Compile-time fixture: covered by `bun run typecheck`.
 const status: CheckStatus = "down";
 const state: CheckState = "unknown";
 const check: Check = { id: "a", name: "A", url: "https://x", intervalMs: 1000 };

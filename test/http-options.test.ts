@@ -1,5 +1,5 @@
+import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { test } from "node:test";
 import { validateCheck } from "../src/index.ts";
 import { fixture } from "./types.fixture.ts";
 

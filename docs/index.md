@@ -317,12 +317,12 @@ full commit SHA on its `main`.
 1. Merge the contract change to `main` of pulse-contract and note the full commit SHA.
 2. In the consumer, set the dependency in `package.json`:
    `"@lorenzh/pulse-contract": "github:lorenzh/pulse-contract#<full commit sha>"`.
-3. Run `npm install` to update `package-lock.json`.
-4. Run `npm run check` and fix any type errors.
+3. Run `bun install` to update `bun.lock`.
+4. Run `bun run check` and fix any type errors.
 5. Commit `package.json` and `package-lock.json` together.
 
 ## Change the contract
 
-Edit `src/` (exports in `index.ts`, schemas in `schema.ts`, validators in `validate.ts`, version in `version.ts`), update `test/types.fixture.ts`, the validator tests and the docs, run `npm run build` and commit
-`dist/`, then run `npm run check`. A breaking type change needs a matching section for each
+Edit `src/` (exports in `index.ts`, schemas in `schema.ts`, validators in `validate.ts`, version in `version.ts`), update `test/types.fixture.ts`, the validator tests and the docs, run `bun run build` and commit
+`dist/`, then run `bun run check`. A breaking type change needs a matching section for each
 consumer in the spec.

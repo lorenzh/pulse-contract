@@ -27,7 +27,7 @@ export type FetchJsonResult<T> =
 
 export type FetchJsonOptions<T> = {
   /** The fetch implementation to call. */
-  fetch: typeof fetch;
+  fetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
   /** Checks the parsed body, for example `(raw) => validateChecksResponse(raw)`. */
   validate: (raw: unknown) => Validation<T>;
   /** Limit for headers and body together. */
