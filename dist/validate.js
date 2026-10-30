@@ -4,7 +4,7 @@ export const isObject = (value) => typeof value === "object" && value !== null &
  * Reads an own data property. Inherited names such as `constructor` and accessors count as
  * absent; a getter never runs.
  */
-function ownValue(parent, key) {
+export function ownValue(parent, key) {
     if (typeof parent !== "object" || parent === null) {
         return undefined;
     }
