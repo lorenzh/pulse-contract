@@ -14,6 +14,10 @@ Every type exported from `src/index.ts`. Import them with `import type`.
 | `CheckStatus`         | Result status: `"up"`, `"degraded"` or `"down"`.                                                                                                           |
 | `CheckState`          | A `CheckStatus`, or `"unknown"` (no result yet) or `"maintenance"` (active window).                                                                        |
 | `HttpCheck`           | An HTTP check: `url`, interval, optional timeout, latency objective, retries, retry delay and keyword.                                                     |
+| `HttpMethod`          | `"GET"`, `"HEAD"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"` or `"OPTIONS"`.                                                                                |
+| `HeaderValue`         | A literal header value string, or `{ env: NAME }` that the probe resolves from its environment.                                                            |
+| `ExpectedStatus`      | An accepted status: an integer 100..599 or a range string `"lo-hi"`.                                                                                       |
+| `JsonAssertion`       | `{ pointer, equals }` or `{ pointer, exists: true }`.                                                                                                      |
 | `TlsCheck`            | A check of the leaf certificate of a TLS endpoint: `host`, `port`, `warnDays`, interval.                                                                   |
 | `HeartbeatCheck`      | A check that a job pings: `period` and `grace` in ms. The probe never runs it.                                                                             |
 | `Check`               | `HttpCheck \| TlsCheck \| HeartbeatCheck`.                                                                                                                 |
@@ -85,6 +89,63 @@ Example of an `HttpCheck` with a keyword:
   "url": "https://example.com/",
   "intervalMs": 60000,
   "keyword": "Welcome"
+}
+```
+
+## HTTP request and judgement options
+
+These optional `HttpCheck` fields are additive; the wire version stays 1. `TlsCheck` and
+`HeartbeatCheck` reject all of them.
+
+| Field            | Rule                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `method`         | `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE` or `OPTIONS`; upper case, case-sensitive; absent means `GET`.                                                                                                                                                                                                                                         |
+| `headers`        | Object, at most 20 entries. Names are RFC 9110 tokens of 1..256 bytes, unique case-insensitively; `host`, `content-length`, `transfer-encoding`, `connection` and `user-agent` are forbidden. Names plus literal values total at most 16 KiB.                                                                                                         |
+| header value     | A literal string of 0..4096 visible ASCII/obs-text characters or spaces (no tab, CR or LF), or `{ "env": "NAME" }` with `NAME` matching `^[A-Za-z_][A-Za-z0-9_]{0,127}$`.                                                                                                                                                                             |
+| `body`           | String, at most 65536 bytes (UTF-8). Not allowed with `GET` (the default) or `HEAD`. There is no default `Content-Type`; set it in `headers`.                                                                                                                                                                                                         |
+| `expectedStatus` | Non-empty array of at most 20 entries, each an integer 100..599 or a string `"lo-hi"` with `100 <= lo <= hi <= 599`. Absent means `200-299`. The final status after redirects is judged.                                                                                                                                                              |
+| `jsonAssert`     | Non-empty array of at most 10 items, each `{ pointer, equals }` or `{ pointer, exists: true }`.`pointer` is an RFC 6901 JSON pointer of at most 256 bytes (`""` is the whole document). `equals` is any JSON value, compared deeply with strict types. `exists` is only `true`. Not allowed with `HEAD`; `keyword` is not allowed with `HEAD` either. |
+
+Validation errors name the field path (for example `check.headers.Host`), never the value.
+
+### Trust model of header values and bodies
+
+The public `GET /checks` never serves `headers`, `body` or `jsonAssert`. The api serves them only
+to probes that present the probe Bearer token, on `GET /probe/checks`, exactly as written in the
+checks file. The api never resolves `{ "env": NAME }`: the probe resolves it from its own
+environment when it loads the checks, so a secret lives only in the probe environment. A reference
+to an unset or empty variable makes the check invalid for that probe; the probe logs the header and
+variable names (never values) and does not run the check. Literal header values and the body are
+stored by the api at rest and reach every authenticated probe: use `env` for secrets and treat the
+checks file, the database and the probe tokens as sensitive.
+
+### Reasons
+
+The probe reports the first failure, in this order. `<codes>` is `expectedStatus` joined with
+`", "`, or `200-299` by default.
+
+1. `HTTP <code> not in <codes>`
+2. `keyword "<text>" not found`
+3. `json: invalid body` (body over 1 MiB or not valid JSON)
+4. `json <pointer>: expected <JSON>, got <JSON>` (`got` is `missing` when absent), or
+   `json <pointer>: missing` for `exists`
+
+Quoted response values are cut to 80 characters with `…`. Only response data is quoted, never
+request data.
+
+Example:
+
+```json
+{
+  "id": "svc",
+  "name": "Service",
+  "url": "https://svc.example.com/check",
+  "intervalMs": 60000,
+  "method": "POST",
+  "headers": { "Authorization": { "env": "SVC_TOKEN" }, "Content-Type": "application/json" },
+  "body": "{\"ping\":true}",
+  "expectedStatus": [200],
+  "jsonAssert": [{ "pointer": "/status", "equals": "ok" }]
 }
 ```
 
