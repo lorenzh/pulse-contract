@@ -13,7 +13,7 @@ Every type exported from `src/index.ts`. Import them with `import type`.
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CheckStatus`                                   | Result status: `"up"`, `"degraded"` or `"down"`.                                                                                                           |
 | `CheckState`                                    | A `CheckStatus`, or `"unknown"` (no result yet) or `"maintenance"` (active window).                                                                        |
-| `HttpCheck`                                     | An HTTP check: `url`, interval, optional timeout, latency objective, retries, retry delay and keyword.                                                     |
+| `HttpCheck`                                     | An HTTP check: `url` (an `http:` or `https:` URL), interval, optional timeout, latency objective, retries, retry delay and keyword.                        |
 | `HttpMethod`                                    | `"GET"`, `"HEAD"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"` or `"OPTIONS"`.                                                                                |
 | `HeaderValue`                                   | A literal header value string, or `{ env: NAME }` that the probe resolves from its environment.                                                            |
 | `ExpectedStatus`                                | An accepted status: an integer 100..599 or a range string `"lo-hi"`.                                                                                       |
@@ -98,7 +98,10 @@ the same over all days. A check in several components counts in each.
 ## Check types
 
 `Check` is `HttpCheck | TlsCheck | TcpCheck | DnsCheck | DomainCheck | HeartbeatCheck`. An `HttpCheck` has a `url` and an optional `type: "http"` (absent
-means http) and an optional `latencyObjectiveMs` (ms; a successful result slower than it is `degraded`; absent means no objective). `CheckStatus` is `"up" | "degraded" | "down"`. A `TlsCheck` (`type: "tls"`, `host`, `port`, `warnDays`, `intervalMs`, optional
+means http) and an optional `latencyObjectiveMs` (ms; a successful result slower than it is `degraded`; absent means no objective).
+The `url` must parse with `new URL` and use the `http:` or `https:` protocol (case-insensitive);
+any other URL fails with `check.url: must be an http: or https: URL`, and an empty one with
+`check.url: must be a non-empty string`. `CheckStatus` is `"up" | "degraded" | "down"`. A `TlsCheck` (`type: "tls"`, `host`, `port`, `warnDays`, `intervalMs`, optional
 `timeoutMs`) watches the leaf certificate of a TLS endpoint; `port` and `warnDays` are always set in
 served data. Only the leaf's expiry is judged: the chain and hostname are not verified.
 `Result.certDaysLeft` and `CheckWithState.certDaysLeft` hold the floored whole days until expiry

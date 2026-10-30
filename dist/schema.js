@@ -8,6 +8,17 @@ const text = z.string({ error: "must be a string" });
 const nonEmpty = z
     .string({ error: "must be a non-empty string" })
     .min(1, "must be a non-empty string");
+const isHttpUrl = (value) => {
+    try {
+        const { protocol } = new URL(value);
+        return protocol === "http:" || protocol === "https:";
+    }
+    catch {
+        // An unparsable URL is just not an http URL.
+        return false;
+    }
+};
+const httpUrl = nonEmpty.refine(isHttpUrl, "must be an http: or https: URL");
 // zod numbers already reject NaN and Infinity.
 const finite = z.number({ error: "must be a finite number" });
 const integer = z.int({ error: "must be an integer" });
@@ -189,8 +200,8 @@ export const httpCheckSchema = z
     name: text,
     /** Absent means "http". */
     type: oneOf(["http"]).optional(),
-    /** Non-empty. */
-    url: nonEmpty,
+    /** An `http:` or `https:` URL. */
+    url: httpUrl,
     /** Integer 1..2147483647 (`MAX_TIMER_MS`). */
     intervalMs: timerMs,
     /** Integer 1..2147483647. */

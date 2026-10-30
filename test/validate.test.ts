@@ -99,6 +99,35 @@ test("empty url and host are rejected in checks lists", () => {
   );
 });
 
+test("check url must be an http: or https: URL", () => {
+  const base = clone(fixture.variants.httpCheck);
+  for (const url of [
+    "file:///etc/passwd",
+    "data:text/plain,x",
+    "ftp://h.test/",
+    "javascript:alert(1)",
+    "httpx://h/",
+    "nope",
+  ]) {
+    assert.equal(
+      errorOf(validateCheck({ ...base, url })),
+      "check.url: must be an http: or https: URL",
+      url,
+    );
+  }
+  for (const url of ["http://h.test/", "https://h/", "HTTP://h.test/"]) {
+    assert.equal(validateCheck({ ...base, url }).ok, true, url);
+  }
+  assert.equal(
+    errorOf(validateCheck({ ...base, url: "" })),
+    "check.url: must be a non-empty string",
+  );
+  assert.equal(
+    errorOf(validateChecksResponse([{ ...base, ...fixture.checks[0], url: "file:///etc/passwd" }])),
+    "checks[0].url: must be an http: or https: URL",
+  );
+});
+
 test("non-objects are rejected with the given path", () => {
   for (const input of [null, [], "x", 3, undefined]) {
     assert.equal(errorOf(validateCheck(input, "checks[3]")), "checks[3]: must be an object");
