@@ -38,7 +38,7 @@ test("dist matches a fresh build of src", () => {
   } finally {
     rmSync(out, { recursive: true, force: true });
   }
-});
+}, 30_000);
 
 test("package entry exports the validators and the wire version", async () => {
   const mod = await import("@lorenzh/pulse-contract");

@@ -61,6 +61,27 @@ function objectView(shape, value) {
     }
     return view;
 }
+function arrayView(element, value) {
+    // Index loop: an own `map` property on the input must never run.
+    const items = [];
+    // An accessor element counts as absent, like an accessor field.
+    for (let i = 0; i < value.length; i++) {
+        items.push(ownView(element, ownValue(value, i)));
+    }
+    return items;
+}
+/** With exactly one object option, an object can only match that one. Other unions pass as is. */
+function onlyObjectOption(options) {
+    const objects = options.filter((o) => defOf(o).type === "object");
+    return objects.length === 1 ? objects[0] : undefined;
+}
+function recordView(valueType, value) {
+    const view = {};
+    for (const key of Object.keys(value)) {
+        define(view, key, ownView(valueType, ownValue(value, key))); // an accessor reads as undefined
+    }
+    return view;
+}
 /**
  * Copies the own data fields the schema declares (enumerable or not), level by level, so the
  * parse never sees an inherited value. An accessor counts as absent and its getter never runs.
@@ -74,8 +95,14 @@ function ownView(schema, value) {
     }
     const element = def.element;
     if (def.type === "array" && element !== undefined && Array.isArray(value)) {
-        // An accessor element counts as absent, like an accessor field.
-        return Array.from(value.keys(), (i) => ownView(element, ownValue(value, i)));
+        return arrayView(element, value);
+    }
+    if (def.type === "record" && def.valueType !== undefined && isObject(value)) {
+        return recordView(def.valueType, value);
+    }
+    if (def.type === "union" && def.options !== undefined && isObject(value)) {
+        const option = onlyObjectOption(def.options);
+        return option === undefined ? value : ownView(option, value);
     }
     if (def.type === "object" && def.shape !== undefined && isObject(value)) {
         return objectView(def.shape, value);
@@ -119,6 +146,28 @@ function compileObjectWalk(shape) {
         return true;
     };
 }
+/** The copy keeps own enumerable string keys only, so any other own key takes the copy path. */
+function compileRecordWalk(walk) {
+    return (value) => {
+        if (!isObject(value)) {
+            return true;
+        }
+        const proto = Object.getPrototypeOf(value);
+        if (proto !== Object.prototype && proto !== null) {
+            return false;
+        }
+        const keys = Object.keys(value);
+        if (Reflect.ownKeys(value).length !== keys.length) {
+            return false;
+        }
+        for (const key of keys) {
+            if (lookupGetter.call(value, key) !== undefined || !walk(value[key])) {
+                return false;
+            }
+        }
+        return true;
+    };
+}
 function compileWalk(schema) {
     const def = defOf(schema);
     if (def.type !== undefined && WRAPPERS.has(def.type) && def.innerType !== undefined) {
@@ -142,6 +191,17 @@ function compileWalk(schema) {
             }
             return true;
         };
+    }
+    if (def.type === "record" && def.valueType !== undefined) {
+        return compileRecordWalk(walkOf(def.valueType));
+    }
+    if (def.type === "union" && def.options !== undefined) {
+        const option = onlyObjectOption(def.options);
+        if (option === undefined) {
+            return alwaysOwn;
+        }
+        const walk = walkOf(option);
+        return (value) => !isObject(value) || walk(value);
     }
     if (def.type === "object" && def.shape !== undefined) {
         return compileObjectWalk(def.shape);

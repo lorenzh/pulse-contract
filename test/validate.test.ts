@@ -526,3 +526,47 @@ test("an accessor on an array index is not run and counts as absent", () => {
     "uptime[0]: is required",
   );
 });
+
+test("a header reference that exists only on the prototype is rejected", () => {
+  const input = {
+    ...fixture.variants.httpCheck,
+    headers: { Authorization: Object.create({ env: "TOKEN" }) },
+  };
+  assert.equal(validateCheck(input).ok, false);
+});
+
+test("an own header reference is accepted", () => {
+  const input = {
+    ...fixture.variants.httpCheck,
+    headers: { Authorization: { env: "TOKEN" } },
+  };
+  assert.equal(validateCheck(input).ok, true);
+});
+
+test("a throwing enumerable map getter on days does not throw", () => {
+  const [first] = fixture.uptime;
+  const days = [...(first?.days ?? [])];
+  Object.defineProperty(days, "map", {
+    enumerable: true,
+    get(): never {
+      throw new Error("map read");
+    },
+  });
+  const result = validateCheckUptime({ ...first, days });
+  assert.equal(result.ok, true);
+});
+
+test("accessors in headers and header references are not run", () => {
+  const throwing = (target: object, key: string): object =>
+    Object.defineProperty(target, key, {
+      enumerable: true,
+      get(): never {
+        throw new Error("header getter ran");
+      },
+    });
+  const check = fixture.variants.httpCheck;
+  const asValue = { ...check, headers: throwing({}, "Authorization") };
+  const asEnv = { ...check, headers: { Authorization: throwing({}, "env") } };
+  assert.equal(validateCheck(asValue).ok, false);
+  assert.equal(validateCheck(asEnv).ok, false);
+});
