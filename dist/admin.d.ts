@@ -49,10 +49,6 @@ export declare const ADMIN_STATUS_ORDER: readonly [{
 export declare function isAdminRevision(value: unknown): value is string;
 /** A check as the admin api serves it: no header values, no body, no secret. Strict. */
 export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
-    /** Names of the configured request headers; never their values or `{ env }` references. */
-    headers: z.ZodOptional<z.ZodArray<z.ZodString>>;
-    /** True when the check has a request body; the body itself is never served. */
-    hasBody: z.ZodOptional<z.ZodBoolean>;
     id: z.ZodString;
     name: z.ZodString;
     type: z.ZodOptional<z.ZodEnum<{
@@ -66,13 +62,13 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
     keyword: z.ZodOptional<z.ZodString>;
     method: z.ZodOptional<z.ZodEnum<{
+        DELETE: "DELETE";
         GET: "GET";
         HEAD: "HEAD";
+        OPTIONS: "OPTIONS";
+        PATCH: "PATCH";
         POST: "POST";
         PUT: "PUT";
-        PATCH: "PATCH";
-        DELETE: "DELETE";
-        OPTIONS: "OPTIONS";
     }>>;
     expectedStatus: z.ZodOptional<z.ZodArray<z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>>>;
     jsonAssert: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -81,6 +77,10 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
         exists: z.ZodOptional<z.ZodLiteral<true>>;
     }, z.core.$strip>>>;
     availabilityTarget: z.ZodOptional<z.ZodNumber>;
+    /** Names of the configured request headers; never their values or `{ env }` references. */
+    headers: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    /** True when the check has a request body; the body itself is never served. */
+    hasBody: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>, z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;
@@ -100,12 +100,6 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
     jsonAssert: z.ZodOptional<z.ZodNever>;
     keyword: z.ZodOptional<z.ZodNever>;
 }, z.core.$strict>, z.ZodObject<{
-    type: z.ZodEnum<{
-        tcp: "tcp";
-    }>;
-    host: z.ZodString;
-    port: z.ZodNumber;
-    intervalMs: z.ZodNumber;
     id: z.ZodString;
     name: z.ZodString;
     timeoutMs: z.ZodOptional<z.ZodNumber>;
@@ -120,7 +114,27 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
     jsonAssert: z.ZodOptional<z.ZodNever>;
     keyword: z.ZodOptional<z.ZodNever>;
     latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
+    type: z.ZodEnum<{
+        tcp: "tcp";
+    }>;
+    host: z.ZodString;
+    port: z.ZodNumber;
+    intervalMs: z.ZodNumber;
 }, z.core.$strict>, z.ZodObject<{
+    id: z.ZodString;
+    name: z.ZodString;
+    timeoutMs: z.ZodOptional<z.ZodNumber>;
+    retries: z.ZodOptional<z.ZodNumber>;
+    retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
+    url: z.ZodOptional<z.ZodNever>;
+    method: z.ZodOptional<z.ZodNever>;
+    headers: z.ZodOptional<z.ZodNever>;
+    body: z.ZodOptional<z.ZodNever>;
+    expectedStatus: z.ZodOptional<z.ZodNever>;
+    jsonAssert: z.ZodOptional<z.ZodNever>;
+    keyword: z.ZodOptional<z.ZodNever>;
+    latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
     type: z.ZodEnum<{
         dns: "dns";
     }>;
@@ -130,12 +144,13 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
         AAAA: "AAAA";
         CNAME: "CNAME";
         MX: "MX";
-        TXT: "TXT";
         NS: "NS";
+        TXT: "TXT";
     }>;
     expected: z.ZodOptional<z.ZodArray<z.ZodString>>;
     resolver: z.ZodOptional<z.ZodString>;
     intervalMs: z.ZodNumber;
+}, z.core.$strict>, z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;
     timeoutMs: z.ZodOptional<z.ZodNumber>;
@@ -150,30 +165,13 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
     jsonAssert: z.ZodOptional<z.ZodNever>;
     keyword: z.ZodOptional<z.ZodNever>;
     latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
-}, z.core.$strict>, z.ZodObject<{
     type: z.ZodEnum<{
         domain: "domain";
     }>;
     domain: z.ZodString;
     warnDays: z.ZodNumber;
     intervalMs: z.ZodNumber;
-    id: z.ZodString;
-    name: z.ZodString;
-    timeoutMs: z.ZodOptional<z.ZodNumber>;
-    retries: z.ZodOptional<z.ZodNumber>;
-    retryDelayMs: z.ZodOptional<z.ZodNumber>;
-    availabilityTarget: z.ZodOptional<z.ZodNumber>;
-    url: z.ZodOptional<z.ZodNever>;
-    method: z.ZodOptional<z.ZodNever>;
-    headers: z.ZodOptional<z.ZodNever>;
-    body: z.ZodOptional<z.ZodNever>;
-    expectedStatus: z.ZodOptional<z.ZodNever>;
-    jsonAssert: z.ZodOptional<z.ZodNever>;
-    keyword: z.ZodOptional<z.ZodNever>;
-    latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
 }, z.core.$strict>, z.ZodObject<{
-    /** Always true: a heartbeat check has a secret, which is never served. */
-    hasSecret: z.ZodLiteral<true>;
     id: z.ZodString;
     name: z.ZodString;
     type: z.ZodEnum<{
@@ -188,6 +186,8 @@ export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
     expectedStatus: z.ZodOptional<z.ZodNever>;
     jsonAssert: z.ZodOptional<z.ZodNever>;
     keyword: z.ZodOptional<z.ZodNever>;
+    /** Always true: a heartbeat check has a secret, which is never served. */
+    hasSecret: z.ZodLiteral<true>;
 }, z.core.$strict>]>;
 /** Strict schema of a check write body, per `type` (absent means `http`). Keeps every check refinement. */
 export declare const adminCheckInputSchemas: {
@@ -205,13 +205,13 @@ export declare const adminCheckInputSchemas: {
         retryDelayMs: z.ZodOptional<z.ZodNumber>;
         keyword: z.ZodOptional<z.ZodString>;
         method: z.ZodOptional<z.ZodEnum<{
+            DELETE: "DELETE";
             GET: "GET";
             HEAD: "HEAD";
+            OPTIONS: "OPTIONS";
+            PATCH: "PATCH";
             POST: "POST";
             PUT: "PUT";
-            PATCH: "PATCH";
-            DELETE: "DELETE";
-            OPTIONS: "OPTIONS";
         }>>;
         headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
             env: z.ZodString;
@@ -245,12 +245,6 @@ export declare const adminCheckInputSchemas: {
         keyword: z.ZodOptional<z.ZodNever>;
     }, z.core.$strict>;
     readonly tcp: z.ZodObject<{
-        type: z.ZodEnum<{
-            tcp: "tcp";
-        }>;
-        host: z.ZodString;
-        port: z.ZodNumber;
-        intervalMs: z.ZodNumber;
         id: z.ZodString;
         name: z.ZodString;
         timeoutMs: z.ZodOptional<z.ZodNumber>;
@@ -265,8 +259,28 @@ export declare const adminCheckInputSchemas: {
         jsonAssert: z.ZodOptional<z.ZodNever>;
         keyword: z.ZodOptional<z.ZodNever>;
         latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
+        type: z.ZodEnum<{
+            tcp: "tcp";
+        }>;
+        host: z.ZodString;
+        port: z.ZodNumber;
+        intervalMs: z.ZodNumber;
     }, z.core.$strict>;
     readonly dns: z.ZodObject<{
+        id: z.ZodString;
+        name: z.ZodString;
+        timeoutMs: z.ZodOptional<z.ZodNumber>;
+        retries: z.ZodOptional<z.ZodNumber>;
+        retryDelayMs: z.ZodOptional<z.ZodNumber>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
+        url: z.ZodOptional<z.ZodNever>;
+        method: z.ZodOptional<z.ZodNever>;
+        headers: z.ZodOptional<z.ZodNever>;
+        body: z.ZodOptional<z.ZodNever>;
+        expectedStatus: z.ZodOptional<z.ZodNever>;
+        jsonAssert: z.ZodOptional<z.ZodNever>;
+        keyword: z.ZodOptional<z.ZodNever>;
+        latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
         type: z.ZodEnum<{
             dns: "dns";
         }>;
@@ -276,12 +290,14 @@ export declare const adminCheckInputSchemas: {
             AAAA: "AAAA";
             CNAME: "CNAME";
             MX: "MX";
-            TXT: "TXT";
             NS: "NS";
+            TXT: "TXT";
         }>;
         expected: z.ZodOptional<z.ZodArray<z.ZodString>>;
         resolver: z.ZodOptional<z.ZodString>;
         intervalMs: z.ZodNumber;
+    }, z.core.$strict>;
+    readonly domain: z.ZodObject<{
         id: z.ZodString;
         name: z.ZodString;
         timeoutMs: z.ZodOptional<z.ZodNumber>;
@@ -296,32 +312,15 @@ export declare const adminCheckInputSchemas: {
         jsonAssert: z.ZodOptional<z.ZodNever>;
         keyword: z.ZodOptional<z.ZodNever>;
         latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
-    }, z.core.$strict>;
-    readonly domain: z.ZodObject<{
         type: z.ZodEnum<{
             domain: "domain";
         }>;
         domain: z.ZodString;
         warnDays: z.ZodNumber;
         intervalMs: z.ZodNumber;
-        id: z.ZodString;
-        name: z.ZodString;
-        timeoutMs: z.ZodOptional<z.ZodNumber>;
-        retries: z.ZodOptional<z.ZodNumber>;
-        retryDelayMs: z.ZodOptional<z.ZodNumber>;
-        availabilityTarget: z.ZodOptional<z.ZodNumber>;
-        url: z.ZodOptional<z.ZodNever>;
-        method: z.ZodOptional<z.ZodNever>;
-        headers: z.ZodOptional<z.ZodNever>;
-        body: z.ZodOptional<z.ZodNever>;
-        expectedStatus: z.ZodOptional<z.ZodNever>;
-        jsonAssert: z.ZodOptional<z.ZodNever>;
-        keyword: z.ZodOptional<z.ZodNever>;
-        latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
     }, z.core.$strict>;
     /** `secret` is write-only: a `PUT` without it keeps the old one. */
     readonly heartbeat: z.ZodObject<{
-        secret: z.ZodOptional<z.ZodString>;
         id: z.ZodString;
         name: z.ZodString;
         type: z.ZodEnum<{
@@ -336,6 +335,7 @@ export declare const adminCheckInputSchemas: {
         expectedStatus: z.ZodOptional<z.ZodNever>;
         jsonAssert: z.ZodOptional<z.ZodNever>;
         keyword: z.ZodOptional<z.ZodNever>;
+        secret: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>;
 };
 /**
@@ -343,6 +343,39 @@ export declare const adminCheckInputSchemas: {
  * a write-only `secret`. Strict: only the declared fields are allowed.
  */
 export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
+    id: z.ZodString;
+    name: z.ZodString;
+    type: z.ZodOptional<z.ZodEnum<{
+        http: "http";
+    }>>;
+    url: z.ZodString;
+    intervalMs: z.ZodNumber;
+    timeoutMs: z.ZodOptional<z.ZodNumber>;
+    latencyObjectiveMs: z.ZodOptional<z.ZodNumber>;
+    retries: z.ZodOptional<z.ZodNumber>;
+    retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    keyword: z.ZodOptional<z.ZodString>;
+    method: z.ZodOptional<z.ZodEnum<{
+        DELETE: "DELETE";
+        GET: "GET";
+        HEAD: "HEAD";
+        OPTIONS: "OPTIONS";
+        PATCH: "PATCH";
+        POST: "POST";
+        PUT: "PUT";
+    }>>;
+    headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
+        env: z.ZodString;
+    }, z.core.$strip>]>>>;
+    body: z.ZodOptional<z.ZodString>;
+    expectedStatus: z.ZodOptional<z.ZodArray<z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>>>;
+    jsonAssert: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        pointer: z.ZodString;
+        equals: z.ZodOptional<z.ZodJSONSchema>;
+        exists: z.ZodOptional<z.ZodLiteral<true>>;
+    }, z.core.$strip>>>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strict> | z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;
     type: z.ZodEnum<{
@@ -361,12 +394,6 @@ export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
     jsonAssert: z.ZodOptional<z.ZodNever>;
     keyword: z.ZodOptional<z.ZodNever>;
 }, z.core.$strict> | z.ZodObject<{
-    type: z.ZodEnum<{
-        tcp: "tcp";
-    }>;
-    host: z.ZodString;
-    port: z.ZodNumber;
-    intervalMs: z.ZodNumber;
     id: z.ZodString;
     name: z.ZodString;
     timeoutMs: z.ZodOptional<z.ZodNumber>;
@@ -381,7 +408,27 @@ export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
     jsonAssert: z.ZodOptional<z.ZodNever>;
     keyword: z.ZodOptional<z.ZodNever>;
     latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
+    type: z.ZodEnum<{
+        tcp: "tcp";
+    }>;
+    host: z.ZodString;
+    port: z.ZodNumber;
+    intervalMs: z.ZodNumber;
 }, z.core.$strict> | z.ZodObject<{
+    id: z.ZodString;
+    name: z.ZodString;
+    timeoutMs: z.ZodOptional<z.ZodNumber>;
+    retries: z.ZodOptional<z.ZodNumber>;
+    retryDelayMs: z.ZodOptional<z.ZodNumber>;
+    availabilityTarget: z.ZodOptional<z.ZodNumber>;
+    url: z.ZodOptional<z.ZodNever>;
+    method: z.ZodOptional<z.ZodNever>;
+    headers: z.ZodOptional<z.ZodNever>;
+    body: z.ZodOptional<z.ZodNever>;
+    expectedStatus: z.ZodOptional<z.ZodNever>;
+    jsonAssert: z.ZodOptional<z.ZodNever>;
+    keyword: z.ZodOptional<z.ZodNever>;
+    latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
     type: z.ZodEnum<{
         dns: "dns";
     }>;
@@ -391,12 +438,13 @@ export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
         AAAA: "AAAA";
         CNAME: "CNAME";
         MX: "MX";
-        TXT: "TXT";
         NS: "NS";
+        TXT: "TXT";
     }>;
     expected: z.ZodOptional<z.ZodArray<z.ZodString>>;
     resolver: z.ZodOptional<z.ZodString>;
     intervalMs: z.ZodNumber;
+}, z.core.$strict> | z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;
     timeoutMs: z.ZodOptional<z.ZodNumber>;
@@ -411,62 +459,13 @@ export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
     jsonAssert: z.ZodOptional<z.ZodNever>;
     keyword: z.ZodOptional<z.ZodNever>;
     latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
-}, z.core.$strict> | z.ZodObject<{
     type: z.ZodEnum<{
         domain: "domain";
     }>;
     domain: z.ZodString;
     warnDays: z.ZodNumber;
     intervalMs: z.ZodNumber;
-    id: z.ZodString;
-    name: z.ZodString;
-    timeoutMs: z.ZodOptional<z.ZodNumber>;
-    retries: z.ZodOptional<z.ZodNumber>;
-    retryDelayMs: z.ZodOptional<z.ZodNumber>;
-    availabilityTarget: z.ZodOptional<z.ZodNumber>;
-    url: z.ZodOptional<z.ZodNever>;
-    method: z.ZodOptional<z.ZodNever>;
-    headers: z.ZodOptional<z.ZodNever>;
-    body: z.ZodOptional<z.ZodNever>;
-    expectedStatus: z.ZodOptional<z.ZodNever>;
-    jsonAssert: z.ZodOptional<z.ZodNever>;
-    keyword: z.ZodOptional<z.ZodNever>;
-    latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
 }, z.core.$strict> | z.ZodObject<{
-    id: z.ZodString;
-    name: z.ZodString;
-    type: z.ZodOptional<z.ZodEnum<{
-        http: "http";
-    }>>;
-    url: z.ZodString;
-    intervalMs: z.ZodNumber;
-    timeoutMs: z.ZodOptional<z.ZodNumber>;
-    latencyObjectiveMs: z.ZodOptional<z.ZodNumber>;
-    retries: z.ZodOptional<z.ZodNumber>;
-    retryDelayMs: z.ZodOptional<z.ZodNumber>;
-    keyword: z.ZodOptional<z.ZodString>;
-    method: z.ZodOptional<z.ZodEnum<{
-        GET: "GET";
-        HEAD: "HEAD";
-        POST: "POST";
-        PUT: "PUT";
-        PATCH: "PATCH";
-        DELETE: "DELETE";
-        OPTIONS: "OPTIONS";
-    }>>;
-    headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
-        env: z.ZodString;
-    }, z.core.$strip>]>>>;
-    body: z.ZodOptional<z.ZodString>;
-    expectedStatus: z.ZodOptional<z.ZodArray<z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>>>;
-    jsonAssert: z.ZodOptional<z.ZodArray<z.ZodObject<{
-        pointer: z.ZodString;
-        equals: z.ZodOptional<z.ZodJSONSchema>;
-        exists: z.ZodOptional<z.ZodLiteral<true>>;
-    }, z.core.$strip>>>;
-    availabilityTarget: z.ZodOptional<z.ZodNumber>;
-}, z.core.$strict> | z.ZodObject<{
-    secret: z.ZodOptional<z.ZodString>;
     id: z.ZodString;
     name: z.ZodString;
     type: z.ZodEnum<{
@@ -481,6 +480,7 @@ export declare const adminCheckInputSchema: z.ZodUnion<(z.ZodObject<{
     expectedStatus: z.ZodOptional<z.ZodNever>;
     jsonAssert: z.ZodOptional<z.ZodNever>;
     keyword: z.ZodOptional<z.ZodNever>;
+    secret: z.ZodOptional<z.ZodString>;
 }, z.core.$strict>)[]>;
 /** A component as configured; the same shape in requests and responses. */
 export declare const adminComponentSchema: z.ZodObject<{
@@ -508,20 +508,16 @@ export declare const adminMaintenanceInputSchema: z.ZodObject<{
 }, z.core.$strict>;
 /** A maintenance window as served: `index` is its position, the address of `/admin/maintenance/:index`. */
 export declare const adminMaintenanceViewSchema: z.ZodObject<{
-    index: z.ZodInt;
     checkId: z.ZodString;
     start: z.ZodNumber;
     end: z.ZodNumber;
     note: z.ZodString;
+    index: z.ZodInt;
 }, z.core.$strict>;
 /** `GET /admin/config`: the whole configuration without secrets. */
 export declare const adminConfigResponseSchema: z.ZodObject<{
     revision: z.ZodString;
     checks: z.ZodArray<z.ZodUnion<readonly [z.ZodObject<{
-        /** Names of the configured request headers; never their values or `{ env }` references. */
-        headers: z.ZodOptional<z.ZodArray<z.ZodString>>;
-        /** True when the check has a request body; the body itself is never served. */
-        hasBody: z.ZodOptional<z.ZodBoolean>;
         id: z.ZodString;
         name: z.ZodString;
         type: z.ZodOptional<z.ZodEnum<{
@@ -535,13 +531,13 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         retryDelayMs: z.ZodOptional<z.ZodNumber>;
         keyword: z.ZodOptional<z.ZodString>;
         method: z.ZodOptional<z.ZodEnum<{
+            DELETE: "DELETE";
             GET: "GET";
             HEAD: "HEAD";
+            OPTIONS: "OPTIONS";
+            PATCH: "PATCH";
             POST: "POST";
             PUT: "PUT";
-            PATCH: "PATCH";
-            DELETE: "DELETE";
-            OPTIONS: "OPTIONS";
         }>>;
         expectedStatus: z.ZodOptional<z.ZodArray<z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>>>;
         jsonAssert: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -550,6 +546,10 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
             exists: z.ZodOptional<z.ZodLiteral<true>>;
         }, z.core.$strip>>>;
         availabilityTarget: z.ZodOptional<z.ZodNumber>;
+        /** Names of the configured request headers; never their values or `{ env }` references. */
+        headers: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        /** True when the check has a request body; the body itself is never served. */
+        hasBody: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strict>, z.ZodObject<{
         id: z.ZodString;
         name: z.ZodString;
@@ -569,12 +569,6 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         jsonAssert: z.ZodOptional<z.ZodNever>;
         keyword: z.ZodOptional<z.ZodNever>;
     }, z.core.$strict>, z.ZodObject<{
-        type: z.ZodEnum<{
-            tcp: "tcp";
-        }>;
-        host: z.ZodString;
-        port: z.ZodNumber;
-        intervalMs: z.ZodNumber;
         id: z.ZodString;
         name: z.ZodString;
         timeoutMs: z.ZodOptional<z.ZodNumber>;
@@ -589,7 +583,27 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         jsonAssert: z.ZodOptional<z.ZodNever>;
         keyword: z.ZodOptional<z.ZodNever>;
         latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
+        type: z.ZodEnum<{
+            tcp: "tcp";
+        }>;
+        host: z.ZodString;
+        port: z.ZodNumber;
+        intervalMs: z.ZodNumber;
     }, z.core.$strict>, z.ZodObject<{
+        id: z.ZodString;
+        name: z.ZodString;
+        timeoutMs: z.ZodOptional<z.ZodNumber>;
+        retries: z.ZodOptional<z.ZodNumber>;
+        retryDelayMs: z.ZodOptional<z.ZodNumber>;
+        availabilityTarget: z.ZodOptional<z.ZodNumber>;
+        url: z.ZodOptional<z.ZodNever>;
+        method: z.ZodOptional<z.ZodNever>;
+        headers: z.ZodOptional<z.ZodNever>;
+        body: z.ZodOptional<z.ZodNever>;
+        expectedStatus: z.ZodOptional<z.ZodNever>;
+        jsonAssert: z.ZodOptional<z.ZodNever>;
+        keyword: z.ZodOptional<z.ZodNever>;
+        latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
         type: z.ZodEnum<{
             dns: "dns";
         }>;
@@ -599,12 +613,13 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
             AAAA: "AAAA";
             CNAME: "CNAME";
             MX: "MX";
-            TXT: "TXT";
             NS: "NS";
+            TXT: "TXT";
         }>;
         expected: z.ZodOptional<z.ZodArray<z.ZodString>>;
         resolver: z.ZodOptional<z.ZodString>;
         intervalMs: z.ZodNumber;
+    }, z.core.$strict>, z.ZodObject<{
         id: z.ZodString;
         name: z.ZodString;
         timeoutMs: z.ZodOptional<z.ZodNumber>;
@@ -619,30 +634,13 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         jsonAssert: z.ZodOptional<z.ZodNever>;
         keyword: z.ZodOptional<z.ZodNever>;
         latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
-    }, z.core.$strict>, z.ZodObject<{
         type: z.ZodEnum<{
             domain: "domain";
         }>;
         domain: z.ZodString;
         warnDays: z.ZodNumber;
         intervalMs: z.ZodNumber;
-        id: z.ZodString;
-        name: z.ZodString;
-        timeoutMs: z.ZodOptional<z.ZodNumber>;
-        retries: z.ZodOptional<z.ZodNumber>;
-        retryDelayMs: z.ZodOptional<z.ZodNumber>;
-        availabilityTarget: z.ZodOptional<z.ZodNumber>;
-        url: z.ZodOptional<z.ZodNever>;
-        method: z.ZodOptional<z.ZodNever>;
-        headers: z.ZodOptional<z.ZodNever>;
-        body: z.ZodOptional<z.ZodNever>;
-        expectedStatus: z.ZodOptional<z.ZodNever>;
-        jsonAssert: z.ZodOptional<z.ZodNever>;
-        keyword: z.ZodOptional<z.ZodNever>;
-        latencyObjectiveMs: z.ZodOptional<z.ZodNever>;
     }, z.core.$strict>, z.ZodObject<{
-        /** Always true: a heartbeat check has a secret, which is never served. */
-        hasSecret: z.ZodLiteral<true>;
         id: z.ZodString;
         name: z.ZodString;
         type: z.ZodEnum<{
@@ -657,6 +655,8 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         expectedStatus: z.ZodOptional<z.ZodNever>;
         jsonAssert: z.ZodOptional<z.ZodNever>;
         keyword: z.ZodOptional<z.ZodNever>;
+        /** Always true: a heartbeat check has a secret, which is never served. */
+        hasSecret: z.ZodLiteral<true>;
     }, z.core.$strict>]>>;
     components: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
@@ -667,11 +667,11 @@ export declare const adminConfigResponseSchema: z.ZodObject<{
         availabilityTarget: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     maintenance: z.ZodArray<z.ZodObject<{
-        index: z.ZodInt;
         checkId: z.ZodString;
         start: z.ZodNumber;
         end: z.ZodNumber;
         note: z.ZodString;
+        index: z.ZodInt;
     }, z.core.$strict>>;
 }, z.core.$strict>;
 /** The schema of the optional write-only heartbeat secret; exported for the validators. */

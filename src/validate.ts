@@ -142,9 +142,83 @@ function ownView(schema: z.ZodType, value: unknown): unknown {
   return value;
 }
 
+type Walk = (value: unknown) => boolean;
+
+const walks = new WeakMap<z.ZodType, Walk>();
+
+const alwaysOwn: Walk = () => true;
+
+function compileObjectWalk(shape: Fields): Walk {
+  const fields: [string, Walk][] = [];
+  let hasNested = false;
+  for (const [key, field] of Object.entries(shape)) {
+    const walk = walkOf(field as z.ZodType);
+    hasNested ||= walk !== alwaysOwn;
+    fields.push([key, walk]);
+  }
+  return (value) => {
+    if (!isObject(value)) {
+      return true;
+    }
+    for (const [key, walk] of fields) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (descriptor === undefined) {
+        if (key in value) {
+          return false; // inherited: the copy treats it as absent
+        }
+        continue;
+      }
+      if (!("value" in descriptor)) {
+        return false;
+      }
+      if (hasNested && !walk(descriptor.value)) {
+        return false;
+      }
+    }
+    return true;
+  };
+}
+
+function compileWalk(schema: z.ZodType): Walk {
+  const def = defOf(schema);
+  if (def.type !== undefined && WRAPPERS.has(def.type) && def.innerType !== undefined) {
+    return walkOf(def.innerType);
+  }
+  const element = def.element;
+  if (def.type === "array" && element !== undefined) {
+    const walk = walkOf(element);
+    if (walk === alwaysOwn) {
+      return alwaysOwn;
+    }
+    return (value) => !Array.isArray(value) || value.every((item) => walk(item));
+  }
+  if (def.type === "object" && def.shape !== undefined) {
+    return compileObjectWalk(def.shape);
+  }
+  return alwaysOwn;
+}
+
+function walkOf(schema: z.ZodType): Walk {
+  let walk = walks.get(schema);
+  if (walk === undefined) {
+    walk = compileWalk(schema);
+    walks.set(schema, walk);
+  }
+  return walk;
+}
+
+/**
+ * True when every declared field that `ownView` would copy is absent or an own data property,
+ * level by level. Then the copy would equal the original, and the parse can read the original.
+ * Nothing is allocated except one descriptor per present declared field, and no getter runs.
+ */
+function isOwnData(schema: z.ZodType, value: unknown): boolean {
+  return walkOf(schema)(value);
+}
+
 /** Returns the error text, or undefined when the value matches the schema. */
 export function problem(schema: z.ZodType, value: unknown, path: string): string | undefined {
-  const parsed = schema.safeParse(ownView(schema, value));
+  const parsed = schema.safeParse(isOwnData(schema, value) ? value : ownView(schema, value));
   return parsed.success ? undefined : firstError(parsed.error, value, path);
 }
 
