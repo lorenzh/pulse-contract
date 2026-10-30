@@ -1,5 +1,5 @@
+import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { test } from "node:test";
 import { checkWireVersion, WIRE_VERSION, WIRE_VERSION_HEADER } from "../src/index.ts";
 
 test("wire version constants", () => {

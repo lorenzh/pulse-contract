@@ -1,5 +1,5 @@
+import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { test } from "node:test";
 import {
   checkWireVersion,
   DEFAULT_MAX_BODY_BYTES,
@@ -9,6 +9,8 @@ import {
   WIRE_VERSION,
   WIRE_VERSION_HEADER,
 } from "../src/index.ts";
+
+type FetchFn = FetchJsonOptions<unknown>["fetch"];
 
 const pass = (raw: unknown): Validation<unknown> => ({ ok: true, value: raw });
 const wireHeaders = { [WIRE_VERSION_HEADER]: String(WIRE_VERSION) };
@@ -35,11 +37,11 @@ function fakeTimers(): Timers {
 }
 
 const respond =
-  (make: () => Response): typeof fetch =>
+  (make: () => Response): FetchFn =>
   () =>
     Promise.resolve(make());
 
-const base = (fetchFn: typeof fetch): FetchJsonOptions<unknown> => ({
+const base = (fetchFn: FetchFn): FetchJsonOptions<unknown> => ({
   fetch: fetchFn,
   validate: pass,
   timeoutMs: 1000,
@@ -58,7 +60,7 @@ test("returns the validated value with wire ok", async () => {
 
 test("passes headers and signal to fetch", async () => {
   let seen: RequestInit | undefined;
-  const fetchFn: typeof fetch = (_url, init) => {
+  const fetchFn: FetchFn = (_url, init) => {
     seen = init;
     return Promise.resolve(json([]));
   };
@@ -177,7 +179,7 @@ test("a response without a body stream is read as text and capped", async () => 
     body: null,
     text: () => Promise.resolve('"abcdefghij"'),
   };
-  const fetchFn = (() => Promise.resolve(fake)) as unknown as typeof fetch; // minimal Response fake
+  const fetchFn = (() => Promise.resolve(fake)) as unknown as FetchFn; // minimal Response fake
   const small = await fetchJson("https://x/", base(fetchFn));
   assert.equal(small.ok, true);
   const big = await fetchJson("https://x/", { ...base(fetchFn), maxBytes: 5 });
@@ -191,7 +193,7 @@ test("the default cap is 5 MiB", () => {
 test("stalled headers time out and abort the request", async () => {
   const timers = fakeTimers();
   let signal: AbortSignal | null | undefined;
-  const fetchFn: typeof fetch = (_url, init) => {
+  const fetchFn: FetchFn = (_url, init) => {
     signal = init?.signal;
     return new Promise(() => undefined);
   };
@@ -270,7 +272,12 @@ test("fetch rejection keeps its cause", async () => {
 // A fetch that hands out a clone: cancelling its body stays pending while the original is open.
 async function settleWithClone(make: () => Response, maxBytes?: number): Promise<unknown> {
   const timers = fakeTimers();
-  const fetchFn: typeof fetch = () => Promise.resolve(make().clone());
+  const fetchFn: FetchFn = () => {
+    const original = make();
+    const clone = original.clone();
+    // @types/bun types clone() as undici's Response; the instanceof check narrows it.
+    return Promise.resolve(clone instanceof Response ? clone : original);
+  };
   const options = { ...base(fetchFn), schedule: timers.schedule };
   const pending = fetchJson(
     "https://x/",

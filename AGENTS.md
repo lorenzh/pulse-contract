@@ -6,20 +6,20 @@ Instructions for coding agents in this repository. They bind every change.
 
 pulse is an uptime monitor with a status page, split over several repositories. Work arrives as an
 issue with an approved spec from the meta repository; implement only the section for this
-repository. Node 24+ with native type stripping, ESM, npm, strict TypeScript (`tsc --noEmit`),
-`node:test`, Biome, Lefthook.
+repository. Bun 1.4.0, ESM, Bun, strict TypeScript (`tsc --noEmit`),
+`bun:test`, Biome, Lefthook.
 
 ## Commands
 
 | Task                                                          | Command                                    |
 | ------------------------------------------------------------- | ------------------------------------------ |
-| Install from the lockfile (also installs the pre-commit hook) | `npm ci`                                   |
-| All checks: CI runs the same steps                            | `npm run check`                            |
+| Install from the lockfile (also installs the pre-commit hook) | `bun install --frozen-lockfile`            |
+| All checks: CI runs the same steps                            | `bun run check`                            |
 | One test file                                                 | `node --test src/<name>.test.ts`           |
 | Tests whose name matches                                      | `node --test --test-name-pattern "<text>"` |
-| Typecheck                                                     | `npm run typecheck`                        |
-| Lint and format check / apply fixes                           | `npm run lint` / `npm run format`          |
-- A change is done when `npm run check` passes; the pre-commit hook runs Biome and ESLint on staged files. Never run `git commit --no-verify`, and never weaken `biome.json`, `tsconfig.json`, or CI to pass.
+| Typecheck                                                     | `bun run typecheck`                        |
+| Lint and format check / apply fixes                           | `bun run lint` / `bun run format`          |
+- A change is done when `bun run check` passes; the pre-commit hook runs Biome and ESLint on staged files. Never run `git commit --no-verify`, and never weaken `biome.json`, `tsconfig.json`, or CI to pass.
 
 ## Repository boundaries
 
@@ -73,13 +73,13 @@ repository. Node 24+ with native type stripping, ESM, npm, strict TypeScript (`t
 - No real clock and no real timers: inject `now` and a fake `setTimeout`, and advance them in the test.
 - No external network. Start servers on `127.0.0.1` port `0` inside the test and close them in `after`.
 - Each test writes only to its own `mkdtemp` directory or an in-memory database, and cleans it up.
-- `npm test` enforces at least 80 % line coverage and `npm run lint` limits cognitive complexity to 15 per function (SonarJS); never lower either to pass.
+- `bun test` enforces at least 80 % line coverage and `bun run lint` limits cognitive complexity to 15 per function (SonarJS); never lower either to pass.
 
 ## End-to-end checks
 
 - Each service has at least one test that starts its real server on port `0` and drives it over HTTP, with fake peers for other services.
 - A change to an endpoint or a response shape gets such a test, with the response typed by the contract.
-- Before handoff of a user-visible change, start the service with `npm start` and exercise the changed behavior once; report the command and result.
+- Before handoff of a user-visible change, start the service with `bun start` and exercise the changed behavior once; report the command and result.
 
 ## Documentation
 
@@ -104,8 +104,8 @@ The shared tooling configuration lives in `lorenzh/pulse-config`. The other puls
 
 - Zod schemas and the types inferred from them (`src/schema.ts`), validators on those schemas (`src/validate.ts`) and the wire version (`src/version.ts`); `zod` is the only runtime dependency. Validators never throw and return the same object they were given.
 - `dist/` is committed, because Node does not strip types under `node_modules` and Git dependencies
-  have no build step. After a change in `src/`, run `npm run build` and commit `dist/`.
+  have no build step. After a change in `src/`, run `bun run build` and commit `dist/`.
   A test and CI fail when `dist/` is out of date.
-- `npm run check` also runs `npm run build`.
+- `bun run check` also runs `bun run build`.
 - Tests live in `test/`; `test/types.fixture.ts` must keep compiling against every exported type.
 - A breaking type change needs a matching section for each consumer in the spec.

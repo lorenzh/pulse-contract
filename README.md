@@ -37,25 +37,25 @@ check and validation; it returns a typed result instead of throwing. See
 
 The compiled output in `dist/` is committed, because Node does not strip types under
 `node_modules` and Git dependencies have no build step. After changing `src/`, run
-`npm run build` and commit `dist/`. A test fails when `dist/` is out of date.
+`bun run build` and commit `dist/`. A test fails when `dist/` is out of date.
 
 ## Development
 
 Requires Node >= 24.
 
 ```sh
-npm ci
-npm run check   # lint, build, typecheck and tests
-npm run lint    # Biome and SonarJS (ESLint) check, changes nothing
-npm run format  # Biome autofix (safe fixes only)
+bun install --frozen-lockfile
+bun run check   # lint, build, typecheck and tests
+bun run lint    # Biome and SonarJS (ESLint) check, changes nothing
+bun run format  # Biome autofix (safe fixes only)
 ```
 
-`npm ci` installs a Lefthook pre-commit hook that runs `biome check` on staged
+`bun install --frozen-lockfile` installs a Lefthook pre-commit hook that runs `biome check` on staged
 `*.js`, `*.ts`, `*.json` and `*.jsonc` files and ESLint on staged `*.js` and `*.ts` files, and rejects the commit if they are
-badly formatted or fail lint. Run `npm run format` to fix them.
+badly formatted or fail lint. Run `bun run format` to fix them.
 
 Checks: Biome, SonarJS via ESLint (recommended rules, cognitive complexity <= 15) and
-line coverage >= 80 %. Run them with `npm run lint` and `npm test`.
+line coverage >= 80 %. Run them with `bun run lint` and `bun test`.
 
 ## Shared tooling configuration
 
