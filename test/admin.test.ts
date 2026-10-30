@@ -180,3 +180,16 @@ test("heartbeat view requires hasSecret: true", () => {
   const hb = { id: "h", name: "H", type: "heartbeat", period: 1000, grace: 0 };
   assert.equal(validateAdminCheckView({ ...hb, hasSecret: false }).ok, false);
 });
+
+test("check input with a non-string type fails without throwing", () => {
+  const bad = JSON.parse(
+    '{"id":"a","name":"A","url":"https://x","intervalMs":1000,"type":{"toString":null}}',
+  );
+  for (const type of [bad.type, 1, ["http"], null]) {
+    const result = validateAdminCheckInput({ ...http, type });
+    assert.deepEqual(result, {
+      ok: false,
+      error: 'check.type: must be "http", "tls", "tcp", "dns", "domain" or "heartbeat"',
+    });
+  }
+});

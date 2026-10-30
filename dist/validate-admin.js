@@ -5,11 +5,12 @@ function checkInputProblem(value, path) {
     if (!isObject(value)) {
         return `${path}: must be an object`;
     }
-    const type = value.type ?? "http";
+    const type = value.type === undefined ? "http" : value.type;
     if (type !== "heartbeat" && Reflect.get(value, "secret") !== undefined) {
         return `${path}.secret: is only allowed on a heartbeat check`;
     }
-    const schema = Object.hasOwn(adminCheckInputSchemas, type)
+    // `type` is unvalidated: `hasOwn` would coerce a non-string, which can throw.
+    const schema = typeof type === "string" && Object.hasOwn(adminCheckInputSchemas, type)
         ? adminCheckInputSchemas[type]
         : undefined;
     if (schema === undefined) {
