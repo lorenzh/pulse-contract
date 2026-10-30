@@ -22,6 +22,9 @@ export type {
   ComponentsUptimeResponse,
   ComponentUptime,
   ComponentWithState,
+  DnsCheck,
+  DnsRecordType,
+  DomainCheck,
   ErrorResponse,
   ExpectedStatus,
   HeaderValue,
@@ -44,11 +47,15 @@ export type {
   PostResultRequest,
   Result,
   ResultsResponse,
+  TcpCheck,
   TlsCheck,
   UptimeDay,
   UptimeResponse,
 } from "./schema.ts";
 export {
+  dnsCheckSchema,
+  dnsRecordTypeSchema,
+  domainCheckSchema,
   expectedStatusSchema,
   headerValueSchema,
   httpMethodSchema,
@@ -61,6 +68,8 @@ export {
   MANUAL_INCIDENT_STATUSES,
   MANUAL_INCIDENT_TITLE_MAX,
   MAX_TIMER_MS,
+  MIN_DOMAIN_INTERVAL_MS,
+  tcpCheckSchema,
 } from "./schema.ts";
 export {
   type Validation,

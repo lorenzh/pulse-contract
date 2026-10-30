@@ -84,12 +84,34 @@ the same over all days. A check in several components counts in each.
 
 ## Check types
 
-`Check` is `HttpCheck | TlsCheck | HeartbeatCheck`. An `HttpCheck` has a `url` and an optional `type: "http"` (absent
+`Check` is `HttpCheck | TlsCheck | TcpCheck | DnsCheck | DomainCheck | HeartbeatCheck`. An `HttpCheck` has a `url` and an optional `type: "http"` (absent
 means http) and an optional `latencyObjectiveMs` (ms; a successful result slower than it is `degraded`; absent means no objective). `CheckStatus` is `"up" | "degraded" | "down"`. A `TlsCheck` (`type: "tls"`, `host`, `port`, `warnDays`, `intervalMs`, optional
 `timeoutMs`) watches the leaf certificate of a TLS endpoint; `port` and `warnDays` are always set in
 served data. Only the leaf's expiry is judged: the chain and hostname are not verified.
 `Result.certDaysLeft` and `CheckWithState.certDaysLeft` hold the floored whole days until expiry
-(negative when expired, `null` when no certificate was read, absent or `null` for HTTP).
+(negative when expired, `null` when no certificate was read, absent or `null` for other types).
+A `DomainCheck` reuses the field for the days until the registration expires.
+
+`TcpCheck`, `DnsCheck` and `DomainCheck` carry `id`, `name`, `intervalMs`, optional `timeoutMs`,
+`retries` (0..10) and `retryDelayMs` (0..60000); the api serves `retries` and `retryDelayMs`
+resolved (0 and 1000 by default). They reject the HTTP-only fields `url`, `method`, `headers`,
+`body`, `expectedStatus`, `jsonAssert`, `keyword` and `latencyObjectiveMs`, and unknown keys.
+
+- `TcpCheck` (`type: "tcp"`): `host` (non-empty) and `port` (1..65535). The port must accept a
+  connection; the probe sends nothing.
+- `DnsCheck` (`type: "dns"`): `dnsName` (hostname to resolve; `name` is the display name of every
+  check), `recordType` (`A`, `AAAA`, `CNAME`, `MX`, `TXT` or `NS`, upper case), optional `expected`
+  (1..20 non-empty strings; absent means any answer is up) and optional `resolver` (an IPv4 or IPv6
+  address, no port or hostname; absent means the system resolver).
+- `DomainCheck` (`type: "domain"`): `domain` (lowercase name with at least two labels, no scheme,
+  port or path), `warnDays` (integer >= 0) and `intervalMs`, which is required and at least
+  `MIN_DOMAIN_INTERVAL_MS` (3600000, 1 hour). The probe reads the expiry through RDAP and sets
+  `certDaysLeft`. The check is degraded when `certDaysLeft <= warnDays` and down when expired or
+  unknown. This differs from a TLS check, which is down within `warnDays`.
+
+These types stay on `WIRE_VERSION` 1. A consumer built before them rejects an item of an unknown
+type (`must be "http", "tls" or "heartbeat"`) and a probe skips it with `skipping invalid check`, so
+every consumer must be updated before such a check is configured.
 A `HeartbeatCheck` (`type: "heartbeat"`, `period`, `grace`) is pinged by a cron job or worker
 instead of being probed. `period` is the expected time between pings (integer ms, 1000..86400000);
 `grace` is the extra wait before the check is down (integer ms, 0..86400000, always set in served
@@ -221,7 +243,7 @@ Exported from the package root, built on the zod schemas in `src/schema.ts` (typ
 value and an optional `path` (the name used in the error, so a caller can say `checks[3]`) and
 returns `Validation<T>`: `{ ok: true; value: T } | { ok: false; error: string }`. They never throw.
 
-- Item validators: `validateCheck` (http, tls or heartbeat; ignores state fields), `validateCheckWithState`,
+- Item validators: `validateCheck` (http, tls, tcp, dns, domain or heartbeat; ignores state fields), `validateCheckWithState`,
   `validateResult`, `validateIncident`, `validateMaintenanceWindow`, `validateCheckUptime`,
   `validatePostResultRequest`, `validateComponent` (rejects unknown keys), `validateComponentWithState`,
   `validateComponentUptime`, `validateManualIncident`, `validateManualIncidentInput`,
@@ -246,18 +268,20 @@ Service-specific bounds (timestamp windows, length limits) stay in the service.
 
 Bounds (a value outside them is rejected):
 
-| Field                                                       | Rule                                                                                |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `intervalMs` (http, tls), `timeoutMs`, `latencyObjectiveMs` | integer 1..2147483647 (`MAX_TIMER_MS`)                                              |
-| `retries`                                                   | integer 0..10                                                                       |
-| `retryDelayMs`                                              | integer 0..60000                                                                    |
-| tls `port`                                                  | integer 1..65535                                                                    |
-| tls `warnDays`                                              | integer 0..`Number.MAX_SAFE_INTEGER` (the `z.int()` cap)                            |
-| heartbeat `period`                                          | integer 1000..86400000                                                              |
-| heartbeat `grace`                                           | integer 0..86400000                                                                 |
-| `uptime` (day and total)                                    | null or number 0..100                                                               |
-| `UptimeDay.date`                                            | `YYYY-MM-DD`, a real calendar date (`2030-02-30` is rejected, leap years are right) |
-| maintenance `end`                                           | greater than `start`; the error names `<path>.end`                                  |
+| Field                                                               | Rule                                                                                |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `intervalMs` (all but heartbeat), `timeoutMs`, `latencyObjectiveMs` | integer 1..2147483647 (`MAX_TIMER_MS`)                                              |
+| domain `intervalMs`                                                 | integer 3600000..2147483647 (`MIN_DOMAIN_INTERVAL_MS`..`MAX_TIMER_MS`)              |
+| `retries`                                                           | integer 0..10                                                                       |
+| `retryDelayMs`                                                      | integer 0..60000                                                                    |
+| tls and tcp `port`                                                  | integer 1..65535                                                                    |
+| tls and domain `warnDays`                                           | integer 0..`Number.MAX_SAFE_INTEGER` (the `z.int()` cap)                            |
+| dns `expected`                                                      | 1..20 non-empty strings                                                             |
+| heartbeat `period`                                                  | integer 1000..86400000                                                              |
+| heartbeat `grace`                                                   | integer 0..86400000                                                                 |
+| `uptime` (day and total)                                            | null or number 0..100                                                               |
+| `UptimeDay.date`                                                    | `YYYY-MM-DD`, a real calendar date (`2030-02-30` is rejected, leap years are right) |
+| maintenance `end`                                                   | greater than `start`; the error names `<path>.end`                                  |
 
 `MAX_TIMER_MS` (2147483647, 2^31-1) is exported: Node clamps a longer timer delay to 1 ms, so no
 layer passes a delay above it to a timer.
