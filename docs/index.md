@@ -128,7 +128,7 @@ Bounds (a value outside them is rejected):
 | `retries`                                                   | integer 0..10                                                                       |
 | `retryDelayMs`                                              | integer 0..60000                                                                    |
 | tls `port`                                                  | integer 1..65535                                                                    |
-| tls `warnDays`                                              | integer >= 0, no upper bound                                                        |
+| tls `warnDays`                                              | integer 0..`Number.MAX_SAFE_INTEGER` (the `z.int()` cap)                            |
 | heartbeat `period`                                          | integer 1000..86400000                                                              |
 | heartbeat `grace`                                           | integer 0..86400000                                                                 |
 | `uptime` (day and total)                                    | null or number 0..100                                                               |

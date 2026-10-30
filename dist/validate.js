@@ -30,7 +30,8 @@ function firstError(error, value, base) {
 }
 /** Returns the error text, or undefined when the value matches the schema. */
 function problem(schema, value, path) {
-    const parsed = schema.safeParse(value);
+    // Spread keeps own enumerable keys only, so a field found only on the prototype counts as missing.
+    const parsed = schema.safeParse(isObject(value) ? { ...value } : value);
     return parsed.success ? undefined : firstError(parsed.error, value, path);
 }
 function verdict(error, value) {
