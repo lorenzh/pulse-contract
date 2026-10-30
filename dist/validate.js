@@ -74,7 +74,8 @@ function ownView(schema, value) {
     }
     const element = def.element;
     if (def.type === "array" && element !== undefined && Array.isArray(value)) {
-        return value.map((item) => ownView(element, item));
+        // An accessor element counts as absent, like an accessor field.
+        return Array.from(value.keys(), (i) => ownView(element, ownValue(value, i)));
     }
     if (def.type === "object" && def.shape !== undefined && isObject(value)) {
         return objectView(def.shape, value);
@@ -126,15 +127,16 @@ function compileWalk(schema) {
     const element = def.element;
     if (def.type === "array" && element !== undefined) {
         const walk = walkOf(element);
-        if (walk === alwaysOwn) {
-            return alwaysOwn;
-        }
+        const nested = walk !== alwaysOwn;
         return (value) => {
             if (!Array.isArray(value)) {
                 return true;
             }
             for (let i = 0; i < value.length; i += 1) {
-                if (!walk(value[i])) {
+                if (lookupGetter.call(value, i) !== undefined) {
+                    return false; // a getter element: the copy treats it as absent
+                }
+                if (nested && !walk(value[i])) {
                     return false;
                 }
             }
@@ -178,8 +180,11 @@ export const arrayProblem = (check, value, path) => {
     if (!Array.isArray(value)) {
         return `${path}: must be an array`;
     }
-    for (const [i, item] of value.entries()) {
-        const error = check(item, `${path}[${i}]`);
+    for (let i = 0; i < value.length; i += 1) {
+        if (lookupGetter.call(value, i) !== undefined) {
+            return `${path}[${i}]: is required`; // an accessor element is never read
+        }
+        const error = check(value[i], `${path}[${i}]`);
         if (error !== undefined) {
             return error;
         }

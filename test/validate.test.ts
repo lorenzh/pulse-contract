@@ -400,7 +400,21 @@ test("dates must be real calendar days", () => {
     errorOf(validateCheckUptime({ ...first, days: [{ date, uptime: null, results: 0 }] }));
   assert.equal(dateError("2028-02-29"), undefined);
   assert.equal(dateError("2030-02-28"), undefined);
-  for (const date of ["2030-02-30", "2029-02-29", "2030-13-01", "2030-04-31", "2030-00-10"]) {
+  for (const date of ["2000-02-29", "0000-02-29", "2030-12-31", "2030-04-30"]) {
+    assert.equal(dateError(date), undefined, date);
+  }
+  for (const date of [
+    "2030-02-30",
+    "2029-02-29",
+    "2100-02-29",
+    "2030-13-01",
+    "2030-04-31",
+    "2030-00-10",
+    "2030-01-00",
+    "2030-01-32",
+    "2030-1-01",
+    "2030-01-01\n",
+  ]) {
     assert.equal(dateError(date), "uptime.days[0].date: must be a YYYY-MM-DD date", date);
   }
 });
@@ -492,4 +506,23 @@ test("an accessor on a check type is not run", () => {
 test("a null-prototype object validates", () => {
   const input = Object.assign(Object.create(null), fixture.variants.httpCheck);
   assert.equal(validateCheck(input).ok, true);
+});
+
+test("an accessor on an array index is not run and counts as absent", () => {
+  const [first] = fixture.uptime;
+  const accessorAt0 = (items: unknown[]): unknown[] =>
+    Object.defineProperty([...items], 0, {
+      enumerable: true,
+      get(): never {
+        throw new Error("index getter ran");
+      },
+    });
+  assert.equal(
+    errorOf(validateCheckUptime({ ...first, days: accessorAt0(first?.days ?? []) })),
+    "uptime.days[0]: is required",
+  );
+  assert.equal(
+    errorOf(validateUptimeResponse(accessorAt0(fixture.uptime))),
+    "uptime[0]: is required",
+  );
 });
