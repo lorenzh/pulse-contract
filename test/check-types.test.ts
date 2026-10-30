@@ -102,6 +102,8 @@ describe("new check types", () => {
       latencyObjectiveMs: 5,
     };
     for (const check of [tcp, dns, domain]) {
+      // The valid check must pass, so the rejection below comes from the HTTP-only field.
+      expect(errorOf(check)).toBeUndefined();
       for (const [key, value] of Object.entries(fields)) {
         expect(errorOf({ ...check, [key]: value })).toBeDefined();
       }
@@ -183,5 +185,9 @@ describe("new check types", () => {
 
   test("the wire version stays 1", () => {
     expect(WIRE_VERSION).toBe(1);
+    // The new types are additive: they validate under wire version 1.
+    for (const check of [tcp, dns, domain]) {
+      expect(errorOf(check)).toBeUndefined();
+    }
   });
 });

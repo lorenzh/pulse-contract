@@ -19,14 +19,19 @@ Every type exported from `src/index.ts`. Import them with `import type`.
 | `ExpectedStatus`            | An accepted status: an integer 100..599 or a range string `"lo-hi"`.                                                                                       |
 | `JsonAssertion`             | `{ pointer, equals }` or `{ pointer, exists: true }`.                                                                                                      |
 | `TlsCheck`                  | A check of the leaf certificate of a TLS endpoint: `host`, `port`, `warnDays`, interval.                                                                   |
+| `TcpCheck`                  | A check that a TCP port accepts a connection: `host`, `port`, interval. Sends nothing.                                                                     |
+| `DnsCheck`                  | A DNS lookup: `dnsName`, `recordType`, optional `expected` answers and `resolver`, interval.                                                               |
+| `DnsRecordType`             | `"A"`, `"AAAA"`, `"CNAME"`, `"MX"`, `"TXT"` or `"NS"`.                                                                                                     |
+| `DomainCheck`               | A check of a domain registration expiry (RDAP): `domain`, `warnDays`, `intervalMs` >= `MIN_DOMAIN_INTERVAL_MS`.                                            |
 | `HeartbeatCheck`            | A check that a job pings: `period` and `grace` in ms. The probe never runs it.                                                                             |
-| `Check`                     | `HttpCheck \| TlsCheck \| HeartbeatCheck`.                                                                                                                 |
+| `Check`                     | `HttpCheck \| TlsCheck \| TcpCheck \| DnsCheck \| DomainCheck \| HeartbeatCheck`.                                                                          |
+| `MIN_DOMAIN_INTERVAL_MS`    | Constant, not a type: the minimum domain `intervalMs`, 3600000 (1 hour).                                                                                   |
 | `Result`                    | One probe result: check id, timestamp, status, status code, latency, reason, location, attempts, optional `certDaysLeft`.                                  |
 | `Incident`                  | A run of down results: check id, `openedAt`, `resolvedAt` (null while open), reason.                                                                       |
 | `LocationResult`            | The latest `Result` of one probe location, with a `stale` flag.                                                                                            |
 | `MaintenanceWindow`         | A planned window for one check, half-open `[start, end)` in epoch ms, with a note.                                                                         |
 | `CheckStateFields`          | The evaluated state added to a check: `state`, `consecutiveDown`, `lastResultAt`, `lastReason`, `locations`, optional `maintenance` and `certDaysLeft`.    |
-| `CheckWithState`            | `Check & CheckStateFields`; distributes over both check variants.                                                                                          |
+| `CheckWithState`            | `Check & CheckStateFields`; distributes over every check variant.                                                                                          |
 | `UptimeDay`                 | Uptime of one UTC day (`date`, `uptime` 0..100 or null, `results`).                                                                                        |
 | `CheckUptime`               | The 90-day uptime of one check: `checkId`, 90 `days` oldest first, weighted `uptime`.                                                                      |
 | `Component`                 | A customer-facing group of checks: `id`, `name`, optional `description`, `checkIds`, optional `group`. Unknown keys are rejected.                          |
