@@ -11,14 +11,14 @@ repository. Bun 1.4.0, ESM, Bun, strict TypeScript (`tsc --noEmit`),
 
 ## Commands
 
-| Task                                                          | Command                                    |
-| ------------------------------------------------------------- | ------------------------------------------ |
-| Install from the lockfile (also installs the pre-commit hook) | `bun install --frozen-lockfile`            |
-| All checks: CI runs the same steps                            | `bun run check`                            |
-| One test file                                                 | `node --test src/<name>.test.ts`           |
-| Tests whose name matches                                      | `node --test --test-name-pattern "<text>"` |
-| Typecheck                                                     | `bun run typecheck`                        |
-| Lint and format check / apply fixes                           | `bun run lint` / `bun run format`          |
+| Task                                                          | Command                           |
+| ------------------------------------------------------------- | --------------------------------- |
+| Install from the lockfile (also installs the pre-commit hook) | `bun install --frozen-lockfile`   |
+| All checks: CI runs the same steps                            | `bun run check`                   |
+| One test file                                                 | `bun test test/<name>.test.ts`    |
+| Tests whose name matches                                      | `bun test -t "<text>"`            |
+| Typecheck                                                     | `bun run typecheck`               |
+| Lint and format check / apply fixes                           | `bun run lint` / `bun run format` |
 - A change is done when `bun run check` passes; the pre-commit hook runs Biome and ESLint on staged files. Never run `git commit --no-verify`, and never weaken `biome.json`, `tsconfig.json`, or CI to pass.
 
 ## Repository boundaries
@@ -34,7 +34,7 @@ repository. Bun 1.4.0, ESM, Bun, strict TypeScript (`tsc --noEmit`),
 
 ## TypeScript
 
-- The source runs unbuilt under Node type stripping: erasable syntax only (no `enum`, `namespace`, parameter properties). Use string-literal unions or `as const` objects.
+- The source runs unbuilt under Bun and Node type stripping: erasable syntax only (no `enum`, `namespace`, parameter properties). Use string-literal unions or `as const` objects.
 - Relative imports carry the `.ts` extension. Built-ins use the `node:` prefix.
 - Type-only imports use `import type`; mixed imports mark types inline: `import { type X, y }`.
 - No `any`, also not in tests. Use `unknown` and narrow it, or the contract type.
@@ -107,5 +107,6 @@ The shared tooling configuration lives in `lorenzh/pulse-config`. The other puls
   have no build step. After a change in `src/`, run `bun run build` and commit `dist/`.
   A test and CI fail when `dist/` is out of date.
 - `bun run check` also runs `bun run build`.
+- TypeScript stays at 6.0.3: TypeScript 7.0.2 builds in about 0.3 s, but typescript-eslint (used by `pulse-eslint`) does not support TS 7.0, so `bun run lint` fails. Retry when typescript-eslint supports it.
 - Tests live in `test/`; `test/types.fixture.ts` must keep compiling against every exported type.
 - A breaking type change needs a matching section for each consumer in the spec.

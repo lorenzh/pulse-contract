@@ -41,7 +41,7 @@ The compiled output in `dist/` is committed, because Node does not strip types u
 
 ## Development
 
-Requires Node >= 24.
+Requires Bun 1.4.0.
 
 ```sh
 bun install --frozen-lockfile

@@ -319,7 +319,7 @@ full commit SHA on its `main`.
    `"@lorenzh/pulse-contract": "github:lorenzh/pulse-contract#<full commit sha>"`.
 3. Run `bun install` to update `bun.lock`.
 4. Run `bun run check` and fix any type errors.
-5. Commit `package.json` and `package-lock.json` together.
+5. Commit `package.json` and `bun.lock` together.
 
 ## Change the contract
 

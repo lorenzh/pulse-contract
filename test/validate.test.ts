@@ -435,3 +435,28 @@ test("a required field that exists only on the prototype is rejected", () => {
   delete inherited.id;
   assert.equal(errorOf(validateCheck(inherited)), "check.id: is required");
 });
+
+test("a nested required field that exists only on the prototype is rejected", () => {
+  const [first] = fixture.uptime;
+  const day = Object.create({ date: "2026-10-26" });
+  Object.assign(day, { uptime: 1, results: 1 });
+  const input = { ...first, days: [day] };
+  assert.equal(errorOf(validateCheckUptime(input)), "uptime.days[0].date: is required");
+});
+
+test("a non-enumerable own id is accepted", () => {
+  const { httpCheck } = fixture.variants;
+  const { id, ...rest } = httpCheck;
+  const input = Object.defineProperty({ ...rest }, "id", { value: id, enumerable: false });
+  assert.equal(validateCheck(input).ok, true);
+});
+
+test("a throwing getter on an unknown key does not throw", () => {
+  const input = Object.defineProperty({ ...fixture.variants.httpCheck }, "extra", {
+    enumerable: true,
+    get(): never {
+      throw new Error("getter ran");
+    },
+  });
+  assert.equal(validateCheck(input).ok, true);
+});
