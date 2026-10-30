@@ -6,12 +6,16 @@ import type {
   CheckUptime,
   CheckWithState,
   ErrorResponse,
+  ExpectedStatus,
   FetchJsonError,
   FetchJsonResult,
+  HeaderValue,
   HeartbeatCheck,
   HttpCheck,
+  HttpMethod,
   Incident,
   IncidentsResponse,
+  JsonAssertion,
   LocationResult,
   MaintenanceResponse,
   MaintenanceWindow,
@@ -42,6 +46,18 @@ const degradedResult: Result = {
 const withTimeout: Check = { ...check, timeoutMs: 500 };
 const httpCheck: HttpCheck = { ...check, type: "http" };
 const keywordCheck: HttpCheck = { ...check, keyword: "ok" };
+const method: HttpMethod = "POST";
+const secret: HeaderValue = { env: "TOKEN" };
+const range: ExpectedStatus = "200-299";
+const assertion: JsonAssertion = { pointer: "/status", equals: "ok" };
+const requestCheck: HttpCheck = {
+  ...check,
+  method,
+  headers: { Authorization: secret, Accept: "application/json" },
+  body: "{}",
+  expectedStatus: [200, range],
+  jsonAssert: [assertion, { pointer: "", exists: true }],
+};
 const retryCheck: HttpCheck = { ...check, retries: 2, retryDelayMs: 500 };
 const tlsCheck: TlsCheck = {
   id: "t",
@@ -148,6 +164,7 @@ const variants = {
   httpCheck,
   retryCheck,
   keywordCheck,
+  requestCheck,
   tlsAsCheck,
   tlsWithState,
   heartbeatAsCheck,

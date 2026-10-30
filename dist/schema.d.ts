@@ -16,6 +16,24 @@ export declare const checkStateSchema: z.ZodEnum<{
     unknown: "unknown";
     up: "up";
 }>;
+export declare const httpMethodSchema: z.ZodEnum<{
+    DELETE: "DELETE";
+    GET: "GET";
+    HEAD: "HEAD";
+    OPTIONS: "OPTIONS";
+    PATCH: "PATCH";
+    POST: "POST";
+    PUT: "PUT";
+}>;
+export declare const headerValueSchema: z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
+    env: z.ZodString;
+}, z.core.$strip>]>;
+export declare const expectedStatusSchema: z.ZodArray<z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>>;
+export declare const jsonAssertSchema: z.ZodObject<{
+    pointer: z.ZodString;
+    equals: z.ZodOptional<z.ZodJSONSchema>;
+    exists: z.ZodOptional<z.ZodLiteral<true>>;
+}, z.core.$strip>;
 export declare const httpCheckSchema: z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;
@@ -29,6 +47,25 @@ export declare const httpCheckSchema: z.ZodObject<{
     retries: z.ZodOptional<z.ZodNumber>;
     retryDelayMs: z.ZodOptional<z.ZodNumber>;
     keyword: z.ZodOptional<z.ZodString>;
+    method: z.ZodOptional<z.ZodEnum<{
+        DELETE: "DELETE";
+        GET: "GET";
+        HEAD: "HEAD";
+        OPTIONS: "OPTIONS";
+        PATCH: "PATCH";
+        POST: "POST";
+        PUT: "PUT";
+    }>>;
+    headers: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnion<readonly [z.ZodString, z.ZodObject<{
+        env: z.ZodString;
+    }, z.core.$strip>]>>>;
+    body: z.ZodOptional<z.ZodString>;
+    expectedStatus: z.ZodOptional<z.ZodArray<z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>>>;
+    jsonAssert: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        pointer: z.ZodString;
+        equals: z.ZodOptional<z.ZodJSONSchema>;
+        exists: z.ZodOptional<z.ZodLiteral<true>>;
+    }, z.core.$strip>>>;
 }, z.core.$strip>;
 export declare const tlsCheckSchema: z.ZodObject<{
     id: z.ZodString;
@@ -41,6 +78,12 @@ export declare const tlsCheckSchema: z.ZodObject<{
     warnDays: z.ZodNumber;
     intervalMs: z.ZodNumber;
     timeoutMs: z.ZodOptional<z.ZodNumber>;
+    method: z.ZodOptional<z.ZodNever>;
+    headers: z.ZodOptional<z.ZodNever>;
+    body: z.ZodOptional<z.ZodNever>;
+    expectedStatus: z.ZodOptional<z.ZodNever>;
+    jsonAssert: z.ZodOptional<z.ZodNever>;
+    keyword: z.ZodOptional<z.ZodNever>;
 }, z.core.$strip>;
 export declare const heartbeatCheckSchema: z.ZodObject<{
     id: z.ZodString;
@@ -50,6 +93,12 @@ export declare const heartbeatCheckSchema: z.ZodObject<{
     }>;
     period: z.ZodNumber;
     grace: z.ZodNumber;
+    method: z.ZodOptional<z.ZodNever>;
+    headers: z.ZodOptional<z.ZodNever>;
+    body: z.ZodOptional<z.ZodNever>;
+    expectedStatus: z.ZodOptional<z.ZodNever>;
+    jsonAssert: z.ZodOptional<z.ZodNever>;
+    keyword: z.ZodOptional<z.ZodNever>;
 }, z.core.$strip>;
 export declare const resultSchema: z.ZodObject<{
     checkId: z.ZodString;
@@ -169,6 +218,13 @@ export declare const checkUptimeSchema: z.ZodObject<{
 export type CheckStatus = z.infer<typeof checkStatusSchema>;
 /** A `CheckStatus`, or "unknown" (no result yet) or "maintenance" (active window). */
 export type CheckState = z.infer<typeof checkStateSchema>;
+export type HttpMethod = z.infer<typeof httpMethodSchema>;
+/** A literal header value, or `{ env: NAME }` that the probe resolves from its environment. */
+export type HeaderValue = z.infer<typeof headerValueSchema>;
+/** A status code 100..599 or a range string `"lo-hi"`. */
+export type ExpectedStatus = z.infer<typeof expectedStatusSchema>[number];
+/** `{ pointer, equals }` or `{ pointer, exists: true }`. */
+export type JsonAssertion = z.infer<typeof jsonAssertSchema>;
 export type HttpCheck = z.infer<typeof httpCheckSchema>;
 /**
  * Watches the leaf certificate of a TLS endpoint. Only the leaf's expiry is judged;

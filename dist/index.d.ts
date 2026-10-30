@@ -1,5 +1,5 @@
 export { DEFAULT_MAX_BODY_BYTES, type FetchJsonError, type FetchJsonOptions, type FetchJsonResult, fetchJson, } from "./client.ts";
-export type { Check, CheckState, CheckStateFields, CheckStatus, ChecksResponse, CheckUptime, CheckWithState, ErrorResponse, HeartbeatCheck, HttpCheck, Incident, IncidentsResponse, LocationResult, MaintenanceResponse, MaintenanceWindow, PostResultRequest, Result, ResultsResponse, TlsCheck, UptimeDay, UptimeResponse, } from "./schema.ts";
+export type { Check, CheckState, CheckStateFields, CheckStatus, ChecksResponse, CheckUptime, CheckWithState, ErrorResponse, ExpectedStatus, HeaderValue, HeartbeatCheck, HttpCheck, HttpMethod, Incident, IncidentsResponse, JsonAssertion, LocationResult, MaintenanceResponse, MaintenanceWindow, PostResultRequest, Result, ResultsResponse, TlsCheck, UptimeDay, UptimeResponse, } from "./schema.ts";
 export { MAX_TIMER_MS } from "./schema.ts";
 export { type Validation, validateCheck, validateChecksResponse, validateCheckUptime, validateCheckWithState, validateIncident, validateIncidentsResponse, validateMaintenanceResponse, validateMaintenanceWindow, validatePostResultRequest, validateResult, validateResultsResponse, validateUptimeResponse, } from "./validate.ts";
 export { checkWireVersion, WIRE_VERSION, WIRE_VERSION_HEADER, type WireVersionCheck, } from "./version.ts";

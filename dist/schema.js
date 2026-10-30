@@ -39,7 +39,128 @@ const objectError = { error: "must be an object" };
 const timerMs = intBetween(1, MAX_TIMER_MS);
 export const checkStatusSchema = oneOf(["up", "degraded", "down"]);
 export const checkStateSchema = oneOf(["up", "degraded", "down", "unknown", "maintenance"]);
-export const httpCheckSchema = z.object({
+const HTTP_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+export const httpMethodSchema = oneOf(HTTP_METHODS);
+const utf8Bytes = (value) => new TextEncoder().encode(value).length;
+/** Header names the probe owns; compared in lower case. */
+const FORBIDDEN_HEADERS = [
+    "host",
+    "content-length",
+    "transfer-encoding",
+    "connection",
+    "user-agent",
+];
+const MAX_HEADERS = 20;
+const MAX_HEADER_NAME_BYTES = 256;
+const MAX_HEADER_VALUE_BYTES = 4096;
+const MAX_HEADERS_TOTAL_BYTES = 16 * 1024;
+/** RFC 9110 token. */
+const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+/** Tab, space, visible ASCII and obs-text; no CR or LF. */
+const HEADER_VALUE = /^[\t\x20-\x7e\x80-\xff]*$/;
+const ENV_NAME = /^[A-Za-z_]\w{0,127}$/;
+export const headerValueSchema = z.union([
+    z.string().refine((v) => v.length <= MAX_HEADER_VALUE_BYTES && HEADER_VALUE.test(v), {
+        error: `must be at most ${MAX_HEADER_VALUE_BYTES} visible ASCII characters without CR or LF`,
+    }),
+    z.object({
+        env: z.string({ error: "must be an environment variable name" }).regex(ENV_NAME, {
+            error: "must match ^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+        }),
+    }, { error: "must be a string or an object {env: NAME}" }),
+], { error: "must be a string or an object {env: NAME}" });
+const headersSchema = z
+    .record(z.string(), headerValueSchema, { error: "must be an object" })
+    .superRefine((headers, ctx) => {
+    const names = Object.keys(headers);
+    if (names.length > MAX_HEADERS) {
+        ctx.addIssue({ code: "custom", message: `must have at most ${MAX_HEADERS} entries` });
+    }
+    const seen = new Set();
+    let total = 0;
+    for (const name of names) {
+        const lower = name.toLowerCase();
+        if (name.length === 0 || name.length > MAX_HEADER_NAME_BYTES || !HEADER_NAME.test(name)) {
+            ctx.addIssue({
+                code: "custom",
+                path: [name],
+                message: `is not a valid header name (token, 1..${MAX_HEADER_NAME_BYTES} bytes)`,
+            });
+        }
+        else if (FORBIDDEN_HEADERS.includes(lower)) {
+            ctx.addIssue({ code: "custom", path: [name], message: "is a header the probe controls" });
+        }
+        else if (seen.has(lower)) {
+            ctx.addIssue({ code: "custom", path: [name], message: "is a duplicate header name" });
+        }
+        seen.add(lower);
+        const value = headers[name];
+        total += name.length + (typeof value === "string" ? value.length : 0);
+    }
+    if (total > MAX_HEADERS_TOTAL_BYTES) {
+        ctx.addIssue({
+            code: "custom",
+            message: `names and literal values must total at most ${MAX_HEADERS_TOTAL_BYTES} bytes`,
+        });
+    }
+});
+const MAX_BODY_BYTES = 65_536;
+const bodySchema = z
+    .string({ error: "must be a string" })
+    .refine((v) => utf8Bytes(v) <= MAX_BODY_BYTES, {
+    error: `must be at most ${MAX_BODY_BYTES} bytes`,
+});
+const statusCodeSchema = intBetween(100, 599);
+const STATUS_RANGE = /^(\d{3})-(\d{3})$/;
+const rangeBounds = (value) => {
+    const match = STATUS_RANGE.exec(value);
+    if (match === null) {
+        return undefined;
+    }
+    const [lo, hi] = [Number(match[1]), Number(match[2])];
+    return lo >= 100 && lo <= hi && hi <= 599 ? [lo, hi] : undefined;
+};
+const expectedStatusItemMessage = 'must be an integer 100..599 or a range "lo-hi" with 100 <= lo <= hi <= 599';
+export const expectedStatusSchema = z
+    .array(z.union([
+    statusCodeSchema,
+    z
+        .string()
+        .refine((v) => rangeBounds(v) !== undefined, { error: expectedStatusItemMessage }),
+], { error: expectedStatusItemMessage }), { error: "must be an array" })
+    .min(1, "must not be empty")
+    .max(20, "must have at most 20 entries");
+const MAX_POINTER_BYTES = 256;
+const isJsonPointer = (value) => (value === "" || value.startsWith("/")) &&
+    !/~(?![01])/.test(value) &&
+    utf8Bytes(value) <= MAX_POINTER_BYTES;
+export const jsonAssertSchema = z
+    .object({
+    /** RFC 6901 JSON pointer, at most 256 bytes; "" is the whole document. */
+    pointer: z.string({ error: "must be a JSON pointer" }).refine(isJsonPointer, {
+        error: `must be an RFC 6901 JSON pointer of at most ${MAX_POINTER_BYTES} bytes`,
+    }),
+    /** Deep, strict equality with any JSON value. */
+    equals: z.json({ error: "must be a JSON value" }).optional(),
+    /** Only `true`: the pointer must resolve. */
+    exists: z.literal(true, { error: "must be true" }).optional(),
+}, objectError)
+    .superRefine((assertion, ctx) => {
+    const hasEquals = Object.hasOwn(assertion, "equals");
+    const hasExists = Object.hasOwn(assertion, "exists");
+    if (hasEquals === hasExists) {
+        ctx.addIssue({
+            code: "custom",
+            message: 'set exactly one of "equals" and "exists"',
+        });
+    }
+});
+const jsonAssertListSchema = z
+    .array(jsonAssertSchema, { error: "must be an array" })
+    .min(1, "must not be empty")
+    .max(10, "must have at most 10 entries");
+export const httpCheckSchema = z
+    .object({
     id: nonEmpty,
     name: text,
     /** Absent means "http". */
@@ -72,7 +193,33 @@ export const httpCheckSchema = z.object({
      * Not available on `TlsCheck`.
      */
     keyword: text.optional(),
-}, objectError);
+    /** Upper-case, case-sensitive. Absent means "GET". Not available on `TlsCheck`. */
+    method: httpMethodSchema.optional(),
+    /**
+     * Request headers, at most 20. A value is a literal string or `{ env: NAME }`, which the
+     * probe resolves from its own environment. Not served by the public `GET /checks`.
+     */
+    headers: headersSchema.optional(),
+    /** Request body, at most 65536 bytes. Not allowed with GET (the default) or HEAD. */
+    body: bodySchema.optional(),
+    /** Accepted final statuses. Absent means `["200-299"]`. */
+    expectedStatus: expectedStatusSchema.optional(),
+    /** Assertions on the JSON response body, at most 10. Not allowed with HEAD. */
+    jsonAssert: jsonAssertListSchema.optional(),
+}, objectError)
+    .superRefine((check, ctx) => {
+    const method = check.method ?? "GET";
+    if (check.body !== undefined && (method === "GET" || method === "HEAD")) {
+        ctx.addIssue({ code: "custom", path: ["body"], message: `is not allowed with ${method}` });
+    }
+    if (method === "HEAD") {
+        for (const key of ["jsonAssert", "keyword"]) {
+            if (check[key] !== undefined) {
+                ctx.addIssue({ code: "custom", path: [key], message: "is not allowed with HEAD" });
+            }
+        }
+    }
+});
 export const tlsCheckSchema = z.object({
     id: nonEmpty,
     name: text,
@@ -87,6 +234,13 @@ export const tlsCheckSchema = z.object({
     intervalMs: timerMs,
     /** Integer 1..2147483647. */
     timeoutMs: timerMs.optional(),
+    /** Not available on this check type. */
+    method: z.never().optional(),
+    headers: z.never().optional(),
+    body: z.never().optional(),
+    expectedStatus: z.never().optional(),
+    jsonAssert: z.never().optional(),
+    keyword: z.never().optional(),
 }, objectError);
 export const heartbeatCheckSchema = z.object({
     id: nonEmpty,
@@ -96,6 +250,13 @@ export const heartbeatCheckSchema = z.object({
     period: intBetween(1000, 86_400_000),
     /** Extra wait in ms before the check is down, integer 0..86400000. Always set in served data. */
     grace: intBetween(0, 86_400_000),
+    /** Not available on this check type. */
+    method: z.never().optional(),
+    headers: z.never().optional(),
+    body: z.never().optional(),
+    expectedStatus: z.never().optional(),
+    jsonAssert: z.never().optional(),
+    keyword: z.never().optional(),
 }, objectError);
 const optionalCertDaysLeft = integer.nullable().optional();
 export const resultSchema = z.object({
