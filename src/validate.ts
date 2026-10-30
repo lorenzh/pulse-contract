@@ -61,7 +61,7 @@ export const isObject = (value: unknown): value is Fields =>
  * Reads an own data property. Inherited names such as `constructor` and accessors count as
  * absent; a getter never runs.
  */
-function ownValue(parent: unknown, key: PropertyKey): unknown {
+export function ownValue(parent: unknown, key: PropertyKey): unknown {
   if (typeof parent !== "object" || parent === null) {
     return undefined;
   }

@@ -193,3 +193,108 @@ test("check input with a non-string type fails without throwing", () => {
     });
   }
 });
+
+const hb = { id: "h", name: "H", type: "heartbeat", period: 1000, grace: 0 };
+const hbFields = { id: "h", name: "H", period: 1000, grace: 0 };
+
+/** Adds an own accessor `key` and counts its getter calls; a throwing getter throws `boom`. */
+function withAccessor(
+  base: object,
+  key: string,
+  options: { returns: unknown; isEnumerable: boolean; isThrowing: boolean },
+): { input: object; calls: () => number } {
+  let count = 0;
+  const input = { ...base };
+  Object.defineProperty(input, key, {
+    enumerable: options.isEnumerable,
+    get() {
+      count += 1;
+      if (options.isThrowing) {
+        throw new Error("boom");
+      }
+      return options.returns;
+    },
+  });
+  return { input, calls: () => count };
+}
+
+test("check input never runs a getter on type or secret", () => {
+  const cases = [
+    { base: http, key: "type", returns: "heartbeat", isEnumerable: true, expected: { ok: true } },
+    {
+      base: hbFields,
+      key: "type",
+      returns: "heartbeat",
+      isEnumerable: true,
+      expected: { ok: false, error: "check.period: is not allowed on this check" },
+    },
+    {
+      base: http,
+      key: "secret",
+      returns: "x",
+      isEnumerable: true,
+      expected: { ok: false, error: "check.secret: is not allowed on this check" },
+    },
+    { base: http, key: "secret", returns: "x", isEnumerable: false, expected: { ok: true } },
+    { base: hb, key: "secret", returns: "s", isEnumerable: true, expected: { ok: true } },
+  ];
+  for (const { base, key, returns, isEnumerable, expected } of cases) {
+    for (const isThrowing of [false, true]) {
+      const { input, calls } = withAccessor(base, key, { returns, isEnumerable, isThrowing });
+      const result = validateAdminCheckInput(input);
+      const label = `${key} on ${JSON.stringify(base)}, throwing: ${isThrowing}`;
+      assert.equal(calls(), 0, label);
+      if (expected.ok) {
+        assert.equal(result.ok, true, label);
+        assert.equal(result.ok && result.value, input, label);
+      } else {
+        assert.deepEqual(result, expected, label);
+      }
+    }
+  }
+});
+
+test("check input ignores an inherited type or secret", () => {
+  const inheritedType = Object.assign(Object.create({ type: "heartbeat" }), hbFields);
+  assert.deepEqual(validateAdminCheckInput(inheritedType), {
+    ok: false,
+    error: "check.period: is not allowed on this check",
+  });
+  const inheritedSecret = Object.assign(Object.create({ secret: "x" }), http);
+  const result = validateAdminCheckInput(inheritedSecret);
+  assert.equal(result.ok, true);
+  assert.equal(result.ok && result.value, inheritedSecret);
+});
+
+test("check input never runs an inherited getter on type or secret", () => {
+  for (const key of ["type", "secret"]) {
+    let calls = 0;
+    const proto = {};
+    Object.defineProperty(proto, key, {
+      get() {
+        calls += 1;
+        throw new Error("boom");
+      },
+    });
+    const result = validateAdminCheckInput(Object.assign(Object.create(proto), http));
+    assert.equal(calls, 0, key);
+    assert.equal(result.ok, true, key);
+  }
+});
+
+test("check input keeps its data property results", () => {
+  assert.deepEqual(validateAdminCheckInput({ ...http, secret: "x" }), {
+    ok: false,
+    error: "check.secret: is only allowed on a heartbeat check",
+  });
+  assert.deepEqual(validateAdminCheckInput({ ...hb, secret: "" }), {
+    ok: false,
+    error: "check.secret: must be a non-empty string",
+  });
+  for (const type of [5, Symbol("t")]) {
+    assert.deepEqual(validateAdminCheckInput({ ...http, type }), {
+      ok: false,
+      error: 'check.type: must be "http", "tls", "tcp", "dns", "domain" or "heartbeat"',
+    });
+  }
+});

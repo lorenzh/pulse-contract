@@ -15,6 +15,7 @@ import {
 } from "./admin.ts";
 import {
   isObject,
+  ownValue,
   problem,
   type Validation,
   validateCheck,
@@ -27,8 +28,10 @@ function checkInputProblem(value: unknown, path: string): string | undefined {
   if (!isObject(value)) {
     return `${path}: must be an object`;
   }
-  const type = value.type === undefined ? "http" : value.type;
-  if (type !== "heartbeat" && Reflect.get(value, "secret") !== undefined) {
+  // Own data properties only: a getter never runs, and an inherited `type` cannot pick a schema.
+  const ownType = ownValue(value, "type");
+  const type = ownType === undefined ? "http" : ownType;
+  if (type !== "heartbeat" && ownValue(value, "secret") !== undefined) {
     return `${path}.secret: is only allowed on a heartbeat check`;
   }
   // `type` is unvalidated: `hasOwn` would coerce a non-string, which can throw.

@@ -10,6 +10,11 @@ export type Validation<T> = {
 };
 type Fields = Record<string, unknown>;
 export declare const isObject: (value: unknown) => value is Fields;
+/**
+ * Reads an own data property. Inherited names such as `constructor` and accessors count as
+ * absent; a getter never runs.
+ */
+export declare function ownValue(parent: unknown, key: PropertyKey): unknown;
 /** Returns the error text, or undefined when the value matches the schema. */
 export declare function problem(schema: z.ZodType, value: unknown, path: string): string | undefined;
 /**
