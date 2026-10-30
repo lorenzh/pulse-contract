@@ -5,6 +5,11 @@ import type {
   ChecksResponse,
   CheckUptime,
   CheckWithState,
+  Component,
+  ComponentsResponse,
+  ComponentsUptimeResponse,
+  ComponentUptime,
+  ComponentWithState,
   ErrorResponse,
   ExpectedStatus,
   FetchJsonError,
@@ -185,6 +190,24 @@ const checkUptime: CheckUptime = {
 const emptyUptime: CheckUptime = { checkId: "b", days: [noDataDay], uptime: null };
 const uptime: UptimeResponse = [checkUptime, emptyUptime];
 
+const component: Component = {
+  id: "web",
+  name: "Website",
+  description: "Public site",
+  checkIds: ["a", "b"],
+  group: "Services",
+};
+const minimalComponent: Component = { id: "api", name: "API", checkIds: ["a"] };
+const componentWithState: ComponentWithState = {
+  ...component,
+  state: "up",
+  uptime: 98.4,
+  incidentIds: [3, 7],
+};
+const components: ComponentsResponse = [componentWithState];
+const componentUptime: ComponentUptime = { componentId: "web", days: [uptimeDay], uptime: 98.4 };
+const componentsUptime: ComponentsUptimeResponse = [componentUptime];
+
 const fetchError: FetchJsonError = { kind: "http", status: 500, wire: { status: "absent" } };
 const fetchResult: FetchJsonResult<Check> = { ok: false, error: fetchError };
 
@@ -199,4 +222,8 @@ export const fixture = {
   maintenance,
   error,
   uptime,
+  component,
+  minimalComponent,
+  components,
+  componentsUptime,
 };

@@ -5,6 +5,7 @@ export {
   type FetchJsonResult,
   fetchJson,
 } from "./client.ts";
+export { aggregateUptime, combineStates } from "./components.ts";
 export type {
   Check,
   CheckState,
@@ -13,6 +14,11 @@ export type {
   ChecksResponse,
   CheckUptime,
   CheckWithState,
+  Component,
+  ComponentsResponse,
+  ComponentsUptimeResponse,
+  ComponentUptime,
+  ComponentWithState,
   ErrorResponse,
   ExpectedStatus,
   HeaderValue,
@@ -45,6 +51,11 @@ export {
   validateChecksResponse,
   validateCheckUptime,
   validateCheckWithState,
+  validateComponent,
+  validateComponentsResponse,
+  validateComponentsUptimeResponse,
+  validateComponentUptime,
+  validateComponentWithState,
   validateIncident,
   validateIncidentsResponse,
   validateMaintenanceResponse,

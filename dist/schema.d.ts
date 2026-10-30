@@ -214,6 +214,39 @@ export declare const checkUptimeSchema: z.ZodObject<{
     }, z.core.$strip>>;
     uptime: z.ZodNullable<z.ZodNumber>;
 }, z.core.$strip>;
+/** A customer-facing group of checks, as configured. Unknown keys are rejected. */
+export declare const componentSchema: z.ZodObject<{
+    id: z.ZodString;
+    name: z.ZodString;
+    description: z.ZodOptional<z.ZodString>;
+    checkIds: z.ZodArray<z.ZodString>;
+    group: z.ZodOptional<z.ZodString>;
+}, z.core.$strict>;
+export declare const componentWithStateSchema: z.ZodObject<{
+    id: z.ZodString;
+    name: z.ZodString;
+    description: z.ZodOptional<z.ZodString>;
+    checkIds: z.ZodArray<z.ZodString>;
+    group: z.ZodOptional<z.ZodString>;
+    state: z.ZodEnum<{
+        degraded: "degraded";
+        down: "down";
+        maintenance: "maintenance";
+        unknown: "unknown";
+        up: "up";
+    }>;
+    uptime: z.ZodNullable<z.ZodNumber>;
+    incidentIds: z.ZodArray<z.ZodInt>;
+}, z.core.$strip>;
+export declare const componentUptimeSchema: z.ZodObject<{
+    componentId: z.ZodString;
+    days: z.ZodArray<z.ZodObject<{
+        date: z.ZodString;
+        uptime: z.ZodNullable<z.ZodNumber>;
+        results: z.ZodNumber;
+    }, z.core.$strip>>;
+    uptime: z.ZodNullable<z.ZodNumber>;
+}, z.core.$strip>;
 /** "degraded": the check answered successfully but slower than its latency objective. */
 export type CheckStatus = z.infer<typeof checkStatusSchema>;
 /** A `CheckStatus`, or "unknown" (no result yet) or "maintenance" (active window). */
@@ -252,6 +285,12 @@ export type CheckWithState = Check & CheckStateFields;
 export type UptimeDay = z.infer<typeof uptimeDaySchema>;
 /** The 90-day uptime of one check. */
 export type CheckUptime = z.infer<typeof checkUptimeSchema>;
+/** A named, customer-facing group of checks. */
+export type Component = z.infer<typeof componentSchema>;
+/** A component with its combined state, window uptime and open incident ids. */
+export type ComponentWithState = z.infer<typeof componentWithStateSchema>;
+/** The 90-day uptime of one component. */
+export type ComponentUptime = z.infer<typeof componentUptimeSchema>;
 /**
  * Body of POST /results: a `Result` where `location` and `attempts` may be absent. A missing
  * `attempts` means 1; a missing or blank `location` means `default`.
@@ -267,6 +306,10 @@ export type IncidentsResponse = Incident[];
 export type MaintenanceResponse = MaintenanceWindow[];
 /** GET /uptime: one entry per configured check, in the order of GET /checks. */
 export type UptimeResponse = CheckUptime[];
+/** GET /components: one entry per configured component, in configured order. */
+export type ComponentsResponse = ComponentWithState[];
+/** GET /components/uptime: one entry per configured component, in configured order. */
+export type ComponentsUptimeResponse = ComponentUptime[];
 export interface ErrorResponse {
     error: string;
 }

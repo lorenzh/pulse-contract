@@ -1,4 +1,4 @@
-import { type Check, type ChecksResponse, type CheckUptime, type CheckWithState, type Incident, type IncidentsResponse, type MaintenanceResponse, type MaintenanceWindow, type PostResultRequest, type Result, type ResultsResponse, type UptimeResponse } from "./schema.ts";
+import { type Check, type ChecksResponse, type CheckUptime, type CheckWithState, type Component, type ComponentsResponse, type ComponentsUptimeResponse, type ComponentUptime, type ComponentWithState, type Incident, type IncidentsResponse, type MaintenanceResponse, type MaintenanceWindow, type PostResultRequest, type Result, type ResultsResponse, type UptimeResponse } from "./schema.ts";
 /** Outcome of a validator. Validators never throw. */
 export type Validation<T> = {
     ok: true;
@@ -35,3 +35,13 @@ export declare function validateIncidentsResponse(value: unknown, path?: string)
 export declare function validateMaintenanceResponse(value: unknown, path?: string): Validation<MaintenanceResponse>;
 /** Validates `GET /uptime`; fails on the first bad element. */
 export declare function validateUptimeResponse(value: unknown, path?: string): Validation<UptimeResponse>;
+/** Validates a `Component`; unknown keys are rejected. Returns the same object. */
+export declare function validateComponent(value: unknown, path?: string): Validation<Component>;
+/** Validates a `ComponentWithState`. Returns the same object. */
+export declare function validateComponentWithState(value: unknown, path?: string): Validation<ComponentWithState>;
+/** Validates a `ComponentUptime`. Returns the same object. */
+export declare function validateComponentUptime(value: unknown, path?: string): Validation<ComponentUptime>;
+/** Validates `GET /components`; fails on the first bad element. */
+export declare function validateComponentsResponse(value: unknown, path?: string): Validation<ComponentsResponse>;
+/** Validates `GET /components/uptime`; fails on the first bad element. */
+export declare function validateComponentsUptimeResponse(value: unknown, path?: string): Validation<ComponentsUptimeResponse>;
