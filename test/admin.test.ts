@@ -423,3 +423,25 @@ test("check view never runs an inherited getter in a union option", () => {
   assert.equal(reads, 0);
   assert.equal(result.ok, false);
 });
+
+test("json assert value never runs a getter on a function", () => {
+  let reads = 0;
+  const ctor = (): void => undefined;
+  Object.defineProperty(ctor, "prototype", {
+    get() {
+      reads++;
+      return {};
+    },
+  });
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [{ pointer: "", equals: { constructor: ctor } }],
+  };
+  assert.equal(validateCheck(input).ok, false);
+  assert.equal(validateAdminCheckInput(input).ok, false);
+  assert.equal(validateAdminCheckView(input).ok, false);
+  assert.equal(reads, 0);
+});

@@ -154,12 +154,18 @@ function onlyObjectOption(options: readonly z.ZodType[]): z.ZodType | undefined 
 class NonPlain {}
 Object.freeze(NonPlain.prototype);
 
+/** Replaces a function in a data copy, so the parse never inspects the untrusted function. */
+const FUNCTION_STAND_IN: unique symbol = Symbol("function");
+
 /**
  * A deep copy of own data properties for a union with several object options, where the option is
  * not known yet. An accessor reads as undefined, so its getter never runs; a cycle reads as
  * undefined too.
  */
 function dataView(value: unknown, seen: Set<object>): unknown {
+  if (typeof value === "function") {
+    return FUNCTION_STAND_IN; // Zod reads a function's prototype; no schema here accepts one
+  }
   if (typeof value !== "object" || value === null || seen.has(value)) {
     return typeof value === "object" && value !== null ? undefined : value;
   }
