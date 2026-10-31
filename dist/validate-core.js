@@ -63,7 +63,7 @@ function objectView(shape, value) {
 function arrayView(element, value) {
     // Index loop: an own `map` property on the input must never run.
     const items = [];
-    // An accessor element counts as absent, like an accessor field.
+    // A hole, an inherited or an accessor element counts as absent, like such a field.
     for (let i = 0; i < value.length; i++) {
         items.push(ownView(element, ownValue(value, i)));
     }
@@ -180,9 +180,12 @@ function compileWalk(schema) {
             if (!Array.isArray(value)) {
                 return true;
             }
+            if (Object.getPrototypeOf(value) !== Array.prototype) {
+                return false; // the parse would see inherited elements; the copy keeps own ones only
+            }
             for (let i = 0; i < value.length; i += 1) {
-                if (lookupGetter.call(value, i) !== undefined) {
-                    return false; // a getter element: the copy treats it as absent
+                if (!Object.hasOwn(value, i) || lookupGetter.call(value, i) !== undefined) {
+                    return false; // a hole or a getter element: the copy treats it as absent
                 }
                 if (nested && !walk(value[i])) {
                     return false;

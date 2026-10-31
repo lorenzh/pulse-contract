@@ -226,3 +226,86 @@ test("the shared validator core never runs a getter in a record or a union", () 
   assert.equal(validateWith(union, { a: "x" }, "u").ok, true);
   assert.equal(calls, 0);
 });
+
+type Check = (value: unknown) => { ok: boolean };
+
+const ownDataCases: readonly { name: string; check: Check; sample: Record<string, unknown> }[] = [
+  { name: "create", check: validateTokenCreateInput, sample: { name: "ci", scopes: ["read"] } },
+  { name: "metadata", check: validateTokenMetadata, sample: { ...metadata } },
+  { name: "list", check: validateTokensResponse, sample: { tokens: [metadata] } },
+  {
+    name: "secret",
+    check: validateTokenSecretResponse,
+    sample: { token: metadata, secret: "pulse_abc", previousValidUntil: null },
+  },
+];
+
+function withInherited(sample: Record<string, unknown>, key: string, isAccessor: boolean): object {
+  const proto: Record<string, unknown> = {};
+  const value = sample[key];
+  if (isAccessor) {
+    Object.defineProperty(proto, key, { get: () => value });
+  } else {
+    proto[key] = value;
+  }
+  const own: Record<string, unknown> = Object.create(proto) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(sample)) {
+    if (k !== key) {
+      own[k] = v;
+    }
+  }
+  return own;
+}
+
+test("every field counts only as an own data property", () => {
+  for (const { name, check, sample } of ownDataCases) {
+    assert.equal(check(sample).ok, true, `${name} sample`);
+    for (const key of Object.keys(sample)) {
+      assert.equal(check(withInherited(sample, key, false)).ok, false, `${name}.${key} inherited`);
+      assert.equal(check(withInherited(sample, key, true)).ok, false, `${name}.${key} accessor`);
+    }
+  }
+});
+
+function inheritedArray(items: readonly unknown[]): unknown[] {
+  const array: unknown[] = new Array(items.length);
+  Object.setPrototypeOf(array, [...items]);
+  return array;
+}
+
+function holeyArray(items: readonly unknown[]): unknown[] {
+  const array: unknown[] = [...items];
+  // A trailing hole: the length counts it, but no element exists.
+  array.length += 1;
+  return array;
+}
+
+test("array elements count only as own data properties", () => {
+  const arrays: readonly { name: string; check: Check; wrap: (a: unknown[]) => unknown }[] = [
+    {
+      name: "create.scopes",
+      check: validateTokenCreateInput,
+      wrap: (scopes) => ({ name: "ci", scopes }),
+    },
+    {
+      name: "metadata.scopes",
+      check: validateTokenMetadata,
+      wrap: (scopes) => ({ ...metadata, scopes }),
+    },
+    { name: "list.tokens", check: validateTokensResponse, wrap: (tokens) => ({ tokens }) },
+    {
+      name: "secret.token.scopes",
+      check: validateTokenSecretResponse,
+      wrap: (scopes) => ({ token: { ...metadata, scopes }, secret: "s", previousValidUntil: null }),
+    },
+  ];
+  for (const { name, check, wrap } of arrays) {
+    const items: unknown[] = name === "list.tokens" ? [metadata] : ["read"];
+    assert.equal(check(wrap(items)).ok, true, `${name} own`);
+    assert.equal(check(wrap(inheritedArray(items))).ok, false, `${name} inherited`);
+    assert.equal(check(wrap(holeyArray(items))).ok, false, `${name} hole`);
+    const accessor = [...items];
+    Object.defineProperty(accessor, 0, { get: () => items[0] });
+    assert.equal(check(wrap(accessor)).ok, false, `${name} accessor`);
+  }
+});
