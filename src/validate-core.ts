@@ -70,7 +70,7 @@ function define(target: Fields, key: string, value: unknown): void {
 const WRAPPERS = new Set(["optional", "nullable", "default", "readonly"]);
 
 function objectView(shape: Fields, value: Fields): Fields {
-  const view: Fields = {};
+  const view: Fields = Object.create(null) as Fields;
   for (const key of Object.keys(value)) {
     if (!Object.hasOwn(shape, key)) {
       define(view, key, undefined);
@@ -102,7 +102,7 @@ function onlyObjectOption(options: readonly z.ZodType[]): z.ZodType | undefined 
 }
 
 function recordView(valueType: z.ZodType, value: Fields): Fields {
-  const view: Fields = {};
+  const view: Fields = Object.create(null) as Fields;
   for (const key of Object.keys(value)) {
     define(view, key, ownView(valueType, ownValue(value, key))); // an accessor reads as undefined
   }

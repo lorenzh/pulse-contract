@@ -53,8 +53,11 @@ export const tokenCreateInputSchema = z
         .max(Number.MAX_SAFE_INTEGER, "must be a positive safe integer")
         .optional(),
 }, objectError)
+    // Zod builds its output as a plain object, so read the field as an own property:
+    // an inherited `location` must neither count nor run a getter.
     .superRefine((input, ctx) => {
-    if (isProbeOnly(input.scopes) !== (input.location !== undefined)) {
+    if (isProbeOnly(input.scopes) !==
+        (Object.getOwnPropertyDescriptor(input, "location")?.value !== undefined)) {
         ctx.addIssue({
             code: "custom",
             path: ["location"],
@@ -83,7 +86,8 @@ export const tokenMetadataSchema = z
     previousValidUntil: nullableTime,
 }, objectError)
     .superRefine((token, ctx) => {
-    if (isProbeOnly(token.scopes) !== (token.location !== null)) {
+    if (isProbeOnly(token.scopes) !==
+        (Object.getOwnPropertyDescriptor(token, "location")?.value !== null)) {
         ctx.addIssue({
             code: "custom",
             path: ["location"],

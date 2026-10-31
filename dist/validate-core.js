@@ -46,7 +46,7 @@ function define(target, key, value) {
 }
 const WRAPPERS = new Set(["optional", "nullable", "default", "readonly"]);
 function objectView(shape, value) {
-    const view = {};
+    const view = Object.create(null);
     for (const key of Object.keys(value)) {
         if (!Object.hasOwn(shape, key)) {
             define(view, key, undefined);
@@ -75,7 +75,7 @@ function onlyObjectOption(options) {
     return objects.length === 1 ? objects[0] : undefined;
 }
 function recordView(valueType, value) {
-    const view = {};
+    const view = Object.create(null);
     for (const key of Object.keys(value)) {
         define(view, key, ownView(valueType, ownValue(value, key))); // an accessor reads as undefined
     }

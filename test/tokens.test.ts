@@ -185,6 +185,26 @@ test("a polluted Object.prototype never makes a token input valid", () => {
   }
 });
 
+test("an inherited location getter never runs and never counts as a location", () => {
+  let calls = 0;
+  Object.defineProperty(Object.prototype, "location", {
+    configurable: true,
+    get() {
+      calls += 1;
+      return "eu";
+    },
+  });
+  try {
+    const probe = validateTokenCreateInput({ name: "p", scopes: ["probe"] });
+    const read = validateTokenCreateInput({ name: "r", scopes: ["read"] });
+    assert.deepEqual(probe, { ok: false, error: "token.location: is required" });
+    assert.equal(read.ok, true);
+    assert.equal(calls, 0);
+  } finally {
+    Reflect.deleteProperty(Object.prototype, "location");
+  }
+});
+
 test("the shared validator core never runs a getter in a record or a union", () => {
   let calls = 0;
   const getter = {
