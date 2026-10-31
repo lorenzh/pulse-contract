@@ -127,6 +127,18 @@ test("component view and status order constants", () => {
   assert.equal(ADMIN_IF_MATCH_HEADER, "if-match");
 });
 
+test("status order names the token outcomes and keeps its statuses", () => {
+  assert.deepEqual(
+    ADMIN_STATUS_ORDER.map((entry) => entry.status),
+    [404, 401, 403, 413, 400, 428, 503, 412, 422, 409, 404],
+  );
+  assert.equal(
+    ADMIN_STATUS_ORDER[1].meaning,
+    "missing, unknown, expired, revoked or retired token",
+  );
+  assert.equal(ADMIN_STATUS_ORDER[2].meaning, "a valid token without the needed scope");
+});
+
 test("check input accepts each probed type and rejects its stray keys", () => {
   const checks = [
     { id: "a", name: "A", type: "tls", host: "h", port: 443, warnDays: 14, intervalMs: 1000 },

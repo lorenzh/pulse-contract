@@ -1,8 +1,8 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
+import { TOKEN_ID_PREFIX } from "../src/token-id.ts";
 import {
-  TOKEN_ID_PREFIX,
   TOKEN_MAX_BODY_BYTES,
   TOKEN_NAME_MAX,
   TOKEN_ROTATION_OVERLAP_MS,

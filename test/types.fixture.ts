@@ -6,6 +6,10 @@ import type {
   AdminMaintenanceInput,
   AdminMaintenanceView,
   AdminWriteResponse,
+  AuditAction,
+  AuditEntry,
+  AuditPage,
+  AuditTargetKind,
   Check,
   CheckState,
   CheckStatus,
@@ -340,3 +344,17 @@ export const tokenFixtures = {
   secret: tokenSecret,
   list: tokenList,
 };
+
+// Audit api.
+const auditAction: AuditAction = "token.rotate";
+const auditKind: AuditTargetKind = "token";
+const auditEntry: AuditEntry = {
+  id: 1,
+  at: 1,
+  actor: { tokenId: "tok_0123456789abcdef01234567", name: "ci" },
+  action: auditAction,
+  target: { kind: auditKind, id: "tok_0123456789abcdef01234567" },
+  revision: null,
+};
+const auditPage: AuditPage = { entries: [auditEntry], nextBefore: null };
+export const auditFixtures = { entry: auditEntry, page: auditPage };

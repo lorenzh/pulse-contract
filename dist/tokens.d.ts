@@ -9,8 +9,6 @@ export declare const TOKEN_NAME_MAX = 100;
 export declare const TOKEN_MAX_BODY_BYTES = 4096;
 /** Prefix of a generated secret. */
 export declare const TOKEN_SECRET_PREFIX = "pulse_";
-/** Prefix of a token id: `tok_` followed by 24 lower-case hex digits. */
-export declare const TOKEN_ID_PREFIX = "tok_";
 export declare const tokenScopeSchema: z.ZodEnum<{
     admin: "admin";
     checks: "checks";

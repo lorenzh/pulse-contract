@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TOKEN_ID } from "./token-id.js";
 /** Token scopes, in the order the api lists them. */
 export const TOKEN_SCOPES = ["read", "checks", "incidents", "admin", "probe"];
 /** How long a rotated-out credential keeps working: 10 minutes. */
@@ -9,11 +10,8 @@ export const TOKEN_NAME_MAX = 100;
 export const TOKEN_MAX_BODY_BYTES = 4096;
 /** Prefix of a generated secret. */
 export const TOKEN_SECRET_PREFIX = "pulse_";
-/** Prefix of a token id: `tok_` followed by 24 lower-case hex digits. */
-export const TOKEN_ID_PREFIX = "tok_";
 const LOCATION_MAX = 64;
 const MAX_ADMIN_SCOPES = 4;
-const TOKEN_ID = new RegExp(`^${TOKEN_ID_PREFIX}[0-9a-f]{24}$`);
 const CONTROL_CHARACTER = /\p{Cc}/u;
 const objectError = {
     error: (issue) => issue.code === "unrecognized_keys"
