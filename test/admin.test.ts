@@ -325,3 +325,30 @@ test("admin check view and http input reject a non-http url", () => {
     error: message,
   });
 });
+
+test("check view never runs a getter on a field of a union option", () => {
+  const tls = { id: "t", name: "T", type: "tls", host: "h", port: 443, intervalMs: 1000 };
+  const field = withAccessor(tls, "warnDays", {
+    returns: 3651,
+    isEnumerable: true,
+    isThrowing: false,
+  });
+  assert.equal(validateAdminCheckView(field.input).ok, false);
+  assert.equal(field.calls(), 0);
+  const type = withAccessor(tls, "type", { returns: "tls", isEnumerable: true, isThrowing: true });
+  assert.equal(validateAdminCheckView(type.input).ok, false);
+  assert.equal(type.calls(), 0);
+  const nested = withAccessor(tls, "warnDays", {
+    returns: 1,
+    isEnumerable: true,
+    isThrowing: true,
+  });
+  const config = {
+    revision: `sha256-${"0".repeat(64)}`,
+    checks: [nested.input],
+    components: [],
+    maintenance: [],
+  };
+  assert.equal(validateAdminConfigResponse(config).ok, false);
+  assert.equal(nested.calls(), 0);
+});

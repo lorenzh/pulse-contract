@@ -150,6 +150,34 @@ function onlyObjectOption(options: readonly z.ZodType[]): z.ZodType | undefined 
   return objects.length === 1 ? objects[0] : undefined;
 }
 
+/**
+ * A deep copy of own data properties for a union with several object options, where the option is
+ * not known yet. An accessor reads as undefined, so its getter never runs; a cycle reads as
+ * undefined too.
+ */
+function dataView(value: unknown, seen: Set<object>): unknown {
+  if (typeof value !== "object" || value === null || seen.has(value)) {
+    return typeof value === "object" && value !== null ? undefined : value;
+  }
+  seen.add(value);
+  let view: unknown;
+  if (Array.isArray(value)) {
+    const items: unknown[] = [];
+    for (let i = 0; i < value.length; i++) {
+      items.push(dataView(ownValue(value, i), seen));
+    }
+    view = items;
+  } else {
+    const fields: Fields = {};
+    for (const key of Object.keys(value)) {
+      define(fields, key, dataView(ownValue(value, key), seen));
+    }
+    view = fields;
+  }
+  seen.delete(value);
+  return view;
+}
+
 function recordView(valueType: z.ZodType, value: Fields): Fields {
   const view: Fields = {};
   for (const key of Object.keys(value)) {
@@ -178,7 +206,7 @@ function ownView(schema: z.ZodType, value: unknown): unknown {
   }
   if (def.type === "union" && def.options !== undefined && isObject(value)) {
     const option = onlyObjectOption(def.options);
-    return option === undefined ? value : ownView(option, value);
+    return option === undefined ? dataView(value, new Set()) : ownView(option, value);
   }
   if (def.type === "object" && def.shape !== undefined && isObject(value)) {
     return objectView(def.shape, value);
@@ -282,7 +310,9 @@ function compileWalk(schema: z.ZodType): Walk {
   if (def.type === "union" && def.options !== undefined) {
     const option = onlyObjectOption(def.options);
     if (option === undefined) {
-      return alwaysOwn;
+      // Every object option must find its own declared fields plain, or the copy path runs.
+      const optionWalks = def.options.map(walkOf);
+      return (value) => optionWalks.every((walk) => walk(value));
     }
     const walk = walkOf(option);
     return (value) => !isObject(value) || walk(value);
