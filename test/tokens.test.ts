@@ -309,3 +309,31 @@ test("array elements count only as own data properties", () => {
     assert.equal(check(wrap(accessor)).ok, false, `${name} accessor`);
   }
 });
+
+test("a Proxy whose get differs from its own data descriptor is judged by the descriptor", () => {
+  let gets = 0;
+  const swap = <T extends object>(target: T, key: string, shown: unknown): T =>
+    new Proxy(target, {
+      get(t, k, r) {
+        if (k === key) {
+          gets += 1;
+          return shown;
+        }
+        return Reflect.get(t, k, r);
+      },
+    });
+  const create = validateTokenCreateInput(
+    swap({ name: "ci", scopes: ["owner"] }, "scopes", ["read"]),
+  );
+  assert.equal(create.ok, false);
+  const elements = swap(["owner"], "0", "read");
+  assert.equal(validateTokenCreateInput({ name: "ci", scopes: elements }).ok, false);
+  const meta = swap({ ...metadata, id: "bad" }, "id", metadata.id);
+  assert.equal(validateTokenMetadata(meta).ok, false);
+  assert.equal(validateTokensResponse({ tokens: [meta] }).ok, false);
+  assert.equal(
+    validateTokenSecretResponse({ token: meta, secret: "s", previousValidUntil: null }).ok,
+    false,
+  );
+  assert.equal(gets, 0);
+});

@@ -15,7 +15,11 @@ export declare const isObject: (value: unknown) => value is Fields;
  */
 export declare function ownValue(parent: unknown, key: PropertyKey): unknown;
 export declare const lookupGetter: (key: PropertyKey) => unknown;
-/** Returns the error text, or undefined when the value matches the schema. */
+/**
+ * Returns the error text, or undefined when the value matches the schema. The parse always reads
+ * the own-data copy, never the input: a Proxy can report one own data value through its
+ * descriptor and return another through `get`, so no check of the input can make it safe to parse.
+ */
 export declare function problem(schema: z.ZodType, value: unknown, path: string): string | undefined;
 /**
  * Runs `check` at the validation boundary. Hostile input, such as a Proxy whose traps throw, can

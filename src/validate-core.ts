@@ -132,16 +132,12 @@ function ownView(schema: z.ZodType, value: unknown): unknown {
     return option === undefined ? value : ownView(option, value);
   }
   if (def.type === "object" && def.shape !== undefined && isObject(value)) {
+    // Read the prototype on purpose: a hostile Proxy trap throws here, and verdict rejects it.
+    Object.getPrototypeOf(value);
     return objectView(def.shape, value);
   }
   return value;
 }
-
-type Walk = (value: unknown) => boolean;
-
-const walks = new WeakMap<z.ZodType, Walk>();
-
-const alwaysOwn: Walk = () => true;
 
 // Returns the getter without calling it, and allocates nothing for a data property.
 // biome-ignore lint/suspicious/noExplicitAny: Annex B method, absent from the lib types.
@@ -149,127 +145,13 @@ export const lookupGetter = (Object.prototype as any).__lookupGetter__ as (
   key: PropertyKey,
 ) => unknown;
 
-function compileObjectWalk(shape: Fields): Walk {
-  // Parallel arrays and indexed loops: this runs once per object of a large history.
-  const keys = Object.keys(shape);
-  const fieldWalks = keys.map((key) => walkOf(shape[key] as z.ZodType));
-  const hasNested = fieldWalks.some((walk) => walk !== alwaysOwn);
-  return (value) => {
-    if (!isObject(value)) {
-      return true;
-    }
-    const proto = Object.getPrototypeOf(value);
-    if (proto !== Object.prototype && proto !== null) {
-      return false; // the parse would see inherited keys; the copy keeps own keys only
-    }
-    for (let i = 0; i < keys.length; i += 1) {
-      const key = keys[i] as string;
-      if (lookupGetter.call(value, key) !== undefined) {
-        return false; // a getter: the copy treats it as absent
-      }
-      if (!Object.hasOwn(value, key)) {
-        if (key in value) {
-          return false; // inherited: the copy treats it as absent
-        }
-        continue;
-      }
-      // A setter-only accessor reads as undefined without running code.
-      if (hasNested && !(fieldWalks[i] as Walk)(value[key])) {
-        return false;
-      }
-    }
-    return true;
-  };
-}
-
-/** The copy keeps own enumerable string keys only, so any other own key takes the copy path. */
-function compileRecordWalk(walk: Walk): Walk {
-  return (value) => {
-    if (!isObject(value)) {
-      return true;
-    }
-    const proto = Object.getPrototypeOf(value);
-    if (proto !== Object.prototype && proto !== null) {
-      return false;
-    }
-    const keys = Object.keys(value);
-    if (Reflect.ownKeys(value).length !== keys.length) {
-      return false;
-    }
-    for (const key of keys) {
-      if (lookupGetter.call(value, key) !== undefined || !walk(value[key])) {
-        return false;
-      }
-    }
-    return true;
-  };
-}
-
-function compileWalk(schema: z.ZodType): Walk {
-  const def = defOf(schema);
-  if (def.type !== undefined && WRAPPERS.has(def.type) && def.innerType !== undefined) {
-    return walkOf(def.innerType);
-  }
-  const element = def.element;
-  if (def.type === "array" && element !== undefined) {
-    const walk = walkOf(element);
-    const nested = walk !== alwaysOwn;
-    return (value) => {
-      if (!Array.isArray(value)) {
-        return true;
-      }
-      if (Object.getPrototypeOf(value) !== Array.prototype) {
-        return false; // the parse would see inherited elements; the copy keeps own ones only
-      }
-      for (let i = 0; i < value.length; i += 1) {
-        if (!Object.hasOwn(value, i) || lookupGetter.call(value, i) !== undefined) {
-          return false; // a hole or a getter element: the copy treats it as absent
-        }
-        if (nested && !walk(value[i])) {
-          return false;
-        }
-      }
-      return true;
-    };
-  }
-  if (def.type === "record" && def.valueType !== undefined) {
-    return compileRecordWalk(walkOf(def.valueType));
-  }
-  if (def.type === "union" && def.options !== undefined) {
-    const option = onlyObjectOption(def.options);
-    if (option === undefined) {
-      return alwaysOwn;
-    }
-    const walk = walkOf(option);
-    return (value) => !isObject(value) || walk(value);
-  }
-  if (def.type === "object" && def.shape !== undefined) {
-    return compileObjectWalk(def.shape);
-  }
-  return alwaysOwn;
-}
-
-function walkOf(schema: z.ZodType): Walk {
-  let walk = walks.get(schema);
-  if (walk === undefined) {
-    walk = compileWalk(schema);
-    walks.set(schema, walk);
-  }
-  return walk;
-}
-
 /**
- * True when every object is plain (prototype `Object.prototype` or null) and every declared
- * field is absent or an own property without a getter, level by level. Then the copy would equal
- * the original, and the parse can read the original. Nothing is allocated, and no getter runs.
+ * Returns the error text, or undefined when the value matches the schema. The parse always reads
+ * the own-data copy, never the input: a Proxy can report one own data value through its
+ * descriptor and return another through `get`, so no check of the input can make it safe to parse.
  */
-function isOwnData(schema: z.ZodType, value: unknown): boolean {
-  return walkOf(schema)(value);
-}
-
-/** Returns the error text, or undefined when the value matches the schema. */
 export function problem(schema: z.ZodType, value: unknown, path: string): string | undefined {
-  const parsed = schema.safeParse(isOwnData(schema, value) ? value : ownView(schema, value));
+  const parsed = schema.safeParse(ownView(schema, value));
   return parsed.success ? undefined : firstError(parsed.error, value, path);
 }
 
