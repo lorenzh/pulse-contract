@@ -352,3 +352,37 @@ test("check view never runs a getter on a field of a union option", () => {
   assert.equal(validateAdminConfigResponse(config).ok, false);
   assert.equal(nested.calls(), 0);
 });
+
+test("check view keeps a non-enumerable field in a union option", () => {
+  const input = Object.assign(Object.create({}) as object, {
+    id: "t",
+    name: "T",
+    type: "tls",
+    host: "h",
+    port: 443,
+    warnDays: 14,
+    intervalMs: 1000,
+  });
+  Object.defineProperty(input, "headers", { value: { Authorization: "sentinel-552" } });
+  assert.equal(validateAdminCheckView(input).ok, false);
+});
+
+test("check view never runs a getter inside a json assert value", () => {
+  let reads = 0;
+  const equals = Object.defineProperty({}, "secret", {
+    enumerable: true,
+    get() {
+      reads += 1;
+      return "sentinel-552";
+    },
+  });
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [{ pointer: "", equals }],
+  };
+  validateAdminCheckView(input);
+  assert.equal(reads, 0);
+});

@@ -36,11 +36,11 @@ function defOf(schema) {
     // Zod keeps the schema description in `_zod.def`; only the fields read here are typed.
     return schema._zod.def;
 }
-function define(target, key, value) {
+function define(target, key, value, isEnumerable = true) {
     // defineProperty, because assigning `__proto__` would replace the prototype.
     Object.defineProperty(target, key, {
         value,
-        enumerable: true,
+        enumerable: isEnumerable,
         writable: true,
         configurable: true,
     });
@@ -95,8 +95,11 @@ function dataView(value, seen) {
     }
     else {
         const fields = {};
-        for (const key of Object.keys(value)) {
-            define(fields, key, dataView(ownValue(value, key), seen));
+        // Non-enumerable fields stay non-enumerable: the parse still reads a declared one by name,
+        // and a strict object still ignores an unknown one, as it does on the original.
+        for (const key of Object.getOwnPropertyNames(value)) {
+            const isEnumerable = Object.prototype.propertyIsEnumerable.call(value, key);
+            define(fields, key, dataView(ownValue(value, key), seen), isEnumerable);
         }
         view = fields;
     }
@@ -134,6 +137,9 @@ function ownView(schema, value) {
     }
     if (def.type === "object" && def.shape !== undefined && isObject(value)) {
         return objectView(def.shape, value);
+    }
+    if (def.type === "lazy") {
+        return dataView(value, new Set()); // a recursive JSON value: copy its own data deeply
     }
     return value;
 }
@@ -235,6 +241,9 @@ function compileWalk(schema) {
     }
     if (def.type === "object" && def.shape !== undefined) {
         return compileObjectWalk(def.shape);
+    }
+    if (def.type === "lazy") {
+        return (value) => typeof value !== "object" || value === null; // objects take the copy path
     }
     return alwaysOwn;
 }
