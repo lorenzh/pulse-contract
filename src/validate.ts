@@ -150,6 +150,10 @@ function onlyObjectOption(options: readonly z.ZodType[]): z.ZodType | undefined 
   return objects.length === 1 ? objects[0] : undefined;
 }
 
+/** The prototype of a copied non-plain object. It has no accessors. */
+class NonPlain {}
+Object.freeze(NonPlain.prototype);
+
 /**
  * A deep copy of own data properties for a union with several object options, where the option is
  * not known yet. An accessor reads as undefined, so its getter never runs; a cycle reads as
@@ -168,9 +172,12 @@ function dataView(value: unknown, seen: Set<object>): unknown {
     }
     view = items;
   } else {
-    // The copy keeps the prototype, so a Date or class instance stays a non-plain object and a
-    // JSON value schema still rejects it. Prototype accessors are not untrusted own fields.
-    const fields: Fields = Object.create(Object.getPrototypeOf(value) as object | null) as Fields;
+    // A plain object keeps its plain prototype. Any other prototype (a Date, a class instance) is
+    // swapped for a trusted non-plain one: a JSON value schema still rejects it, and no inherited
+    // getter of the untrusted prototype can run.
+    const proto: unknown = Object.getPrototypeOf(value);
+    const base = proto === Object.prototype || proto === null ? proto : NonPlain.prototype;
+    const fields: Fields = Object.create(base) as Fields;
     // Non-enumerable fields stay non-enumerable: the parse still reads a declared one by name,
     // and a strict object still ignores an unknown one, as it does on the original.
     for (const key of Object.getOwnPropertyNames(value)) {

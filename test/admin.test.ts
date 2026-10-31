@@ -402,3 +402,24 @@ test("json assert value still rejects a non-json object", () => {
     assert.equal(validateAdminCheckView(input).ok, false);
   }
 });
+
+test("check view never runs an inherited getter in a union option", () => {
+  let reads = 0;
+  const proto = Object.defineProperty({}, "warnDays", {
+    get() {
+      reads++;
+      return 14;
+    },
+  });
+  const input = Object.assign(Object.create(proto) as object, {
+    id: "t",
+    name: "T",
+    type: "tls",
+    host: "h",
+    port: 443,
+    intervalMs: 1000,
+  });
+  const result = validateAdminCheckView(input);
+  assert.equal(reads, 0);
+  assert.equal(result.ok, false);
+});
