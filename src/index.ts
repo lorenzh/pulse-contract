@@ -107,6 +107,26 @@ export {
   sloSchema,
   tcpCheckSchema,
 } from "./schema.ts";
+export type {
+  TokenCreateInput,
+  TokenMetadata,
+  TokenScope,
+  TokenSecretResponse,
+  TokensResponse,
+} from "./tokens.ts";
+export {
+  TOKEN_ID_PREFIX,
+  TOKEN_MAX_BODY_BYTES,
+  TOKEN_NAME_MAX,
+  TOKEN_ROTATION_OVERLAP_MS,
+  TOKEN_SCOPES,
+  TOKEN_SECRET_PREFIX,
+  tokenCreateInputSchema,
+  tokenMetadataSchema,
+  tokenScopeSchema,
+  tokenSecretResponseSchema,
+  tokensResponseSchema,
+} from "./tokens.ts";
 export {
   type Validation,
   validateCheck,
@@ -144,6 +164,10 @@ export {
   validateAdminConfigResponse,
   validateAdminMaintenanceInput,
   validateAdminMaintenanceView,
+  validateTokenCreateInput,
+  validateTokenMetadata,
+  validateTokenSecretResponse,
+  validateTokensResponse,
 } from "./validate-admin.ts";
 export {
   checkWireVersion,

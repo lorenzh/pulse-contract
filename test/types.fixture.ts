@@ -41,6 +41,11 @@ import type {
   Result,
   ResultsResponse,
   TlsCheck,
+  TokenCreateInput,
+  TokenMetadata,
+  TokenScope,
+  TokenSecretResponse,
+  TokensResponse,
   UptimeDay,
   UptimeResponse,
 } from "../src/index.ts";
@@ -305,3 +310,33 @@ export const adminFixtures = [
   adminWrite,
   adminSecretOnHttp,
 ];
+
+// Token api.
+const tokenScope: TokenScope = "admin";
+const tokenMetadata: TokenMetadata = {
+  id: "tok_0123456789abcdef01234567",
+  name: "probe eu",
+  scopes: ["probe"],
+  location: "eu",
+  source: "api",
+  createdAt: 1,
+  lastUsedAt: null,
+  expiresAt: null,
+  revokedAt: null,
+  rotatedAt: null,
+  previousValidUntil: null,
+};
+const tokenCreate: TokenCreateInput = { name: "probe eu", scopes: ["probe"], location: "eu" };
+const tokenSecret: TokenSecretResponse = {
+  token: tokenMetadata,
+  secret: "pulse_x",
+  previousValidUntil: null,
+};
+const tokenList: TokensResponse = { tokens: [tokenMetadata] };
+export const tokenFixtures = {
+  scope: tokenScope,
+  metadata: tokenMetadata,
+  create: tokenCreate,
+  secret: tokenSecret,
+  list: tokenList,
+};
