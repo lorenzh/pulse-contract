@@ -63,11 +63,42 @@ test("headers: names, forbidden, duplicates, count, size", () => {
 });
 
 test("headers: the env form", () => {
-  assert.equal(errorOf(withFields({ headers: { A: { env: "MY_TOKEN_1" } } })), undefined);
+  assert.equal(
+    errorOf(withFields({ headers: { A: { env: "PULSE_HEADER_MY_TOKEN_1" } } })),
+    undefined,
+  );
   for (const env of ["1BAD", "has-dash", "", "x".repeat(129)]) {
     assert.match(errorOf(withFields({ headers: { A: { env } } })) ?? "", /^c\.headers\.A/, env);
   }
   assert.match(errorOf(withFields({ headers: { A: {} } })) ?? "", /^c\.headers\.A/);
+});
+
+test("headers: env names need the PULSE_HEADER_ prefix", () => {
+  const ok = (env: string): string | undefined => errorOf(withFields({ headers: { A: { env } } }));
+  assert.equal(ok(`PULSE_HEADER_${"x".repeat(115)}`), undefined);
+  for (const env of [
+    "TOKEN",
+    "PULSE_HEADER_",
+    "pulse_header_X",
+    `PULSE_HEADER_${"x".repeat(116)}`,
+  ]) {
+    assert.equal(ok(env), "c.headers.A.env: must match ^PULSE_HEADER_[A-Za-z0-9_]{1,115}$", env);
+  }
+});
+
+test("url: userinfo is rejected", () => {
+  for (const url of ["https://user@x", "https://user:pw@x", "https://:pw@x"]) {
+    assert.equal(
+      errorOf(withFields({ url })),
+      "c.url: must not contain a username or password",
+      url,
+    );
+  }
+  assert.equal(
+    errorOf(withFields({ url: "file://user@x/" })),
+    "c.url: must be an http: or https: URL",
+  );
+  assert.equal(errorOf(withFields({ url: "https://x/a@b" })), undefined);
 });
 
 test("body: limit and method rule", () => {

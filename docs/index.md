@@ -13,7 +13,7 @@ Every type exported from `src/index.ts`. Import them with `import type`.
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CheckStatus`                                   | Result status: `"up"`, `"degraded"` or `"down"`.                                                                                                           |
 | `CheckState`                                    | A `CheckStatus`, or `"unknown"` (no result yet) or `"maintenance"` (active window).                                                                        |
-| `HttpCheck`                                     | An HTTP check: `url` (an `http:` or `https:` URL), interval, optional timeout, latency objective, retries, retry delay and keyword.                        |
+| `HttpCheck`                                     | An HTTP check: `url` (an `http:` or `https:` URL without userinfo), interval, optional timeout, latency objective, retries, retry delay and keyword.       |
 | `HttpMethod`                                    | `"GET"`, `"HEAD"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"` or `"OPTIONS"`.                                                                                |
 | `HeaderValue`                                   | A literal header value string, or `{ env: NAME }` that the probe resolves from its environment.                                                            |
 | `ExpectedStatus`                                | An accepted status: an integer 100..599 or a range string `"lo-hi"`.                                                                                       |
@@ -101,7 +101,8 @@ the same over all days. A check in several components counts in each.
 means http) and an optional `latencyObjectiveMs` (ms; a successful result slower than it is `degraded`; absent means no objective).
 The `url` must parse with `new URL` and use the `http:` or `https:` protocol (case-insensitive);
 any other URL fails with `check.url: must be an http: or https: URL`, and an empty one with
-`check.url: must be a non-empty string`. `CheckStatus` is `"up" | "degraded" | "down"`. A `TlsCheck` (`type: "tls"`, `host`, `port`, `warnDays`, `intervalMs`, optional
+`check.url: must be a non-empty string`. An http(s) URL with a username or password fails with
+`check.url: must not contain a username or password`. `CheckStatus` is `"up" | "degraded" | "down"`. A `TlsCheck` (`type: "tls"`, `host`, `port`, `warnDays`, `intervalMs`, optional
 `timeoutMs`) watches the leaf certificate of a TLS endpoint; `port` and `warnDays` are always set in
 served data. Only the leaf's expiry is judged: the chain and hostname are not verified.
 `Result.certDaysLeft` and `CheckWithState.certDaysLeft` hold the floored whole days until expiry
@@ -120,7 +121,7 @@ resolved (0 and 1000 by default). They reject the HTTP-only fields `url`, `metho
   (1..20 non-empty strings; absent means any answer is up) and optional `resolver` (an IPv4 or IPv6
   address, no port or hostname; absent means the system resolver).
 - `DomainCheck` (`type: "domain"`): `domain` (lowercase name with at least two labels, no scheme,
-  port or path), `warnDays` (integer >= 0) and `intervalMs`, which is required and at least
+  port or path), `warnDays` (integer 0..3650, `MAX_WARN_DAYS`) and `intervalMs`, which is required and at least
   `MIN_DOMAIN_INTERVAL_MS` (3600000, 1 hour). The probe reads the expiry through RDAP and sets
   `certDaysLeft`. The check is degraded when `certDaysLeft <= warnDays` and down when expired or
   unknown. This differs from a TLS check, which is down within `warnDays`.
@@ -175,7 +176,7 @@ These optional `HttpCheck` fields are additive; the wire version stays 1. `TlsCh
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `method`         | `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE` or `OPTIONS`; upper case, case-sensitive; absent means `GET`.                                                                                                                                                                                                                                         |
 | `headers`        | Object, at most 20 entries. Names are RFC 9110 tokens of 1..256 bytes, unique case-insensitively; `host`, `content-length`, `transfer-encoding`, `connection` and `user-agent` are forbidden. Names plus literal values total at most 16 KiB.                                                                                                         |
-| header value     | A literal string of 0..4096 visible ASCII/obs-text characters or spaces (no tab, CR or LF), or `{ "env": "NAME" }` with `NAME` matching `^[A-Za-z_][A-Za-z0-9_]{0,127}$`.                                                                                                                                                                             |
+| header value     | A literal string of 0..4096 visible ASCII/obs-text characters or spaces (no tab, CR or LF), or `{ "env": "NAME" }` with `NAME` matching `^PULSE_HEADER_[A-Za-z0-9_]{1,115}$` (`HEADER_ENV_PREFIX`).                                                                                                                                                   |
 | `body`           | String, at most 65536 bytes (UTF-8). Not allowed with `GET` (the default) or `HEAD`. There is no default `Content-Type`; set it in `headers`.                                                                                                                                                                                                         |
 | `expectedStatus` | Non-empty array of at most 20 entries, each an integer 100..599 or a string `"lo-hi"` with `100 <= lo <= hi <= 599`. Absent means `200-299`. The final status after redirects is judged.                                                                                                                                                              |
 | `jsonAssert`     | Non-empty array of at most 10 items, each `{ pointer, equals }` or `{ pointer, exists: true }`.`pointer` is an RFC 6901 JSON pointer of at most 256 bytes (`""` is the whole document). `equals` is any JSON value, compared deeply with strict types. `exists` is only `true`. Not allowed with `HEAD`; `keyword` is not allowed with `HEAD` either. |
@@ -191,7 +192,10 @@ environment when it loads the checks, so a secret lives only in the probe enviro
 to an unset or empty variable makes the check invalid for that probe; the probe logs the header and
 variable names (never values) and does not run the check. Literal header values and the body are
 stored by the api at rest and reach every authenticated probe: use `env` for secrets and treat the
-checks file, the database and the probe tokens as sensitive.
+checks file, the database and the probe tokens as sensitive. Every `env` name starts with
+`HEADER_ENV_PREFIX` (`PULSE_HEADER_`), so a check cannot read another probe variable. The probe also
+binds each `PULSE_HEADER_*` variable to the hosts it may be sent to (`PULSE_PROBE_HEADER_HOSTS`, see
+the probe docs).
 
 ### Reasons
 
@@ -216,7 +220,10 @@ Example:
   "url": "https://svc.example.com/check",
   "intervalMs": 60000,
   "method": "POST",
-  "headers": { "Authorization": { "env": "SVC_TOKEN" }, "Content-Type": "application/json" },
+  "headers": {
+    "Authorization": { "env": "PULSE_HEADER_SVC_TOKEN" },
+    "Content-Type": "application/json"
+  },
   "body": "{\"ping\":true}",
   "expectedStatus": [200],
   "jsonAssert": [{ "pointer": "/status", "equals": "ok" }]
@@ -365,7 +372,7 @@ Bounds (a value outside them is rejected):
 | `retries`                                                           | integer 0..10                                                                                |
 | `retryDelayMs`                                                      | integer 0..60000                                                                             |
 | tls and tcp `port`                                                  | integer 1..65535                                                                             |
-| tls and domain `warnDays`                                           | integer 0..`Number.MAX_SAFE_INTEGER` (the `z.int()` cap)                                     |
+| tls and domain `warnDays`                                           | integer 0..3650 (`MAX_WARN_DAYS`)                                                            |
 | dns `expected`                                                      | 1..20 non-empty strings                                                                      |
 | heartbeat `period`                                                  | integer 1000..86400000                                                                       |
 | heartbeat `grace`                                                   | integer 0..86400000                                                                          |
@@ -380,9 +387,11 @@ Bounds (a value outside them is rejected):
 layer passes a delay above it to a timer.
 
 `validatePostResultRequest` checks `checkId`, integer `timestamp`, `status`, `statusCode` (null or
-integer 100..599), `latencyMs` (finite, >= 0), `reason`, optional string `location`, optional
+integer 100..599), `latencyMs` (integer 0..2147483647, `MAX_TIMER_MS`), `reason` (null or a string of at most 1000
+characters, `MAX_REASON_LENGTH`), optional string `location`, optional
 integer `attempts` >= 1 and optional null or integer `certDaysLeft`. It returns the value as sent,
-without defaults.
+without defaults. `validateResult` applies the same `latencyMs` and `reason` rules. Older probes may
+send a fractional `latencyMs`; the api rounds it before it validates.
 
 ## Wire-format version
 

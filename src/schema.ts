@@ -6,6 +6,15 @@ import { z } from "zod";
  */
 export const MAX_TIMER_MS = 2_147_483_647;
 
+/** The prefix every `{ env }` header value name must carry. The probe binds these names to hosts. */
+export const HEADER_ENV_PREFIX = "PULSE_HEADER_";
+
+/** The longest `reason` of a result, in characters. */
+export const MAX_REASON_LENGTH = 1000;
+
+/** The largest `warnDays` of a TLS or domain check. */
+export const MAX_WARN_DAYS = 3650;
+
 const text = z.string({ error: "must be a string" });
 const nonEmpty = z
   .string({ error: "must be a non-empty string" })
@@ -19,7 +28,17 @@ const isHttpUrl = (value: string): boolean => {
     return false;
   }
 };
-const httpUrl = nonEmpty.refine(isHttpUrl, "must be an http: or https: URL");
+const hasUserinfo = (value: string): boolean => {
+  const { username, password } = new URL(value);
+  return username !== "" || password !== "";
+};
+const httpUrl = nonEmpty
+  .refine(isHttpUrl, "must be an http: or https: URL")
+  // Only an http(s) URL reaches hasUserinfo, so new URL cannot throw there.
+  .refine(
+    (value) => !(isHttpUrl(value) && hasUserinfo(value)),
+    "must not contain a username or password",
+  );
 // zod numbers already reject NaN and Infinity.
 const finite = z.number({ error: "must be a finite number" });
 const integer = z.int({ error: "must be an integer" });
@@ -68,6 +87,9 @@ export const availabilityTargetSchema = z
 
 // Delays and durations in ms: integers that a timer can hold.
 const timerMs = intBetween(1, MAX_TIMER_MS);
+const reasonSchema = text
+  .max(MAX_REASON_LENGTH, "must be null or a string of at most 1000 characters")
+  .nullable();
 
 export const checkStatusSchema = oneOf(["up", "degraded", "down"]);
 export const checkStateSchema = oneOf(["up", "degraded", "down", "unknown", "maintenance"]);
@@ -93,7 +115,7 @@ const MAX_HEADERS_TOTAL_BYTES = 16 * 1024;
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 /** Space, visible ASCII and obs-text; no control characters (tab, CR, LF). */
 const HEADER_VALUE = /^[\x20-\x7e\x80-\xff]*$/;
-const ENV_NAME = /^[A-Za-z_]\w{0,127}$/;
+const ENV_NAME = /^PULSE_HEADER_\w{1,115}$/;
 
 export const headerValueSchema = z.union(
   [
@@ -103,7 +125,7 @@ export const headerValueSchema = z.union(
     z.object(
       {
         env: z.string({ error: "must be an environment variable name" }).regex(ENV_NAME, {
-          error: "must match ^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+          error: "must match ^PULSE_HEADER_[A-Za-z0-9_]{1,115}$",
         }),
       },
       { error: "must be a string or an object {env: NAME}" },
@@ -299,8 +321,8 @@ export const tlsCheckSchema = z.object(
     host: nonEmpty,
     /** Integer 1..65535. */
     port: intBetween(1, 65_535),
-    /** Integer >= 0. The check is down when the certificate has this many days or fewer left. */
-    warnDays: atLeast(0),
+    /** Integer 0..3650 (`MAX_WARN_DAYS`). The check is down when the certificate has this many days or fewer left. */
+    warnDays: intBetween(0, MAX_WARN_DAYS),
     /** Integer 1..2147483647 (`MAX_TIMER_MS`). */
     intervalMs: timerMs,
     /** Integer 1..2147483647. */
@@ -427,8 +449,8 @@ export const domainCheckSchema = z
       type: oneOf(["domain"]),
       /** Lowercase domain name with at least two labels. */
       domain: domainNameSchema,
-      /** Integer >= 0. The check is degraded when the domain has this many days or fewer left. */
-      warnDays: atLeast(0),
+      /** Integer 0..3650 (`MAX_WARN_DAYS`). The check is degraded when the domain has this many days or fewer left. */
+      warnDays: intBetween(0, MAX_WARN_DAYS),
       /** Integer `MIN_DOMAIN_INTERVAL_MS`..2147483647. */
       intervalMs: timerMs,
     },
@@ -476,9 +498,10 @@ export const resultSchema = z.object(
     status: checkStatusSchema,
     /** Integer 100..599; null when no response arrived. */
     statusCode: intBetween(100, 599).nullable(),
-    latencyMs: finite,
-    /** null when up or when no reason applies. */
-    reason: text.nullable(),
+    /** Integer 0..2147483647 (`MAX_TIMER_MS`). */
+    latencyMs: intBetween(0, MAX_TIMER_MS),
+    /** null when up or when no reason applies; at most 1000 characters (`MAX_REASON_LENGTH`). */
+    reason: reasonSchema,
     /** Name of the probe location that produced the result; `default` for legacy results. */
     location: text,
     /** Attempts made for this result, integer >= 1 (at most `retries` + 1). */
@@ -495,10 +518,8 @@ export const postResultRequestSchema = z.object(
     timestamp: integer,
     status: checkStatusSchema,
     statusCode: intBetween(100, 599).nullable(),
-    latencyMs: z
-      .number({ error: "must be a finite number >= 0" })
-      .min(0, "must be a finite number >= 0"),
-    reason: text.nullable(),
+    latencyMs: intBetween(0, MAX_TIMER_MS),
+    reason: reasonSchema,
     location: text.optional(),
     attempts: atLeast(1).optional(),
     certDaysLeft: optionalCertDaysLeft,

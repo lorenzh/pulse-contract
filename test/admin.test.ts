@@ -33,7 +33,7 @@ test("check input accepts headers, body and a heartbeat secret", () => {
   const withHeaders = {
     ...http,
     method: "POST",
-    headers: { "X-Key": SENTINEL, "X-Env": { env: "KEY" } },
+    headers: { "X-Key": SENTINEL, "X-Env": { env: "PULSE_HEADER_KEY" } },
     body: "{}",
   };
   assert.equal(validateAdminCheckInput(withHeaders).ok, true);
@@ -75,7 +75,10 @@ test("check view carries names, hasBody and hasSecret only", () => {
 
 test("check view rejects header values, body and secret", () => {
   assert.equal(validateAdminCheckView({ ...http, headers: { "X-Key": SENTINEL } }).ok, false);
-  assert.equal(validateAdminCheckView({ ...http, headers: [{ env: "KEY" }] }).ok, false);
+  assert.equal(
+    validateAdminCheckView({ ...http, headers: [{ env: "PULSE_HEADER_KEY" }] }).ok,
+    false,
+  );
   assert.equal(validateAdminCheckView({ ...http, body: SENTINEL }).ok, false);
   const hb = { id: "h", name: "H", type: "heartbeat", period: 1000, grace: 0, hasSecret: true };
   assert.equal(validateAdminCheckView({ ...hb, secret: SENTINEL }).ok, false);
@@ -297,6 +300,18 @@ test("check input keeps its data property results", () => {
       error: 'check.type: must be "http", "tls", "tcp", "dns", "domain" or "heartbeat"',
     });
   }
+});
+
+test("admin check input rejects a userinfo url and an unprefixed env name", () => {
+  // Create (POST) and replace (PUT) both validate with validateAdminCheckInput.
+  assert.deepEqual(validateAdminCheckInput({ ...http, url: "https://u:p@x" }), {
+    ok: false,
+    error: "check.url: must not contain a username or password",
+  });
+  assert.deepEqual(validateAdminCheckInput({ ...http, headers: { A: { env: "TOKEN" } } }), {
+    ok: false,
+    error: "check.headers.A.env: must match ^PULSE_HEADER_[A-Za-z0-9_]{1,115}$",
+  });
 });
 
 test("admin check view and http input reject a non-http url", () => {
