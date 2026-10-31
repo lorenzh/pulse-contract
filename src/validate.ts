@@ -168,7 +168,9 @@ function dataView(value: unknown, seen: Set<object>): unknown {
     }
     view = items;
   } else {
-    const fields: Fields = {};
+    // The copy keeps the prototype, so a Date or class instance stays a non-plain object and a
+    // JSON value schema still rejects it. Prototype accessors are not untrusted own fields.
+    const fields: Fields = Object.create(Object.getPrototypeOf(value) as object | null) as Fields;
     // Non-enumerable fields stay non-enumerable: the parse still reads a declared one by name,
     // and a strict object still ignores an unknown one, as it does on the original.
     for (const key of Object.getOwnPropertyNames(value)) {

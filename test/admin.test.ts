@@ -15,6 +15,7 @@ import {
   validateAdminConfigResponse,
   validateAdminMaintenanceInput,
   validateAdminMaintenanceView,
+  validateCheck,
 } from "../src/index.ts";
 
 const SENTINEL = "SENTINEL-secret-value";
@@ -385,4 +386,19 @@ test("check view never runs a getter inside a json assert value", () => {
   };
   validateAdminCheckView(input);
   assert.equal(reads, 0);
+});
+
+test("json assert value still rejects a non-json object", () => {
+  for (const equals of [new Date(0), new Map(), new (class Point {})()]) {
+    const input = {
+      id: "h",
+      name: "H",
+      url: "https://x/",
+      intervalMs: 1000,
+      jsonAssert: [{ pointer: "", equals }],
+    };
+    assert.equal(validateCheck(input).ok, false);
+    assert.equal(validateAdminCheckInput(input).ok, false);
+    assert.equal(validateAdminCheckView(input).ok, false);
+  }
 });
