@@ -71,8 +71,11 @@ export const availabilityTargetSchema = z
     .refine((v) => v < 100, { error: "must be a number >= 90 and < 100" });
 // Delays and durations in ms: integers that a timer can hold.
 const timerMs = intBetween(1, MAX_TIMER_MS);
+// Zod's max() counts code points; the bound is in UTF-16 code units (string length).
 const reasonSchema = text
-    .max(MAX_REASON_LENGTH, "must be null or a string of at most 1000 characters")
+    .refine((v) => v.length <= MAX_REASON_LENGTH, {
+    error: "must be null or a string of at most 1000 characters",
+})
     .nullable();
 export const checkStatusSchema = oneOf(["up", "degraded", "down"]);
 export const checkStateSchema = oneOf(["up", "degraded", "down", "unknown", "maintenance"]);

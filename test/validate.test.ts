@@ -162,6 +162,12 @@ test("validateResult", () => {
     errorOf(validateResult({ ...base, reason: "r".repeat(1001) })),
     "result.reason: must be null or a string of at most 1000 characters",
   );
+  // The bound counts UTF-16 code units: 501 emoji are 1002 units.
+  assert.equal(validateResult({ ...base, reason: "\u{1F600}".repeat(500) }).ok, true);
+  assert.equal(
+    errorOf(validateResult({ ...base, reason: "\u{1F600}".repeat(501) })),
+    "result.reason: must be null or a string of at most 1000 characters",
+  );
   assert.equal(
     errorOf(validateResult({ ...base, attempts: 0 })),
     "result.attempts: must be an integer >= 1",
@@ -198,6 +204,10 @@ test("validatePostResultRequest bounds", () => {
     [{ ...base, latencyMs: 1.5 }, "result.latencyMs: must be an integer 0..2147483647"],
     [
       { ...base, reason: "r".repeat(1001) },
+      "result.reason: must be null or a string of at most 1000 characters",
+    ],
+    [
+      { ...base, reason: "\u{1F600}".repeat(501) },
       "result.reason: must be null or a string of at most 1000 characters",
     ],
     [{ ...base, reason: 4 }, "result.reason: must be a string"],
