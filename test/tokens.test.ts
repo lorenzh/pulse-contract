@@ -1,5 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
+import { z } from "zod";
 import {
   TOKEN_ID_PREFIX,
   TOKEN_MAX_BODY_BYTES,
@@ -8,11 +9,14 @@ import {
   TOKEN_SCOPES,
   TOKEN_SECRET_PREFIX,
   type TokenMetadata,
+} from "../src/tokens.ts";
+import { validateWith } from "../src/validate-core.ts";
+import {
   validateTokenCreateInput,
   validateTokenMetadata,
   validateTokenSecretResponse,
   validateTokensResponse,
-} from "../src/index.ts";
+} from "../src/validate-tokens.ts";
 
 const metadata: TokenMetadata = {
   id: "tok_0123456789abcdef01234567",
@@ -104,6 +108,8 @@ test("list and secret responses", () => {
   assert.equal(validateTokensResponse({ tokens: [{ ...metadata, secret: "x" }] }).ok, false);
   const secret = { token: metadata, secret: "pulse_abc", previousValidUntil: 1 };
   assert.equal(validateTokenSecretResponse(secret).ok, true);
+  assert.equal(validateTokenSecretResponse({ ...secret, secret: "opaque" }).ok, true);
+  assert.equal(validateTokenSecretResponse({ ...secret, secret: 1 }).ok, false);
   assert.equal(validateTokenSecretResponse({ ...secret, extra: 1 }).ok, false);
 });
 
@@ -123,4 +129,80 @@ test("a getter on the input never runs and validators never throw", () => {
   for (const value of [null, undefined, 1, "x", [], Symbol("s"), 1n]) {
     assert.equal(validateTokenCreateInput(value).ok, false);
   }
+});
+
+test("a getter in a nested array or token never runs", () => {
+  let calls = 0;
+  const scopes: unknown[] = ["read"];
+  Object.defineProperty(scopes, 1, {
+    enumerable: true,
+    get: () => {
+      calls += 1;
+      return "checks";
+    },
+  });
+  const listed = { ...metadata, scopes };
+  assert.equal(validateTokenCreateInput({ name: "ci", scopes }).ok, false);
+  assert.equal(validateTokensResponse({ tokens: [metadata, listed] }).ok, false);
+  const token = { ...metadata };
+  Object.defineProperty(token, "name", {
+    enumerable: true,
+    get: () => {
+      calls += 1;
+      return "ci";
+    },
+  });
+  const secret = { token, secret: "opaque", previousValidUntil: null };
+  const result = validateTokenSecretResponse(secret);
+  assert.deepEqual(result, { ok: false, error: "response.token.name: is required" });
+  assert.equal(calls, 0);
+});
+
+test("an inherited field counts as absent", () => {
+  const input = Object.assign(Object.create({ scopes: ["read"] }) as object, { name: "ci" });
+  const result = validateTokenCreateInput(input);
+  assert.deepEqual(result, { ok: false, error: "token.scopes: is required" });
+  const bare = Object.assign(Object.create(null) as object, { name: "ci", scopes: ["read"] });
+  assert.equal(validateTokenCreateInput(bare).ok, true);
+  const proto = { scopes: ["read"] };
+  const shadowed = Object.assign(Object.create(proto) as object, { name: "ci", secret: "s" });
+  const leak = validateTokenCreateInput(shadowed);
+  assert.ok(!leak.ok && !leak.error.includes('"s"'), JSON.stringify(leak));
+  assert.equal(validateTokenCreateInput({ name: "ci", scopes: "read" }).ok, false);
+  const inheritedName = Object.assign(Object.create({ name: "ci" }) as object, {
+    scopes: ["read"],
+  });
+  assert.equal(validateTokensResponse({ tokens: [inheritedName] }).ok, false);
+});
+
+test("a polluted Object.prototype never makes a token input valid", () => {
+  Object.defineProperty(Object.prototype, "location", { value: 7, configurable: true });
+  try {
+    const result = validateTokenCreateInput({ name: "ci", scopes: ["probe"] });
+    assert.deepEqual(result, { ok: false, error: "token.location: is required" });
+  } finally {
+    Reflect.deleteProperty(Object.prototype, "location");
+  }
+});
+
+test("the shared validator core never runs a getter in a record or a union", () => {
+  let calls = 0;
+  const getter = {
+    enumerable: true,
+    get: () => {
+      calls += 1;
+      return "x";
+    },
+  };
+  const record = z.record(z.string(), z.string());
+  const recordValue = { a: "x" };
+  Object.defineProperty(recordValue, "b", getter);
+  assert.equal(validateWith(record, recordValue, "r").ok, false);
+  assert.equal(validateWith(record, { a: "x" }, "r").ok, true);
+  const union = z.union([z.string(), z.strictObject({ a: z.string() })]);
+  const unionValue = {};
+  Object.defineProperty(unionValue, "a", getter);
+  assert.equal(validateWith(union, unionValue, "u").ok, false);
+  assert.equal(validateWith(union, { a: "x" }, "u").ok, true);
+  assert.equal(calls, 0);
 });

@@ -28,6 +28,8 @@ test("dist matches a fresh build of src", () => {
       "tokens",
       "validate",
       "validate-admin",
+      "validate-core",
+      "validate-tokens",
       "version",
     ].flatMap((n) => [`${n}.d.ts`, `${n}.js`])) {
       assert.equal(

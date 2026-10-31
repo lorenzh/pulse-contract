@@ -128,7 +128,6 @@ export {
   tokensResponseSchema,
 } from "./tokens.ts";
 export {
-  type Validation,
   validateCheck,
   validateCheckLatency,
   validateChecksResponse,
@@ -164,11 +163,14 @@ export {
   validateAdminConfigResponse,
   validateAdminMaintenanceInput,
   validateAdminMaintenanceView,
+} from "./validate-admin.ts";
+export type { Validation } from "./validate-core.ts";
+export {
   validateTokenCreateInput,
   validateTokenMetadata,
   validateTokenSecretResponse,
   validateTokensResponse,
-} from "./validate-admin.ts";
+} from "./validate-tokens.ts";
 export {
   checkWireVersion,
   WIRE_VERSION,

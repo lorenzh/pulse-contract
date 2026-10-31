@@ -133,9 +133,7 @@ export type TokensResponse = z.infer<typeof tokensResponseSchema>;
 export const tokenSecretResponseSchema = z.strictObject(
   {
     token: tokenMetadataSchema,
-    secret: z.string({ error: "must be a string" }).startsWith(TOKEN_SECRET_PREFIX, {
-      error: `must start with ${TOKEN_SECRET_PREFIX}`,
-    }),
+    secret: z.string({ error: "must be a string" }),
     previousValidUntil: nullableTime,
   },
   objectError,

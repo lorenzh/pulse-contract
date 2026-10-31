@@ -1,4 +1,4 @@
-import { validateManualIncident, validateManualIncidentsResponse, } from "./validate.js";
+import { validateManualIncident, validateManualIncidentsResponse } from "./validate.js";
 import { checkWireVersion, WIRE_VERSION_HEADER } from "./version.js";
 /** Default cap for a response body: 5 MiB. */
 export const DEFAULT_MAX_BODY_BYTES = 5 * 1024 * 1024;

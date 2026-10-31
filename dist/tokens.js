@@ -94,8 +94,6 @@ export const tokenMetadataSchema = z
 export const tokensResponseSchema = z.strictObject({ tokens: z.array(tokenMetadataSchema, { error: "must be an array" }) }, objectError);
 export const tokenSecretResponseSchema = z.strictObject({
     token: tokenMetadataSchema,
-    secret: z.string({ error: "must be a string" }).startsWith(TOKEN_SECRET_PREFIX, {
-        error: `must start with ${TOKEN_SECRET_PREFIX}`,
-    }),
+    secret: z.string({ error: "must be a string" }),
     previousValidUntil: nullableTime,
 }, objectError);
