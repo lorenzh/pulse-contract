@@ -59,6 +59,14 @@ Every type exported from `src/index.ts`. Import them with `import type`.
 | `AdminMaintenanceInput`, `AdminMaintenanceView` | A `MaintenanceWindow` in a request; in a response it also carries its `index`.                                                                             |
 | `AdminConfigResponse`                           | Response of `GET /admin/config`: `revision`, `checks` (`AdminCheckView[]`), `components`, `maintenance` (`AdminMaintenanceView[]`).                        |
 | `AdminWriteResponse`                            | Body of a successful admin write: the stored `AdminCheckView`, `AdminComponent` or `AdminMaintenanceView`. `DELETE` answers 204 without a body.            |
+| `TokenScope`                                    | One of `TOKEN_SCOPES`: `"read"`, `"checks"`, `"incidents"`, `"admin"`, `"probe"`.                                                                          |
+| `TokenCreateInput`                              | Body of `POST /admin/tokens`: `{ name, scopes, location?, expiresAt? }`. Strict; the client never sends a secret.                                          |
+| `TokenMetadata`                                 | A token as the api serves it: id, name, scopes, location, source and times. It has no secret or digest field. Strict.                                      |
+| `TokensResponse`                                | Response of `GET /admin/tokens`: `{ tokens: TokenMetadata[] }`.                                                                                            |
+| `TokenSecretResponse`                           | Answer of a token create or rotate: `{ token, secret, previousValidUntil }`.                                                                               |
+| `AuditAction`, `AuditTargetKind`                | One of `AUDIT_ACTIONS` and of `AUDIT_TARGET_KINDS`.                                                                                                        |
+| `AuditEntry`                                    | One audit entry: `{ id, at, actor: { tokenId, name }, action, target: { kind, id }, revision }`. Strict.                                                   |
+| `AuditPage`                                     | Response of `GET /admin/audit`: `{ entries, nextBefore }`.                                                                                                 |
 
 ## Details of the shared shapes
 
@@ -297,8 +305,8 @@ Additive: `WIRE_VERSION` stays 1. The api owns the routes; the contract owns the
 | Status | Meaning                                               |
 | ------ | ----------------------------------------------------- |
 | 404    | Feature off                                           |
-| 401    | Missing or wrong token                                |
-| 403    | A valid probe token                                   |
+| 401    | Missing, unknown, expired, revoked or retired token   |
+| 403    | A valid token without the needed scope                |
 | 413    | Body too large                                        |
 | 400    | Bad JSON, bad `If-Match` (including `*`), id mismatch |
 | 428    | `If-Match` missing                                    |
@@ -312,6 +320,43 @@ Additive: `WIRE_VERSION` stays 1. The api owns the routes; the contract owns the
 Validators: `validateAdminCheckInput` (also checks `secret`: heartbeat only, non-empty),
 `validateAdminCheckView`, `validateAdminComponentInput`, `validateAdminComponent`,
 `validateAdminMaintenanceInput`, `validateAdminMaintenanceView`, `validateAdminConfigResponse`.
+
+## Tokens and audit
+
+Additive: `WIRE_VERSION` stays 1. The api owns the routes (`/admin/tokens`, `/admin/tokens/{id}`,
+`/admin/tokens/{id}/rotate`, `/admin/tokens/{id}/revoke`, `/admin/audit`, `/admin/audit/export`);
+the contract owns the shapes and these constants.
+
+| Constant                                 | Value                                                                                                                                                                     |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TOKEN_SCOPES`                           | `["read", "checks", "incidents", "admin", "probe"]`                                                                                                                       |
+| `TOKEN_ROTATION_OVERLAP_MS`              | `600000` (10 minutes)                                                                                                                                                     |
+| `TOKEN_NAME_MAX`                         | `100`                                                                                                                                                                     |
+| `TOKEN_MAX_BODY_BYTES`                   | `4096`                                                                                                                                                                    |
+| `TOKEN_SECRET_PREFIX`                    | `"pulse_"`                                                                                                                                                                |
+| `TOKEN_ID_PREFIX`                        | `"tok_"`; ids match `^tok_[0-9a-f]{24}$`                                                                                                                                  |
+| `AUDIT_ACTIONS`                          | `check.`, `component.`, `maintenance.` `create`/`replace`/`delete`; `manual-incident.` `create`/`update`/`resolve`/`delete`; `token.` `create`/`rotate`/`revoke`/`import` |
+| `AUDIT_TARGET_KINDS`                     | `["check", "component", "maintenance", "manual-incident", "token"]`                                                                                                       |
+| `AUDIT_DEFAULT_LIMIT`, `AUDIT_MAX_LIMIT` | `100`, `1000`                                                                                                                                                             |
+| `AUDIT_EXPORT_CONTENT_TYPE`              | `"application/x-ndjson"`                                                                                                                                                  |
+
+Rules of the schemas:
+
+- `TokenCreateInput`: `name` is 1..100 characters after trim, without control characters.
+  `scopes` holds 1..4 distinct scopes, and `probe` only alone. `location` (1..64 characters after
+  trim) is required exactly for a probe token. `expiresAt` is an optional positive safe integer; the
+  api checks that it lies in the future, since the contract has no clock.
+- `TokenMetadata`: `name` is non-empty with no maximum (imported names). `location` is not null
+  exactly for a probe token. `source` is `"api"` or `"file"`. `secret` and `secretSha256` are
+  rejected.
+- `AuditEntry`: `id` is a positive integer, `at` finite. `actor.tokenId` is a token id or null.
+  `target.id` is non-empty with no maximum, like check ids. `revision` is a `sha256-<hex>` revision
+  or null. The action prefix must name `target.kind` (`token.revoke` needs kind `token`).
+- `AuditPage`: `nextBefore` is a positive integer entry id or null.
+
+Validators: `validateTokenCreateInput`, `validateTokenMetadata`, `validateTokensResponse`,
+`validateTokenSecretResponse`, `validateAuditEntry`, `validateAuditPage`. Like every validator they
+read own data properties only and never run a getter.
 
 ## Latency history and availability SLOs
 

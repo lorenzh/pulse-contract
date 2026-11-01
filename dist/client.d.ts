@@ -1,5 +1,5 @@
 import type { ManualIncident, ManualIncidentsResponse } from "./schema.ts";
-import { type Validation } from "./validate.ts";
+import type { Validation } from "./validate-core.ts";
 import { type WireVersionCheck } from "./version.ts";
 /** Default cap for a response body: 5 MiB. */
 export declare const DEFAULT_MAX_BODY_BYTES: number;

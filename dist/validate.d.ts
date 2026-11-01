@@ -1,28 +1,5 @@
-import type { z } from "zod";
 import { type Check, type CheckLatency, type ChecksResponse, type CheckUptime, type CheckWithState, type Component, type ComponentsResponse, type ComponentsUptimeResponse, type ComponentUptime, type ComponentWithState, type Incident, type IncidentsResponse, type LatencyResponse, type Location, type LocationsResponse, type MaintenanceResponse, type MaintenanceWindow, type ManualIncident, type ManualIncidentInput, type ManualIncidentsResponse, type ManualIncidentUpdateInput, type PostResultRequest, type Result, type ResultsResponse, type Slo, type UptimeResponse } from "./schema.ts";
-/** Outcome of a validator. Validators never throw. */
-export type Validation<T> = {
-    ok: true;
-    value: T;
-} | {
-    ok: false;
-    error: string;
-};
-type Fields = Record<string, unknown>;
-export declare const isObject: (value: unknown) => value is Fields;
-/**
- * Reads an own data property. Inherited names such as `constructor` and accessors count as
- * absent; a getter never runs.
- */
-export declare function ownValue(parent: unknown, key: PropertyKey): unknown;
-/** Returns the error text, or undefined when the value matches the schema. */
-export declare function problem(schema: z.ZodType, value: unknown, path: string): string | undefined;
-/**
- * Runs `check` at the validation boundary. Hostile input, such as a Proxy whose traps throw, can
- * make inspection throw; that counts as invalid, because validators never throw.
- */
-export declare function verdict<T>(value: unknown, path: string, check: () => string | undefined): Validation<T>;
-export declare function validateWith<T>(schema: z.ZodType, value: unknown, path: string): Validation<T>;
+import { type Validation } from "./validate-core.ts";
 export declare const arrayProblem: (check: (item: unknown, path: string) => string | undefined, value: unknown, path: string) => string | undefined;
 /** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
 export declare function validateCheck(value: unknown, path?: string): Validation<Check>;
@@ -80,4 +57,3 @@ export declare function validateManualIncidentsResponse(value: unknown, path?: s
 export declare function validateManualIncidentInput(value: unknown, path?: string): Validation<ManualIncidentInput>;
 /** Validates the body of `POST /manual-incidents/{id}/updates`. Returns the same object. */
 export declare function validateManualIncidentUpdateInput(value: unknown, path?: string): Validation<ManualIncidentUpdateInput>;
-export {};

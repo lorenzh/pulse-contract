@@ -2,12 +2,15 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
   ADMIN_IF_MATCH_HEADER,
-  ADMIN_REVISION_PREFIX,
   ADMIN_STATUS_ORDER,
   type AdminCheckInput,
   type AdminConfigResponse,
   adminCheckInputSchema,
-  isAdminRevision,
+} from "../src/admin.ts";
+import { ADMIN_REVISION_PREFIX, isAdminRevision } from "../src/revision.ts";
+import { latencyDaySchema, locationSchema, manualIncidentSchema } from "../src/schema.ts";
+import { validateCheck } from "../src/validate.ts";
+import {
   validateAdminCheckInput,
   validateAdminCheckView,
   validateAdminComponent,
@@ -15,8 +18,35 @@ import {
   validateAdminConfigResponse,
   validateAdminMaintenanceInput,
   validateAdminMaintenanceView,
-  validateCheck,
-} from "../src/index.ts";
+} from "../src/validate-admin.ts";
+
+// admin.ts loads schema.ts, so this suite also pins the shared rules it does not reach otherwise.
+test("shared schema rules loaded by the admin module", () => {
+  const day = { date: "2024-02-29", p50Ms: 1, p95Ms: 2, count: 1 };
+  assert.equal(latencyDaySchema.safeParse(day).success, true);
+  assert.equal(latencyDaySchema.safeParse({ ...day, date: "2023-02-29" }).success, false);
+  assert.equal(latencyDaySchema.safeParse({ ...day, count: 0 }).success, false);
+  const location = { name: "eu", lastResultAt: 0, state: "reporting" };
+  assert.equal(locationSchema.safeParse(location).success, true);
+  const extra = locationSchema.safeParse({ ...location, x: 1 });
+  assert.equal(extra.error?.issues[0]?.message, "has an unknown field: x");
+  const incident = {
+    id: 1,
+    title: "T",
+    componentIds: [],
+    impact: "minor",
+    status: "resolved",
+    createdAt: 1,
+    resolvedAt: 3,
+    updates: [
+      { at: 2, status: "investigating", message: "m" },
+      { at: 3, status: "resolved", message: "m" },
+    ],
+  };
+  assert.equal(manualIncidentSchema.safeParse(incident).success, true);
+  assert.equal(manualIncidentSchema.safeParse({ ...incident, resolvedAt: null }).success, false);
+  assert.equal(manualIncidentSchema.safeParse({ ...incident, resolvedAt: 4 }).success, false);
+});
 
 const SENTINEL = "SENTINEL-secret-value";
 const revision = `${ADMIN_REVISION_PREFIX}${"a".repeat(64)}`;
@@ -43,6 +73,30 @@ test("check input accepts headers, body and a heartbeat secret", () => {
   assert.ok(result.ok);
   assert.equal(result.value, hb);
   assert.equal(validateAdminCheckInput({ ...hb, secret: undefined }).ok, true);
+});
+
+test("check input applies the shared http and dns field rules", () => {
+  const isOk = (check: Record<string, unknown>): boolean => validateAdminCheckInput(check).ok;
+  assert.equal(isOk({ ...http, expectedStatus: ["200-299", 301] }), true);
+  assert.equal(isOk({ ...http, expectedStatus: ["299-200"] }), false);
+  assert.equal(isOk({ ...http, jsonAssert: [{ pointer: "/a/~1b", equals: 1 }] }), true);
+  assert.equal(isOk({ ...http, jsonAssert: [{ pointer: "a", exists: true }] }), false);
+  assert.equal(isOk({ ...http, jsonAssert: [{ pointer: "/a", equals: 1, exists: true }] }), false);
+  assert.equal(isOk({ ...http, body: "x" }), false);
+  assert.equal(isOk({ ...http, method: "HEAD", keyword: "x" }), false);
+  assert.equal(isOk({ ...http, headers: { "bad name": "v" } }), false);
+  assert.equal(isOk({ ...http, headers: { Host: "v" } }), false);
+  assert.equal(isOk({ ...http, headers: { "X-A": "1", "x-a": "2" } }), false);
+  const dns = {
+    id: "d",
+    name: "D",
+    type: "dns",
+    dnsName: "example.com",
+    recordType: "A",
+    intervalMs: 1000,
+  };
+  assert.equal(isOk({ ...dns, resolver: "2001:db8::1" }), true);
+  assert.equal(isOk({ ...dns, resolver: "zz::" }), false);
 });
 
 test("check input rejects a bad secret, unknown keys and state fields", () => {
@@ -129,6 +183,18 @@ test("component view and status order constants", () => {
   assert.equal(validateAdminComponent({ id: "web", name: "Web", checkIds: ["a"] }).ok, true);
   assert.equal(ADMIN_STATUS_ORDER[0].status, 404);
   assert.equal(ADMIN_IF_MATCH_HEADER, "if-match");
+});
+
+test("status order names the token outcomes and keeps its statuses", () => {
+  assert.deepEqual(
+    ADMIN_STATUS_ORDER.map((entry) => entry.status),
+    [404, 401, 403, 413, 400, 428, 503, 412, 422, 409, 404],
+  );
+  assert.equal(
+    ADMIN_STATUS_ORDER[1].meaning,
+    "missing, unknown, expired, revoked or retired token",
+  );
+  assert.equal(ADMIN_STATUS_ORDER[2].meaning, "a valid token without the needed scope");
 });
 
 test("check input accepts each probed type and rejects its stray keys", () => {
@@ -365,6 +431,20 @@ test("check view keeps a non-enumerable field in a union option", () => {
     intervalMs: 1000,
   });
   Object.defineProperty(input, "headers", { value: { Authorization: "sentinel-552" } });
+  assert.equal(validateAdminCheckView(input).ok, false);
+});
+
+test("check view rejects a cyclic field in a union option", () => {
+  const input: Record<string, unknown> = {
+    id: "t",
+    name: "T",
+    type: "tls",
+    host: "h",
+    port: 443,
+    warnDays: 14,
+    intervalMs: 1000,
+  };
+  input.headers = input;
   assert.equal(validateAdminCheckView(input).ok, false);
 });
 
