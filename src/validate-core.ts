@@ -147,6 +147,10 @@ function dataView(value: unknown, seen: Set<object>): unknown {
     // Non-enumerable fields stay non-enumerable: the parse still reads a declared one by name,
     // and a strict object still ignores an unknown one, as it does on the original.
     for (const key of Object.getOwnPropertyNames(value)) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (descriptor === undefined || !("value" in descriptor)) {
+        continue; // an accessor counts as absent, as in objectView, and its getter never runs
+      }
       const isEnumerable = Object.prototype.propertyIsEnumerable.call(value, key);
       define(fields, key, dataView(ownValue(value, key), seen), isEnumerable);
     }

@@ -461,6 +461,32 @@ test("json assert value rejects an object with a symbol key", () => {
   assert.equal(validateAdminCheckView(input).ok, false);
 });
 
+test("json assert equals accessor counts as absent", () => {
+  let reads = 0;
+  const assertion = Object.defineProperty({ pointer: "" }, "equals", {
+    enumerable: true,
+    get() {
+      reads += 1;
+      return new Date(0);
+    },
+  });
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [assertion],
+  };
+  assert.equal(validateCheck(input).ok, false);
+  assert.equal(validateAdminCheckInput(input).ok, false);
+  assert.equal(validateAdminCheckView(input).ok, false);
+  const config = { revision, checks: [input], components: [], maintenance: [] };
+  assert.equal(validateAdminConfigResponse(config).ok, false);
+  const valid = { ...input, jsonAssert: [{ pointer: "", exists: true }] };
+  assert.equal(validateAdminConfigResponse({ ...config, checks: [valid] }).ok, true);
+  assert.equal(reads, 0);
+});
+
 test("check view never runs a getter inside a json assert value", () => {
   let reads = 0;
   const equals = Object.defineProperty({}, "secret", {
