@@ -79,7 +79,7 @@ test("invalid checks name the path", () => {
   );
   assert.equal(
     errorOf(validateCheck({ ...tls, warnDays: "14" })),
-    "check.warnDays: must be an integer >= 0",
+    "check.warnDays: must be an integer 0..3650",
   );
   assert.equal(errorOf(validateCheck({ ...tls, host: undefined })), "check.host: is required");
   assert.equal(
@@ -147,7 +147,26 @@ test("validateResult", () => {
   );
   assert.equal(
     errorOf(validateResult({ ...base, latencyMs: Number.NaN })),
-    "result.latencyMs: must be a finite number",
+    "result.latencyMs: must be an integer 0..2147483647",
+  );
+  assert.equal(
+    errorOf(validateResult({ ...base, latencyMs: -1 })),
+    "result.latencyMs: must be an integer 0..2147483647",
+  );
+  assert.equal(
+    errorOf(validateResult({ ...base, latencyMs: 1.5 })),
+    "result.latencyMs: must be an integer 0..2147483647",
+  );
+  assert.equal(validateResult({ ...base, latencyMs: 0, reason: "r".repeat(1000) }).ok, true);
+  assert.equal(
+    errorOf(validateResult({ ...base, reason: "r".repeat(1001) })),
+    "result.reason: must be null or a string of at most 1000 characters",
+  );
+  // The bound counts UTF-16 code units: 501 emoji are 1002 units.
+  assert.equal(validateResult({ ...base, reason: "\u{1F600}".repeat(500) }).ok, true);
+  assert.equal(
+    errorOf(validateResult({ ...base, reason: "\u{1F600}".repeat(501) })),
+    "result.reason: must be null or a string of at most 1000 characters",
   );
   assert.equal(
     errorOf(validateResult({ ...base, attempts: 0 })),
@@ -181,7 +200,16 @@ test("validatePostResultRequest bounds", () => {
     [{ ...base, timestamp: 1.5 }, "result.timestamp: must be an integer"],
     [{ ...base, statusCode: 600 }, "result.statusCode: must be an integer 100..599"],
     [{ ...base, statusCode: "200" }, "result.statusCode: must be an integer 100..599"],
-    [{ ...base, latencyMs: -1 }, "result.latencyMs: must be a finite number >= 0"],
+    [{ ...base, latencyMs: -1 }, "result.latencyMs: must be an integer 0..2147483647"],
+    [{ ...base, latencyMs: 1.5 }, "result.latencyMs: must be an integer 0..2147483647"],
+    [
+      { ...base, reason: "r".repeat(1001) },
+      "result.reason: must be null or a string of at most 1000 characters",
+    ],
+    [
+      { ...base, reason: "\u{1F600}".repeat(501) },
+      "result.reason: must be null or a string of at most 1000 characters",
+    ],
     [{ ...base, reason: 4 }, "result.reason: must be a string"],
     [{ ...base, location: 4 }, "result.location: must be a string"],
     [{ ...base, attempts: 0 }, "result.attempts: must be an integer >= 1"],
@@ -395,8 +423,9 @@ test("bounds are enforced at the limit and rejected one past it", () => {
     assert.equal(limit(check, field, max + 1), message);
   }
   assert.equal(limit(tls, "warnDays", 0), undefined);
-  assert.equal(limit(tls, "warnDays", 10_000), undefined);
-  assert.equal(limit(tls, "warnDays", -1), "check.warnDays: must be an integer >= 0");
+  assert.equal(limit(tls, "warnDays", 3650), undefined);
+  assert.equal(limit(tls, "warnDays", 3651), "check.warnDays: must be an integer 0..3650");
+  assert.equal(limit(tls, "warnDays", -1), "check.warnDays: must be an integer 0..3650");
   assert.equal(
     limit(http, "intervalMs", 2_147_483_648),
     "check.intervalMs: must be an integer 1..2147483647",
@@ -562,8 +591,11 @@ test("a header reference is accepted when own and rejected when inherited", () =
     ...fixture.variants.httpCheck,
     headers: { Authorization: reference },
   });
-  assert.equal(validateCheck(withReference({ env: "TOKEN" })).ok, true);
-  assert.equal(validateCheck(withReference(Object.create({ env: "TOKEN" }))).ok, false);
+  assert.equal(validateCheck(withReference({ env: "PULSE_HEADER_TOKEN" })).ok, true);
+  assert.equal(
+    validateCheck(withReference(Object.create({ env: "PULSE_HEADER_TOKEN" }))).ok,
+    false,
+  );
 });
 
 test("a throwing enumerable map getter on days does not throw", () => {
@@ -609,14 +641,17 @@ test("hostile proxies in header references, records and arrays never throw", () 
       [
         "header reference",
         () =>
-          validateCheck({ ...check, headers: { Authorization: hostile({ env: "TOKEN" }, trap) } }),
+          validateCheck({
+            ...check,
+            headers: { Authorization: hostile({ env: "PULSE_HEADER_TOKEN" }, trap) },
+          }),
       ],
       [
         "admin header reference",
         () =>
           validateAdminCheckInput({
             ...check,
-            headers: { Authorization: hostile({ env: "TOKEN" }, trap) },
+            headers: { Authorization: hostile({ env: "PULSE_HEADER_TOKEN" }, trap) },
           }),
       ],
       [
@@ -634,7 +669,7 @@ test("hostile proxies in header references, records and arrays never throw", () 
       assert.doesNotThrow(run, `${trap} in ${where}`);
     }
   }
-  const headerRef = { Authorization: hostile({ env: "TOKEN" }, "getPrototypeOf") };
+  const headerRef = { Authorization: hostile({ env: "PULSE_HEADER_TOKEN" }, "getPrototypeOf") };
   assert.equal(
     errorOf(validateCheck({ ...check, headers: headerRef })),
     "check: is not a valid value",

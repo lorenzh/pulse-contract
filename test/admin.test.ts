@@ -1,5 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
+import { runInNewContext } from "node:vm";
 import {
   ADMIN_IF_MATCH_HEADER,
   ADMIN_STATUS_ORDER,
@@ -9,6 +10,7 @@ import {
 } from "../src/admin.ts";
 import { ADMIN_REVISION_PREFIX, isAdminRevision } from "../src/revision.ts";
 import { latencyDaySchema, locationSchema, manualIncidentSchema } from "../src/schema.ts";
+import { validateCheck } from "../src/validate.ts";
 import {
   validateAdminCheckInput,
   validateAdminCheckView,
@@ -63,7 +65,7 @@ test("check input accepts headers, body and a heartbeat secret", () => {
   const withHeaders = {
     ...http,
     method: "POST",
-    headers: { "X-Key": SENTINEL, "X-Env": { env: "KEY" } },
+    headers: { "X-Key": SENTINEL, "X-Env": { env: "PULSE_HEADER_KEY" } },
     body: "{}",
   };
   assert.equal(validateAdminCheckInput(withHeaders).ok, true);
@@ -129,7 +131,10 @@ test("check view carries names, hasBody and hasSecret only", () => {
 
 test("check view rejects header values, body and secret", () => {
   assert.equal(validateAdminCheckView({ ...http, headers: { "X-Key": SENTINEL } }).ok, false);
-  assert.equal(validateAdminCheckView({ ...http, headers: [{ env: "KEY" }] }).ok, false);
+  assert.equal(
+    validateAdminCheckView({ ...http, headers: [{ env: "PULSE_HEADER_KEY" }] }).ok,
+    false,
+  );
   assert.equal(validateAdminCheckView({ ...http, body: SENTINEL }).ok, false);
   const hb = { id: "h", name: "H", type: "heartbeat", period: 1000, grace: 0, hasSecret: true };
   assert.equal(validateAdminCheckView({ ...hb, secret: SENTINEL }).ok, false);
@@ -365,6 +370,18 @@ test("check input keeps its data property results", () => {
   }
 });
 
+test("admin check input rejects a userinfo url and an unprefixed env name", () => {
+  // Create (POST) and replace (PUT) both validate with validateAdminCheckInput.
+  assert.deepEqual(validateAdminCheckInput({ ...http, url: "https://u:p@x" }), {
+    ok: false,
+    error: "check.url: must not contain a username or password",
+  });
+  assert.deepEqual(validateAdminCheckInput({ ...http, headers: { A: { env: "TOKEN" } } }), {
+    ok: false,
+    error: "check.headers.A.env: must match ^PULSE_HEADER_[A-Za-z0-9_]{1,115}$",
+  });
+});
+
 test("admin check view and http input reject a non-http url", () => {
   const message = "check.url: must be an http: or https: URL";
   assert.deepEqual(validateAdminCheckView({ ...http, url: "file:///x" }), {
@@ -375,4 +392,379 @@ test("admin check view and http input reject a non-http url", () => {
     ok: false,
     error: message,
   });
+});
+
+test("check view never runs a getter on a field of a union option", () => {
+  const tls = { id: "t", name: "T", type: "tls", host: "h", port: 443, intervalMs: 1000 };
+  const field = withAccessor(tls, "warnDays", {
+    returns: 3651,
+    isEnumerable: true,
+    isThrowing: false,
+  });
+  assert.equal(validateAdminCheckView(field.input).ok, false);
+  assert.equal(field.calls(), 0);
+  const type = withAccessor(tls, "type", { returns: "tls", isEnumerable: true, isThrowing: true });
+  assert.equal(validateAdminCheckView(type.input).ok, false);
+  assert.equal(type.calls(), 0);
+  const nested = withAccessor(tls, "warnDays", {
+    returns: 1,
+    isEnumerable: true,
+    isThrowing: true,
+  });
+  const config = {
+    revision: `sha256-${"0".repeat(64)}`,
+    checks: [nested.input],
+    components: [],
+    maintenance: [],
+  };
+  assert.equal(validateAdminConfigResponse(config).ok, false);
+  assert.equal(nested.calls(), 0);
+});
+
+test("check view keeps a non-enumerable field in a union option", () => {
+  const input = Object.assign(Object.create({}) as object, {
+    id: "t",
+    name: "T",
+    type: "tls",
+    host: "h",
+    port: 443,
+    warnDays: 14,
+    intervalMs: 1000,
+  });
+  Object.defineProperty(input, "headers", { value: { Authorization: "sentinel-552" } });
+  assert.equal(validateAdminCheckView(input).ok, false);
+});
+
+test("check view rejects a cyclic field in a union option", () => {
+  const input: Record<string, unknown> = {
+    id: "t",
+    name: "T",
+    type: "tls",
+    host: "h",
+    port: 443,
+    warnDays: 14,
+    intervalMs: 1000,
+  };
+  input.headers = input;
+  assert.equal(validateAdminCheckView(input).ok, false);
+});
+
+test("json assert value rejects an object with a symbol key", () => {
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [{ pointer: "", equals: { [Symbol("non-json")]: "sentinel-552" } }],
+  };
+  assert.equal(validateCheck(input).ok, false);
+  assert.equal(validateAdminCheckInput(input).ok, false);
+  assert.equal(validateAdminCheckView(input).ok, false);
+});
+
+test("json assert equals accessor counts as absent", () => {
+  let reads = 0;
+  const assertion = Object.defineProperty({ pointer: "" }, "equals", {
+    enumerable: true,
+    get() {
+      reads += 1;
+      return new Date(0);
+    },
+  });
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [assertion],
+  };
+  assert.equal(validateCheck(input).ok, false);
+  assert.equal(validateAdminCheckInput(input).ok, false);
+  assert.equal(validateAdminCheckView(input).ok, false);
+  const config = { revision, checks: [input], components: [], maintenance: [] };
+  assert.equal(validateAdminConfigResponse(config).ok, false);
+  const valid = { ...input, jsonAssert: [{ pointer: "", exists: true }] };
+  assert.equal(validateAdminConfigResponse({ ...config, checks: [valid] }).ok, true);
+  assert.equal(reads, 0);
+});
+
+test("check view rejects an unknown accessor field", () => {
+  let reads = 0;
+  const input = Object.defineProperty(
+    { id: "h", name: "H", url: "https://x/", intervalMs: 1000 },
+    "secret",
+    {
+      enumerable: true,
+      get() {
+        reads += 1;
+        return "sentinel-552";
+      },
+    },
+  );
+  assert.equal(validateAdminCheckView(input).ok, false);
+  const config = { revision, checks: [input], components: [], maintenance: [] };
+  assert.equal(validateAdminConfigResponse(config).ok, false);
+  assert.equal(reads, 0);
+});
+
+test("check view never runs a getter inside a json assert value", () => {
+  let reads = 0;
+  const equals = Object.defineProperty({}, "secret", {
+    enumerable: true,
+    get() {
+      reads += 1;
+      return "sentinel-552";
+    },
+  });
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [{ pointer: "", equals }],
+  };
+  validateAdminCheckView(input);
+  assert.equal(reads, 0);
+});
+
+test("json assert value still rejects a non-json object", () => {
+  for (const equals of [new Date(0), new Map(), new (class Point {})()]) {
+    const input = {
+      id: "h",
+      name: "H",
+      url: "https://x/",
+      intervalMs: 1000,
+      jsonAssert: [{ pointer: "", equals }],
+    };
+    assert.equal(validateCheck(input).ok, false);
+    assert.equal(validateAdminCheckInput(input).ok, false);
+    assert.equal(validateAdminCheckView(input).ok, false);
+  }
+});
+
+test("json assert value rejects a date with an own constructor", () => {
+  const equals = Object.defineProperty(new Date(0), "constructor", { value: Date });
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [{ pointer: "", equals }],
+  };
+  assert.equal(validateCheck(input).ok, false);
+  assert.equal(validateAdminCheckInput(input).ok, false);
+  assert.equal(validateAdminCheckView(input).ok, false);
+});
+
+test("json assert value rejects a plain object with an own constructor", () => {
+  let reads = 0;
+  const ctor = (): void => undefined;
+  Object.defineProperty(ctor, "prototype", {
+    get() {
+      reads++;
+      return {};
+    },
+  });
+  for (const value of [Date, ctor]) {
+    const equals = Object.defineProperty({}, "constructor", { value });
+    const input = {
+      id: "h",
+      name: "H",
+      url: "https://x/",
+      intervalMs: 1000,
+      jsonAssert: [{ pointer: "", equals }],
+    };
+    assert.equal(validateCheck(input).ok, false);
+    assert.equal(validateAdminCheckInput(input).ok, false);
+    assert.equal(validateAdminCheckView(input).ok, false);
+    const config = {
+      revision: `sha256-${"0".repeat(64)}`,
+      checks: [input],
+      components: [],
+      maintenance: [],
+    };
+    assert.equal(validateAdminConfigResponse(config).ok, false);
+  }
+  assert.equal(reads, 0);
+});
+
+test("json assert value accepts a plain object with an own Object constructor", () => {
+  const equals = Object.defineProperty({}, "constructor", { value: Object });
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [{ pointer: "", equals }],
+  };
+  assert.equal(validateCheck(input).ok, true);
+  assert.equal(validateAdminCheckInput(input).ok, true);
+  assert.equal(validateAdminCheckView(input).ok, true);
+  const config = {
+    revision: `sha256-${"0".repeat(64)}`,
+    checks: [input],
+    components: [],
+    maintenance: [],
+  };
+  assert.equal(validateAdminConfigResponse(config).ok, true);
+});
+
+test("json assert value accepts a plain object from another realm or prototype", () => {
+  for (const equals of [
+    runInNewContext("({ ok: true })") as unknown,
+    Object.create({}) as unknown,
+  ]) {
+    const input = {
+      id: "h",
+      name: "H",
+      url: "https://x/",
+      intervalMs: 1000,
+      jsonAssert: [{ pointer: "", equals }],
+    };
+    assert.equal(validateCheck(input).ok, true);
+    assert.equal(validateAdminCheckInput(input).ok, true);
+    assert.equal(validateAdminCheckView(input).ok, true);
+    const config = {
+      revision: `sha256-${"0".repeat(64)}`,
+      checks: [input],
+      components: [],
+      maintenance: [],
+    };
+    assert.equal(validateAdminConfigResponse(config).ok, true);
+  }
+});
+
+test("check view never runs a getter added to Object.prototype", () => {
+  let reads = 0;
+  Object.defineProperty(Object.prototype, "timeoutMs", {
+    configurable: true,
+    get() {
+      reads++;
+      return 1000;
+    },
+  });
+  try {
+    const input = { id: "h", name: "H", url: "https://x/", intervalMs: 1000 };
+    assert.equal(validateAdminCheckView(input).ok, true);
+    const config = {
+      revision: `sha256-${"0".repeat(64)}`,
+      checks: [input],
+      components: [],
+      maintenance: [],
+    };
+    assert.equal(validateAdminConfigResponse(config).ok, true);
+  } finally {
+    Reflect.deleteProperty(Object.prototype, "timeoutMs");
+  }
+  assert.equal(reads, 0);
+});
+
+test("http cross-field rules never run a getter added to Object.prototype", () => {
+  for (const key of ["method", "body", "jsonAssert", "keyword"]) {
+    let reads = 0;
+    Object.defineProperty(Object.prototype, key, {
+      configurable: true,
+      get() {
+        reads++;
+        return undefined;
+      },
+    });
+    try {
+      const input = { id: "h", name: "H", url: "https://x/", intervalMs: 1000 };
+      assert.equal(validateAdminCheckView(input).ok, true);
+      const config = {
+        revision: `sha256-${"0".repeat(64)}`,
+        checks: [input],
+        components: [],
+        maintenance: [],
+      };
+      assert.equal(validateAdminConfigResponse(config).ok, true);
+    } finally {
+      Reflect.deleteProperty(Object.prototype, key);
+    }
+    assert.equal(reads, 0, key);
+  }
+});
+
+test("check view never runs an inherited getter in a union option", () => {
+  let reads = 0;
+  const proto = Object.defineProperty({}, "warnDays", {
+    get() {
+      reads++;
+      return 14;
+    },
+  });
+  const input = Object.assign(Object.create(proto) as object, {
+    id: "t",
+    name: "T",
+    type: "tls",
+    host: "h",
+    port: 443,
+    intervalMs: 1000,
+  });
+  const result = validateAdminCheckView(input);
+  assert.equal(reads, 0);
+  assert.equal(result.ok, false);
+});
+
+test("json assert value never runs a getter on a function", () => {
+  let reads = 0;
+  const ctor = (): void => undefined;
+  Object.defineProperty(ctor, "prototype", {
+    get() {
+      reads++;
+      return {};
+    },
+  });
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [{ pointer: "", equals: { constructor: ctor } }],
+  };
+  assert.equal(validateCheck(input).ok, false);
+  assert.equal(validateAdminCheckInput(input).ok, false);
+  assert.equal(validateAdminCheckView(input).ok, false);
+  assert.equal(reads, 0);
+});
+
+test("check view terminates on a proxy with a cyclic prototype", () => {
+  const input: object = new Proxy(
+    { id: "h", name: "H", url: "https://x/", intervalMs: 1000 },
+    {
+      getPrototypeOf(): object {
+        return input;
+      },
+    },
+  );
+  assert.equal(typeof validateAdminCheckView(input).ok, "boolean");
+});
+
+test("json assert value accepts hidden symbol metadata and an inherited constructor prototype", () => {
+  const ctor = (): void => undefined;
+  Object.setPrototypeOf(ctor, { prototype: Object.prototype });
+  const cases = [
+    Object.defineProperty({}, Symbol("metadata"), { value: "sentinel-552" }),
+    Object.defineProperty({}, "constructor", { value: ctor }),
+  ];
+  for (const equals of cases) {
+    const input = {
+      id: "h",
+      name: "H",
+      url: "https://x/",
+      intervalMs: 1000,
+      jsonAssert: [{ pointer: "", equals }],
+    };
+    const config = {
+      revision: `sha256-${"0".repeat(64)}`,
+      checks: [input],
+      components: [],
+      maintenance: [],
+    };
+    assert.equal(validateCheck(input).ok, true);
+    assert.equal(validateAdminCheckInput(input).ok, true);
+    assert.equal(validateAdminCheckView(input).ok, true);
+    assert.equal(validateAdminConfigResponse(config).ok, true);
+  }
 });

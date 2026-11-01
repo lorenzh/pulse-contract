@@ -55,6 +55,7 @@ test("package entry exports the validators and the wire version", async () => {
     [
       "ADMIN_ETAG_HEADER",
       "ADMIN_IF_MATCH_HEADER",
+      "HEADER_ENV_PREFIX",
       "ADMIN_MAX_BODY_BYTES",
       "ADMIN_REVISION_PREFIX",
       "ADMIN_STATUS_ORDER",
@@ -90,7 +91,9 @@ test("package entry exports the validators and the wire version", async () => {
       "MANUAL_INCIDENT_MESSAGE_MAX",
       "MANUAL_INCIDENT_STATUSES",
       "MANUAL_INCIDENT_TITLE_MAX",
+      "MAX_REASON_LENGTH",
       "MAX_TIMER_MS",
+      "MAX_WARN_DAYS",
       "MIN_DOMAIN_INTERVAL_MS",
       "WIRE_VERSION",
       "WIRE_VERSION_HEADER",
@@ -157,6 +160,9 @@ test("package entry exports the validators and the wire version", async () => {
       "validateTokensResponse",
     ].sort(byName),
   );
+  assert.equal(mod.HEADER_ENV_PREFIX, "PULSE_HEADER_");
+  assert.equal(mod.MAX_REASON_LENGTH, 1000);
+  assert.equal(mod.MAX_WARN_DAYS, 3650);
 });
 
 test("fixture covers maintenance types", () => {

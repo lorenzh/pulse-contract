@@ -107,6 +107,6 @@ The shared tooling configuration lives in `lorenzh/pulse-config`. The other puls
   have no build step. After a change in `src/`, run `bun run build` and commit `dist/`.
   A test and CI fail when `dist/` is out of date.
 - `bun run check` also runs `bun run build`.
-- `build`, `typecheck` and the dist test use TypeScript 7 (`typescript7`, an alias of `typescript@^7`). `typescript` 6.0.3 stays installed only for typescript-eslint (used by `pulse-eslint`), which does not support TS 7 yet.
+- `build`, `typecheck` and the dist test use TypeScript 7 (`typescript7`, an alias of `typescript@7.0.2`). `typescript` 6.0.3 stays installed only for typescript-eslint (used by `pulse-eslint`), which does not support TS 7 yet.
 - Tests live in `test/`; `test/types.fixture.ts` must keep compiling against every exported type.
 - A breaking type change needs a matching section for each consumer in the spec.

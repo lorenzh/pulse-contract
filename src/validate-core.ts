@@ -57,11 +57,11 @@ function defOf(schema: z.ZodType): Def {
   return schema._zod.def as Def;
 }
 
-function define(target: Fields, key: string, value: unknown): void {
+function define(target: Fields, key: string, value: unknown, isEnumerable = true): void {
   // defineProperty, because assigning `__proto__` would replace the prototype.
   Object.defineProperty(target, key, {
     value,
-    enumerable: true,
+    enumerable: isEnumerable,
     writable: true,
     configurable: true,
   });
@@ -101,6 +101,143 @@ function onlyObjectOption(options: readonly z.ZodType[]): z.ZodType | undefined 
   return objects.length === 1 ? objects[0] : undefined;
 }
 
+/** The constructor named by a copied non-plain object. Its own prototype is trusted. */
+class NonPlain {}
+Object.freeze(NonPlain.prototype);
+
+/**
+ * The prototype of a copied non-plain object. It does not inherit from Object.prototype, so no
+ * getter added there can run. Its trusted `constructor` keeps the copy non-plain for Zod.
+ */
+const NON_PLAIN_PROTO: object = Object.freeze(
+  Object.create(null, { constructor: { value: NonPlain } }) as object,
+);
+
+/**
+ * Replaces a function or a cycle in a data copy. No schema accepts a symbol, so the input is
+ * rejected, and the parse never inspects the untrusted function or treats a cycle as absent.
+ */
+const REJECTED_STAND_IN: unique symbol = Symbol("rejected");
+
+/**
+ * A deep copy of own data properties for a union with several object options, where the option is
+ * not known yet, and for a recursive JSON value. An accessor reads as undefined, so its getter
+ * never runs.
+ */
+function dataView(value: unknown, seen: Set<object>): unknown {
+  if (typeof value === "function") {
+    return REJECTED_STAND_IN; // Zod reads a function's prototype; no schema here accepts one
+  }
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  if (seen.has(value)) {
+    return REJECTED_STAND_IN; // JSON has no cycles, and a cycle must not read as absent
+  }
+  if (hasEnumerableSymbol(value)) {
+    return REJECTED_STAND_IN; // an enumerable symbol key is not JSON, and the copy would drop it
+  }
+  seen.add(value);
+  let view: unknown;
+  if (Array.isArray(value)) {
+    const items: unknown[] = [];
+    for (let i = 0; i < value.length; i++) {
+      items.push(dataView(ownValue(value, i), seen));
+    }
+    view = items;
+  } else {
+    view = objectCopy(value, seen);
+  }
+  seen.delete(value);
+  return view;
+}
+
+function hasEnumerableSymbol(value: object): boolean {
+  return Object.getOwnPropertySymbols(value).some(
+    (key) => Object.getOwnPropertyDescriptor(value, key)?.enumerable === true,
+  );
+}
+
+/** The data value of `key` on `value` or its prototype chain. An accessor gives `{ isAccessor }`. */
+function lookupData(value: object, key: string): { isAccessor: boolean; data: unknown } {
+  const visited = new Set<object>();
+  let current: object | null = value;
+  while (current !== null) {
+    if (visited.has(current)) {
+      // A Proxy can report a cyclic prototype chain; treat it as non-plain and stop.
+      return { isAccessor: true, data: undefined };
+    }
+    visited.add(current);
+    const descriptor = Object.getOwnPropertyDescriptor(current, key);
+    if (descriptor !== undefined) {
+      return "value" in descriptor
+        ? { isAccessor: false, data: descriptor.value }
+        : { isAccessor: true, data: undefined };
+    }
+    current = Object.getPrototypeOf(current) as object | null;
+  }
+  return { isAccessor: false, data: undefined };
+}
+
+/**
+ * Zod's plain-object test, read from property descriptors so no getter runs. An object from
+ * another realm or with a plain prototype stays plain. An accessor on the way counts as non-plain.
+ */
+function isZodPlain(value: object): boolean {
+  const ctor = lookupData(value, "constructor");
+  if (ctor.isAccessor) {
+    return false;
+  }
+  if (typeof ctor.data !== "function") {
+    return true;
+  }
+  const prot = lookupData(ctor.data, "prototype");
+  if (prot.isAccessor) {
+    return false;
+  }
+  const protValue: unknown = prot.data;
+  return (
+    typeof protValue === "object" &&
+    protValue !== null &&
+    !Array.isArray(protValue) &&
+    Object.hasOwn(protValue, "isPrototypeOf")
+  );
+}
+
+/** Copies the own data fields of a non-array object for dataView. */
+function objectCopy(value: object, seen: Set<object>): Fields {
+  // A plain object is copied onto a null prototype, any other (a Date, a class instance) onto a
+  // trusted non-plain one. A JSON value schema still rejects the second, and no inherited getter
+  // runs, also not one added to Object.prototype.
+  const base = isZodPlain(value) ? null : NON_PLAIN_PROTO;
+  const fields: Fields = Object.create(base) as Fields;
+  // Non-enumerable fields stay non-enumerable: the parse still reads a declared one by name,
+  // and a strict object still ignores an unknown one, as it does on the original.
+  for (const key of Object.getOwnPropertyNames(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined) {
+      continue;
+    }
+    const isEnumerable = descriptor.enumerable === true;
+    if (key === "constructor" && !isEnumerable && "value" in descriptor) {
+      // Zod tests plainness through `constructor`, so the copy's prototype decides it: a
+      // stand-in would make a Date with an own constructor read as plain, and `Object` as not.
+      continue;
+    }
+    if (!("value" in descriptor)) {
+      // The getter never runs. An enumerable accessor keeps its key with a value no schema
+      // accepts: an unknown key stays rejected by a strict object, and a declared one cannot
+      // pass as present but empty.
+      if (isEnumerable) {
+        define(fields, key, REJECTED_STAND_IN, true);
+      }
+      continue;
+    }
+    define(fields, key, dataView(ownValue(value, key), seen), isEnumerable);
+  }
+  return fields;
+}
+
 function recordView(valueType: z.ZodType, value: Fields): Fields {
   const view: Fields = Object.create(null) as Fields;
   for (const key of Object.keys(value)) {
@@ -129,12 +266,15 @@ function ownView(schema: z.ZodType, value: unknown): unknown {
   }
   if (def.type === "union" && def.options !== undefined && isObject(value)) {
     const option = onlyObjectOption(def.options);
-    return option === undefined ? value : ownView(option, value);
+    return option === undefined ? dataView(value, new Set()) : ownView(option, value);
   }
   if (def.type === "object" && def.shape !== undefined && isObject(value)) {
     // Read the prototype on purpose: a hostile Proxy trap throws here, and verdict rejects it.
     Object.getPrototypeOf(value);
     return objectView(def.shape, value);
+  }
+  if (def.type === "lazy") {
+    return dataView(value, new Set()); // a recursive JSON value: copy its own data deeply
   }
   return value;
 }

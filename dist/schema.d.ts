@@ -4,6 +4,12 @@ import { z } from "zod";
  * so no layer may pass a delay above it to a timer.
  */
 export declare const MAX_TIMER_MS = 2147483647;
+/** The prefix every `{ env }` header value name must carry. The probe binds these names to hosts. */
+export declare const HEADER_ENV_PREFIX = "PULSE_HEADER_";
+/** The longest `reason` of a result, in characters. */
+export declare const MAX_REASON_LENGTH = 1000;
+/** The largest `warnDays` of a TLS or domain check. */
+export declare const MAX_WARN_DAYS = 3650;
 /** Availability objective in percent: a number >= 90 and < 100. */
 export declare const availabilityTargetSchema: z.ZodNumber;
 export declare const checkStatusSchema: z.ZodEnum<{
