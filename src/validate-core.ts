@@ -101,9 +101,17 @@ function onlyObjectOption(options: readonly z.ZodType[]): z.ZodType | undefined 
   return objects.length === 1 ? objects[0] : undefined;
 }
 
-/** The prototype of a copied non-plain object. It has no accessors. */
+/** The constructor named by a copied non-plain object. Its own prototype is trusted. */
 class NonPlain {}
 Object.freeze(NonPlain.prototype);
+
+/**
+ * The prototype of a copied non-plain object. It does not inherit from Object.prototype, so no
+ * getter added there can run. Its trusted `constructor` keeps the copy non-plain for Zod.
+ */
+const NON_PLAIN_PROTO: object = Object.freeze(
+  Object.create(null, { constructor: { value: NonPlain } }) as object,
+);
 
 /**
  * Replaces a function or a cycle in a data copy. No schema accepts a symbol, so the input is
@@ -144,22 +152,26 @@ function dataView(value: unknown, seen: Set<object>): unknown {
   return view;
 }
 
-function hasOwnFunction(value: object, key: string): boolean {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor !== undefined && typeof descriptor.value === "function";
+/** Whether an own `constructor` makes Zod treat the object as non-plain. Only `Object` keeps it plain. */
+function hasNonPlainConstructor(value: object): boolean {
+  const descriptor = Object.getOwnPropertyDescriptor(value, "constructor");
+  return (
+    descriptor !== undefined &&
+    typeof descriptor.value === "function" &&
+    descriptor.value !== Object
+  );
 }
 
 /** Copies the own data fields of a non-array object for dataView. */
 function objectCopy(value: object, seen: Set<object>): Fields {
-  // A plain object keeps its plain prototype. Any other prototype (a Date, a class instance) is
-  // swapped for a trusted non-plain one: a JSON value schema still rejects it, and no inherited
-  // getter of the untrusted prototype can run.
+  // A plain object is copied onto a null prototype, any other (a Date, a class instance) onto a
+  // trusted non-plain one. A JSON value schema still rejects the second, and no inherited getter
+  // runs, also not one added to Object.prototype.
   const proto: unknown = Object.getPrototypeOf(value);
   // An own `constructor` function decides plainness in Zod by reading that untrusted function,
-  // so such an object is copied as non-plain too.
-  const isPlain =
-    (proto === Object.prototype || proto === null) && !hasOwnFunction(value, "constructor");
-  const base = isPlain ? proto : NonPlain.prototype;
+  // so it is judged here by identity only: `Object` stays plain, any other is non-plain.
+  const isPlain = (proto === Object.prototype || proto === null) && !hasNonPlainConstructor(value);
+  const base = isPlain ? null : NON_PLAIN_PROTO;
   const fields: Fields = Object.create(base) as Fields;
   // Non-enumerable fields stay non-enumerable: the parse still reads a declared one by name,
   // and a strict object still ignores an unknown one, as it does on the original.
@@ -169,9 +181,9 @@ function objectCopy(value: object, seen: Set<object>): Fields {
       continue;
     }
     const isEnumerable = descriptor.enumerable === true;
-    if (key === "constructor" && base === NonPlain.prototype && !isEnumerable) {
-      // Zod tests plainness through `constructor`. The trusted NonPlain one keeps the copy
-      // non-plain; a stand-in would make a Date with an own constructor read as plain.
+    if (key === "constructor" && !isEnumerable && "value" in descriptor) {
+      // Zod tests plainness through `constructor`, so the copy's prototype decides it: a
+      // stand-in would make a Date with an own constructor read as plain, and `Object` as not.
       continue;
     }
     if (!("value" in descriptor)) {

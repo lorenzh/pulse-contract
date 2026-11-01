@@ -587,6 +587,52 @@ test("json assert value rejects a plain object with an own constructor", () => {
   assert.equal(reads, 0);
 });
 
+test("json assert value accepts a plain object with an own Object constructor", () => {
+  const equals = Object.defineProperty({}, "constructor", { value: Object });
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [{ pointer: "", equals }],
+  };
+  assert.equal(validateCheck(input).ok, true);
+  assert.equal(validateAdminCheckInput(input).ok, true);
+  assert.equal(validateAdminCheckView(input).ok, true);
+  const config = {
+    revision: `sha256-${"0".repeat(64)}`,
+    checks: [input],
+    components: [],
+    maintenance: [],
+  };
+  assert.equal(validateAdminConfigResponse(config).ok, true);
+});
+
+test("check view never runs a getter added to Object.prototype", () => {
+  let reads = 0;
+  Object.defineProperty(Object.prototype, "timeoutMs", {
+    configurable: true,
+    get() {
+      reads++;
+      return 1000;
+    },
+  });
+  try {
+    const input = { id: "h", name: "H", url: "https://x/", intervalMs: 1000 };
+    assert.equal(validateAdminCheckView(input).ok, true);
+    const config = {
+      revision: `sha256-${"0".repeat(64)}`,
+      checks: [input],
+      components: [],
+      maintenance: [],
+    };
+    assert.equal(validateAdminConfigResponse(config).ok, true);
+  } finally {
+    Reflect.deleteProperty(Object.prototype, "timeoutMs");
+  }
+  assert.equal(reads, 0);
+});
+
 test("check view never runs an inherited getter in a union option", () => {
   let reads = 0;
   const proto = Object.defineProperty({}, "warnDays", {
