@@ -3,8 +3,6 @@ import { z } from "zod";
 export declare const ADMIN_IF_MATCH_HEADER = "if-match";
 /** Response header that carries the revision, quoted: `"sha256-<hex>"`. */
 export declare const ADMIN_ETAG_HEADER = "etag";
-/** Prefix of a revision: `sha256-` followed by 64 lower-case hex digits of the file bytes. */
-export declare const ADMIN_REVISION_PREFIX = "sha256-";
 /** Largest request body of an admin write: 1 MB, answered with 413 beyond it. */
 export declare const ADMIN_MAX_BODY_BYTES = 1048576;
 /**
@@ -16,10 +14,10 @@ export declare const ADMIN_STATUS_ORDER: readonly [{
     readonly meaning: "feature off";
 }, {
     readonly status: 401;
-    readonly meaning: "missing or wrong token";
+    readonly meaning: "missing, unknown, expired, revoked or retired token";
 }, {
     readonly status: 403;
-    readonly meaning: "a valid probe token";
+    readonly meaning: "a valid token without the needed scope";
 }, {
     readonly status: 413;
     readonly meaning: "body too large";
@@ -45,8 +43,6 @@ export declare const ADMIN_STATUS_ORDER: readonly [{
     readonly status: 404;
     readonly meaning: "unknown id or index";
 }];
-/** Whether `value` is a revision in the unquoted form `sha256-<hex>`. */
-export declare function isAdminRevision(value: unknown): value is string;
 /** A check as the admin api serves it: no header values, no body, no secret. Strict. */
 export declare const adminCheckViewSchema: z.ZodUnion<readonly [z.ZodObject<{
     id: z.ZodString;

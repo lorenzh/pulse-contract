@@ -1,5 +1,5 @@
 import { type AdminCheckInput, type AdminCheckView, type AdminComponent, type AdminComponentInput, type AdminConfigResponse, type AdminMaintenanceInput, type AdminMaintenanceView } from "./admin.ts";
-import { type Validation } from "./validate.ts";
+import { type Validation } from "./validate-core.ts";
 /**
  * Validates the body of `POST /admin/checks` or `PUT /admin/checks/:id`: a check, plus `secret`
  * (a non-empty string) on a heartbeat check only. Unknown keys, including state fields, are

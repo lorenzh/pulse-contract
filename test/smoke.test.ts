@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fixture } from "./types.fixture.ts";
+import { fixture, tokenFixtures } from "./types.fixture.ts";
 
 const root = new URL("..", import.meta.url).pathname;
 
@@ -23,10 +23,17 @@ test("dist matches a fresh build of src", () => {
     );
     for (const file of [
       "admin",
+      "audit",
       "index",
+      "revision",
       "schema",
+      "token-id",
+      "tokens",
       "validate",
       "validate-admin",
+      "validate-audit",
+      "validate-core",
+      "validate-tokens",
       "version",
     ].flatMap((n) => [`${n}.d.ts`, `${n}.js`])) {
       assert.equal(
@@ -51,6 +58,15 @@ test("package entry exports the validators and the wire version", async () => {
       "ADMIN_MAX_BODY_BYTES",
       "ADMIN_REVISION_PREFIX",
       "ADMIN_STATUS_ORDER",
+      "AUDIT_ACTIONS",
+      "AUDIT_DEFAULT_LIMIT",
+      "AUDIT_EXPORT_CONTENT_TYPE",
+      "AUDIT_MAX_LIMIT",
+      "AUDIT_TARGET_KINDS",
+      "auditEntrySchema",
+      "auditPageSchema",
+      "validateAuditEntry",
+      "validateAuditPage",
       "adminCheckInputSchema",
       "adminCheckViewSchema",
       "adminComponentInputSchema",
@@ -124,6 +140,21 @@ test("package entry exports the validators and the wire version", async () => {
       "validateResult",
       "validateResultsResponse",
       "validateUptimeResponse",
+      "TOKEN_ID_PREFIX",
+      "TOKEN_MAX_BODY_BYTES",
+      "TOKEN_NAME_MAX",
+      "TOKEN_ROTATION_OVERLAP_MS",
+      "TOKEN_SCOPES",
+      "TOKEN_SECRET_PREFIX",
+      "tokenCreateInputSchema",
+      "tokenMetadataSchema",
+      "tokenScopeSchema",
+      "tokenSecretResponseSchema",
+      "tokensResponseSchema",
+      "validateTokenCreateInput",
+      "validateTokenMetadata",
+      "validateTokenSecretResponse",
+      "validateTokensResponse",
     ].sort(byName),
   );
 });
@@ -164,4 +195,13 @@ test("fixture covers uptime types", () => {
   assert.equal(first?.days[1]?.results, 500);
   assert.equal(first?.uptime, 98.4);
   assert.equal(second?.uptime, null);
+});
+
+test("fixture covers token types", () => {
+  const { metadata, create, secret, list, scope } = tokenFixtures;
+  assert.equal(metadata.id, "tok_0123456789abcdef01234567");
+  assert.deepEqual(create.scopes, ["probe"]);
+  assert.equal(secret.previousValidUntil, null);
+  assert.equal(list.tokens.length, 1);
+  assert.equal(scope, "admin");
 });

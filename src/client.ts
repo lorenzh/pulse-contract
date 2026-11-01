@@ -1,9 +1,6 @@
 import type { ManualIncident, ManualIncidentsResponse } from "./schema.ts";
-import {
-  type Validation,
-  validateManualIncident,
-  validateManualIncidentsResponse,
-} from "./validate.ts";
+import { validateManualIncident, validateManualIncidentsResponse } from "./validate.ts";
+import type { Validation } from "./validate-core.ts";
 import { checkWireVersion, WIRE_VERSION_HEADER, type WireVersionCheck } from "./version.ts";
 
 /** Default cap for a response body: 5 MiB. */

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ADMIN_REVISION } from "./revision.ts";
 import {
   componentSchema,
   dnsCheckSchema,
@@ -17,9 +18,6 @@ export const ADMIN_IF_MATCH_HEADER = "if-match";
 /** Response header that carries the revision, quoted: `"sha256-<hex>"`. */
 export const ADMIN_ETAG_HEADER = "etag";
 
-/** Prefix of a revision: `sha256-` followed by 64 lower-case hex digits of the file bytes. */
-export const ADMIN_REVISION_PREFIX = "sha256-";
-
 /** Largest request body of an admin write: 1 MB, answered with 413 beyond it. */
 export const ADMIN_MAX_BODY_BYTES = 1_048_576;
 
@@ -29,8 +27,8 @@ export const ADMIN_MAX_BODY_BYTES = 1_048_576;
  */
 export const ADMIN_STATUS_ORDER = [
   { status: 404, meaning: "feature off" },
-  { status: 401, meaning: "missing or wrong token" },
-  { status: 403, meaning: "a valid probe token" },
+  { status: 401, meaning: "missing, unknown, expired, revoked or retired token" },
+  { status: 403, meaning: "a valid token without the needed scope" },
   { status: 413, meaning: "body too large" },
   { status: 400, meaning: "bad JSON, bad If-Match (including *), or id mismatch" },
   { status: 428, meaning: "If-Match missing" },
@@ -41,13 +39,6 @@ export const ADMIN_STATUS_ORDER = [
   { status: 404, meaning: "unknown id or index" },
 ] as const;
 
-const REVISION = new RegExp(`^${ADMIN_REVISION_PREFIX}[0-9a-f]{64}$`);
-
-/** Whether `value` is a revision in the unquoted form `sha256-<hex>`. */
-export function isAdminRevision(value: unknown): value is string {
-  return typeof value === "string" && REVISION.test(value);
-}
-
 const objectError = {
   error: (issue: { code: string; keys?: string[] }): string =>
     issue.code === "unrecognized_keys"
@@ -57,7 +48,7 @@ const objectError = {
 
 const revisionSchema = z
   .string({ error: "must be a string" })
-  .regex(REVISION, { error: `must match ${REVISION.source}` });
+  .regex(ADMIN_REVISION, { error: `must match ${ADMIN_REVISION.source}` });
 
 const secretSchema = z
   .string({ error: "must be a non-empty string" })

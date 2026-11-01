@@ -1,5 +1,5 @@
 import { adminCheckInputSchemas, adminCheckViewSchema, adminComponentInputSchema, adminConfigResponseSchema, adminMaintenanceInputSchema, adminMaintenanceViewSchema, } from "./admin.js";
-import { isObject, ownValue, problem, validateCheck, validateWith, verdict, } from "./validate.js";
+import { isObject, ownValue, problem, validateWith, verdict, } from "./validate-core.js";
 /** Picks the schema by `type`, so errors name the field instead of the whole union. */
 function checkInputProblem(value, path) {
     if (!isObject(value)) {
@@ -16,8 +16,7 @@ function checkInputProblem(value, path) {
         ? adminCheckInputSchemas[type]
         : undefined;
     if (schema === undefined) {
-        const base = validateCheck(value, path); // only for its type message
-        return base.ok ? undefined : base.error;
+        return `${path}.type: must be "http", "tls", "tcp", "dns", "domain" or "heartbeat"`;
     }
     const unknown = Object.keys(value).find((key) => !Object.hasOwn(schema.shape, key));
     if (unknown !== undefined) {

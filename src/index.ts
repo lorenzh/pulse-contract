@@ -12,7 +12,6 @@ export {
   ADMIN_ETAG_HEADER,
   ADMIN_IF_MATCH_HEADER,
   ADMIN_MAX_BODY_BYTES,
-  ADMIN_REVISION_PREFIX,
   ADMIN_STATUS_ORDER,
   adminCheckInputSchema,
   adminCheckViewSchema,
@@ -21,8 +20,17 @@ export {
   adminConfigResponseSchema,
   adminMaintenanceInputSchema,
   adminMaintenanceViewSchema,
-  isAdminRevision,
 } from "./admin.ts";
+export type { AuditAction, AuditEntry, AuditPage, AuditTargetKind } from "./audit.ts";
+export {
+  AUDIT_ACTIONS,
+  AUDIT_DEFAULT_LIMIT,
+  AUDIT_EXPORT_CONTENT_TYPE,
+  AUDIT_MAX_LIMIT,
+  AUDIT_TARGET_KINDS,
+  auditEntrySchema,
+  auditPageSchema,
+} from "./audit.ts";
 export {
   DEFAULT_MAX_BODY_BYTES,
   type FetchJsonError,
@@ -34,6 +42,7 @@ export {
   type ManualIncidentReadOptions,
 } from "./client.ts";
 export { aggregateUptime, combineStates, incidentImpactState } from "./components.ts";
+export { ADMIN_REVISION_PREFIX, isAdminRevision } from "./revision.ts";
 export type {
   Check,
   CheckLatency,
@@ -107,8 +116,27 @@ export {
   sloSchema,
   tcpCheckSchema,
 } from "./schema.ts";
+export { TOKEN_ID_PREFIX } from "./token-id.ts";
+export type {
+  TokenCreateInput,
+  TokenMetadata,
+  TokenScope,
+  TokenSecretResponse,
+  TokensResponse,
+} from "./tokens.ts";
 export {
-  type Validation,
+  TOKEN_MAX_BODY_BYTES,
+  TOKEN_NAME_MAX,
+  TOKEN_ROTATION_OVERLAP_MS,
+  TOKEN_SCOPES,
+  TOKEN_SECRET_PREFIX,
+  tokenCreateInputSchema,
+  tokenMetadataSchema,
+  tokenScopeSchema,
+  tokenSecretResponseSchema,
+  tokensResponseSchema,
+} from "./tokens.ts";
+export {
   validateCheck,
   validateCheckLatency,
   validateChecksResponse,
@@ -145,6 +173,14 @@ export {
   validateAdminMaintenanceInput,
   validateAdminMaintenanceView,
 } from "./validate-admin.ts";
+export { validateAuditEntry, validateAuditPage } from "./validate-audit.ts";
+export type { Validation } from "./validate-core.ts";
+export {
+  validateTokenCreateInput,
+  validateTokenMetadata,
+  validateTokenSecretResponse,
+  validateTokensResponse,
+} from "./validate-tokens.ts";
 export {
   checkWireVersion,
   WIRE_VERSION,
