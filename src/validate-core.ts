@@ -144,13 +144,22 @@ function dataView(value: unknown, seen: Set<object>): unknown {
   return view;
 }
 
+function hasOwnFunction(value: object, key: string): boolean {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && typeof descriptor.value === "function";
+}
+
 /** Copies the own data fields of a non-array object for dataView. */
 function objectCopy(value: object, seen: Set<object>): Fields {
   // A plain object keeps its plain prototype. Any other prototype (a Date, a class instance) is
   // swapped for a trusted non-plain one: a JSON value schema still rejects it, and no inherited
   // getter of the untrusted prototype can run.
   const proto: unknown = Object.getPrototypeOf(value);
-  const base = proto === Object.prototype || proto === null ? proto : NonPlain.prototype;
+  // An own `constructor` function decides plainness in Zod by reading that untrusted function,
+  // so such an object is copied as non-plain too.
+  const isPlain =
+    (proto === Object.prototype || proto === null) && !hasOwnFunction(value, "constructor");
+  const base = isPlain ? proto : NonPlain.prototype;
   const fields: Fields = Object.create(base) as Fields;
   // Non-enumerable fields stay non-enumerable: the parse still reads a declared one by name,
   // and a strict object still ignores an unknown one, as it does on the original.

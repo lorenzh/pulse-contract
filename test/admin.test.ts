@@ -555,6 +555,38 @@ test("json assert value rejects a date with an own constructor", () => {
   assert.equal(validateAdminCheckView(input).ok, false);
 });
 
+test("json assert value rejects a plain object with an own constructor", () => {
+  let reads = 0;
+  const ctor = (): void => undefined;
+  Object.defineProperty(ctor, "prototype", {
+    get() {
+      reads++;
+      return {};
+    },
+  });
+  for (const value of [Date, ctor]) {
+    const equals = Object.defineProperty({}, "constructor", { value });
+    const input = {
+      id: "h",
+      name: "H",
+      url: "https://x/",
+      intervalMs: 1000,
+      jsonAssert: [{ pointer: "", equals }],
+    };
+    assert.equal(validateCheck(input).ok, false);
+    assert.equal(validateAdminCheckInput(input).ok, false);
+    assert.equal(validateAdminCheckView(input).ok, false);
+    const config = {
+      revision: `sha256-${"0".repeat(64)}`,
+      checks: [input],
+      components: [],
+      maintenance: [],
+    };
+    assert.equal(validateAdminConfigResponse(config).ok, false);
+  }
+  assert.equal(reads, 0);
+});
+
 test("check view never runs an inherited getter in a union option", () => {
   let reads = 0;
   const proto = Object.defineProperty({}, "warnDays", {
