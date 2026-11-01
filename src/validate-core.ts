@@ -134,8 +134,8 @@ function dataView(value: unknown, seen: Set<object>): unknown {
   if (seen.has(value)) {
     return REJECTED_STAND_IN; // JSON has no cycles, and a cycle must not read as absent
   }
-  if (Object.getOwnPropertySymbols(value).length > 0) {
-    return REJECTED_STAND_IN; // a symbol key is not JSON, and the copy below would drop it
+  if (hasEnumerableSymbol(value)) {
+    return REJECTED_STAND_IN; // an enumerable symbol key is not JSON, and the copy would drop it
   }
   seen.add(value);
   let view: unknown;
@@ -152,10 +152,22 @@ function dataView(value: unknown, seen: Set<object>): unknown {
   return view;
 }
 
+function hasEnumerableSymbol(value: object): boolean {
+  return Object.getOwnPropertySymbols(value).some(
+    (key) => Object.getOwnPropertyDescriptor(value, key)?.enumerable === true,
+  );
+}
+
 /** The data value of `key` on `value` or its prototype chain. An accessor gives `{ isAccessor }`. */
 function lookupData(value: object, key: string): { isAccessor: boolean; data: unknown } {
+  const visited = new Set<object>();
   let current: object | null = value;
   while (current !== null) {
+    if (visited.has(current)) {
+      // A Proxy can report a cyclic prototype chain; treat it as non-plain and stop.
+      return { isAccessor: true, data: undefined };
+    }
+    visited.add(current);
     const descriptor = Object.getOwnPropertyDescriptor(current, key);
     if (descriptor !== undefined) {
       return "value" in descriptor
@@ -179,11 +191,11 @@ function isZodPlain(value: object): boolean {
   if (typeof ctor.data !== "function") {
     return true;
   }
-  const prot = Object.getOwnPropertyDescriptor(ctor.data, "prototype");
-  if (prot === undefined || !("value" in prot)) {
+  const prot = lookupData(ctor.data, "prototype");
+  if (prot.isAccessor) {
     return false;
   }
-  const protValue: unknown = prot.value;
+  const protValue: unknown = prot.data;
   return (
     typeof protValue === "object" &&
     protValue !== null &&

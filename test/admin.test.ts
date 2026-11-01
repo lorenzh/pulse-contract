@@ -728,3 +728,43 @@ test("json assert value never runs a getter on a function", () => {
   assert.equal(validateAdminCheckView(input).ok, false);
   assert.equal(reads, 0);
 });
+
+test("check view terminates on a proxy with a cyclic prototype", () => {
+  const input: object = new Proxy(
+    { id: "h", name: "H", url: "https://x/", intervalMs: 1000 },
+    {
+      getPrototypeOf(): object {
+        return input;
+      },
+    },
+  );
+  assert.equal(typeof validateAdminCheckView(input).ok, "boolean");
+});
+
+test("json assert value accepts hidden symbol metadata and an inherited constructor prototype", () => {
+  const ctor = (): void => undefined;
+  Object.setPrototypeOf(ctor, { prototype: Object.prototype });
+  const cases = [
+    Object.defineProperty({}, Symbol("metadata"), { value: "sentinel-552" }),
+    Object.defineProperty({}, "constructor", { value: ctor }),
+  ];
+  for (const equals of cases) {
+    const input = {
+      id: "h",
+      name: "H",
+      url: "https://x/",
+      intervalMs: 1000,
+      jsonAssert: [{ pointer: "", equals }],
+    };
+    const config = {
+      revision: `sha256-${"0".repeat(64)}`,
+      checks: [input],
+      components: [],
+      maintenance: [],
+    };
+    assert.equal(validateCheck(input).ok, true);
+    assert.equal(validateAdminCheckInput(input).ok, true);
+    assert.equal(validateAdminCheckView(input).ok, true);
+    assert.equal(validateAdminConfigResponse(config).ok, true);
+  }
+});
