@@ -1,6 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { checkWireVersion, WIRE_VERSION, WIRE_VERSION_HEADER } from "../src/index.ts";
+import { checkWireVersion, WIRE_VERSION, WIRE_VERSION_HEADER } from "../src/version.ts";
 
 test("wire version constants", () => {
   assert.equal(WIRE_VERSION, 1);

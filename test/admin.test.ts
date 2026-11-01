@@ -2,12 +2,13 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
   ADMIN_IF_MATCH_HEADER,
-  ADMIN_REVISION_PREFIX,
   ADMIN_STATUS_ORDER,
   type AdminCheckInput,
   type AdminConfigResponse,
   adminCheckInputSchema,
-  isAdminRevision,
+} from "../src/admin.ts";
+import { ADMIN_REVISION_PREFIX, isAdminRevision } from "../src/revision.ts";
+import {
   validateAdminCheckInput,
   validateAdminCheckView,
   validateAdminComponent,
@@ -15,7 +16,7 @@ import {
   validateAdminConfigResponse,
   validateAdminMaintenanceInput,
   validateAdminMaintenanceView,
-} from "../src/index.ts";
+} from "../src/validate-admin.ts";
 
 const SENTINEL = "SENTINEL-secret-value";
 const revision = `${ADMIN_REVISION_PREFIX}${"a".repeat(64)}`;

@@ -13,7 +13,6 @@ import {
   adminMaintenanceInputSchema,
   adminMaintenanceViewSchema,
 } from "./admin.ts";
-import { validateCheck } from "./validate.ts";
 import {
   isObject,
   ownValue,
@@ -40,8 +39,7 @@ function checkInputProblem(value: unknown, path: string): string | undefined {
       ? adminCheckInputSchemas[type as keyof typeof adminCheckInputSchemas]
       : undefined;
   if (schema === undefined) {
-    const base = validateCheck(value, path); // only for its type message
-    return base.ok ? undefined : base.error;
+    return `${path}.type: must be "http", "tls", "tcp", "dns", "domain" or "heartbeat"`;
   }
   const unknown = Object.keys(value).find((key) => !Object.hasOwn(schema.shape, key));
   if (unknown !== undefined) {
