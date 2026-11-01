@@ -448,6 +448,19 @@ test("check view rejects a cyclic field in a union option", () => {
   assert.equal(validateAdminCheckView(input).ok, false);
 });
 
+test("json assert value rejects an object with a symbol key", () => {
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [{ pointer: "", equals: { [Symbol("non-json")]: "sentinel-552" } }],
+  };
+  assert.equal(validateCheck(input).ok, false);
+  assert.equal(validateAdminCheckInput(input).ok, false);
+  assert.equal(validateAdminCheckView(input).ok, false);
+});
+
 test("check view never runs a getter inside a json assert value", () => {
   let reads = 0;
   const equals = Object.defineProperty({}, "secret", {

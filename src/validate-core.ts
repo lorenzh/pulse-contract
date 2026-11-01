@@ -126,6 +126,9 @@ function dataView(value: unknown, seen: Set<object>): unknown {
   if (seen.has(value)) {
     return REJECTED_STAND_IN; // JSON has no cycles, and a cycle must not read as absent
   }
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    return REJECTED_STAND_IN; // a symbol key is not JSON, and the copy below would drop it
+  }
   seen.add(value);
   let view: unknown;
   if (Array.isArray(value)) {
