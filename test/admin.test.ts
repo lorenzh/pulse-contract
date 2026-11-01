@@ -633,6 +633,33 @@ test("check view never runs a getter added to Object.prototype", () => {
   assert.equal(reads, 0);
 });
 
+test("http cross-field rules never run a getter added to Object.prototype", () => {
+  for (const key of ["method", "body", "jsonAssert", "keyword"]) {
+    let reads = 0;
+    Object.defineProperty(Object.prototype, key, {
+      configurable: true,
+      get() {
+        reads++;
+        return undefined;
+      },
+    });
+    try {
+      const input = { id: "h", name: "H", url: "https://x/", intervalMs: 1000 };
+      assert.equal(validateAdminCheckView(input).ok, true);
+      const config = {
+        revision: `sha256-${"0".repeat(64)}`,
+        checks: [input],
+        components: [],
+        maintenance: [],
+      };
+      assert.equal(validateAdminConfigResponse(config).ok, true);
+    } finally {
+      Reflect.deleteProperty(Object.prototype, key);
+    }
+    assert.equal(reads, 0, key);
+  }
+});
+
 test("check view never runs an inherited getter in a union option", () => {
   let reads = 0;
   const proto = Object.defineProperty({}, "warnDays", {

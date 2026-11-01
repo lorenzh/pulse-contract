@@ -201,13 +201,16 @@ const jsonAssertListSchema = z
     .max(10, "must have at most 10 entries");
 /** Cross-field rules of an http check; shared with the admin schemas, which cannot `.omit()` a refined object. */
 export function refineHttpCheck(check, ctx) {
-    const method = check.method ?? "GET";
-    if (check.body !== undefined && (method === "GET" || method === "HEAD")) {
+    // Read own fields only: an inherited getter on Object.prototype must never run.
+    const own = (key) => Object.hasOwn(check, key) ? check[key] : undefined;
+    const methodValue = own("method");
+    const method = typeof methodValue === "string" ? methodValue : "GET";
+    if (own("body") !== undefined && (method === "GET" || method === "HEAD")) {
         ctx.addIssue({ code: "custom", path: ["body"], message: `is not allowed with ${method}` });
     }
     if (method === "HEAD") {
         for (const key of ["jsonAssert", "keyword"]) {
-            if (check[key] !== undefined) {
+            if (own(key) !== undefined) {
                 ctx.addIssue({ code: "custom", path: [key], message: "is not allowed with HEAD" });
             }
         }

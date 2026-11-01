@@ -247,13 +247,17 @@ export function refineHttpCheck(
   check: { method?: string | undefined; body?: unknown; jsonAssert?: unknown; keyword?: unknown },
   ctx: z.RefinementCtx,
 ): void {
-  const method = check.method ?? "GET";
-  if (check.body !== undefined && (method === "GET" || method === "HEAD")) {
+  // Read own fields only: an inherited getter on Object.prototype must never run.
+  const own = (key: "method" | "body" | "jsonAssert" | "keyword"): unknown =>
+    Object.hasOwn(check, key) ? check[key] : undefined;
+  const methodValue = own("method");
+  const method = typeof methodValue === "string" ? methodValue : "GET";
+  if (own("body") !== undefined && (method === "GET" || method === "HEAD")) {
     ctx.addIssue({ code: "custom", path: ["body"], message: `is not allowed with ${method}` });
   }
   if (method === "HEAD") {
     for (const key of ["jsonAssert", "keyword"] as const) {
-      if (check[key] !== undefined) {
+      if (own(key) !== undefined) {
         ctx.addIssue({ code: "custom", path: [key], message: "is not allowed with HEAD" });
       }
     }
