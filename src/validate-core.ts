@@ -160,6 +160,11 @@ function objectCopy(value: object, seen: Set<object>): Fields {
       continue;
     }
     const isEnumerable = descriptor.enumerable === true;
+    if (key === "constructor" && base === NonPlain.prototype && !isEnumerable) {
+      // Zod tests plainness through `constructor`. The trusted NonPlain one keeps the copy
+      // non-plain; a stand-in would make a Date with an own constructor read as plain.
+      continue;
+    }
     if (!("value" in descriptor)) {
       // The getter never runs. An enumerable accessor keeps its key with a value no schema
       // accepts: an unknown key stays rejected by a strict object, and a declared one cannot

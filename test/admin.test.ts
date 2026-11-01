@@ -541,6 +541,20 @@ test("json assert value still rejects a non-json object", () => {
   }
 });
 
+test("json assert value rejects a date with an own constructor", () => {
+  const equals = Object.defineProperty(new Date(0), "constructor", { value: Date });
+  const input = {
+    id: "h",
+    name: "H",
+    url: "https://x/",
+    intervalMs: 1000,
+    jsonAssert: [{ pointer: "", equals }],
+  };
+  assert.equal(validateCheck(input).ok, false);
+  assert.equal(validateAdminCheckInput(input).ok, false);
+  assert.equal(validateAdminCheckView(input).ok, false);
+});
+
 test("check view never runs an inherited getter in a union option", () => {
   let reads = 0;
   const proto = Object.defineProperty({}, "warnDays", {
