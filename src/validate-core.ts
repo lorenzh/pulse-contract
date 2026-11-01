@@ -138,26 +138,40 @@ function dataView(value: unknown, seen: Set<object>): unknown {
     }
     view = items;
   } else {
-    // A plain object keeps its plain prototype. Any other prototype (a Date, a class instance) is
-    // swapped for a trusted non-plain one: a JSON value schema still rejects it, and no inherited
-    // getter of the untrusted prototype can run.
-    const proto: unknown = Object.getPrototypeOf(value);
-    const base = proto === Object.prototype || proto === null ? proto : NonPlain.prototype;
-    const fields: Fields = Object.create(base) as Fields;
-    // Non-enumerable fields stay non-enumerable: the parse still reads a declared one by name,
-    // and a strict object still ignores an unknown one, as it does on the original.
-    for (const key of Object.getOwnPropertyNames(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (descriptor === undefined || !("value" in descriptor)) {
-        continue; // an accessor counts as absent, as in objectView, and its getter never runs
-      }
-      const isEnumerable = Object.prototype.propertyIsEnumerable.call(value, key);
-      define(fields, key, dataView(ownValue(value, key), seen), isEnumerable);
-    }
-    view = fields;
+    view = objectCopy(value, seen);
   }
   seen.delete(value);
   return view;
+}
+
+/** Copies the own data fields of a non-array object for dataView. */
+function objectCopy(value: object, seen: Set<object>): Fields {
+  // A plain object keeps its plain prototype. Any other prototype (a Date, a class instance) is
+  // swapped for a trusted non-plain one: a JSON value schema still rejects it, and no inherited
+  // getter of the untrusted prototype can run.
+  const proto: unknown = Object.getPrototypeOf(value);
+  const base = proto === Object.prototype || proto === null ? proto : NonPlain.prototype;
+  const fields: Fields = Object.create(base) as Fields;
+  // Non-enumerable fields stay non-enumerable: the parse still reads a declared one by name,
+  // and a strict object still ignores an unknown one, as it does on the original.
+  for (const key of Object.getOwnPropertyNames(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined) {
+      continue;
+    }
+    const isEnumerable = descriptor.enumerable === true;
+    if (!("value" in descriptor)) {
+      // The getter never runs. An enumerable accessor keeps its key with a value no schema
+      // accepts: an unknown key stays rejected by a strict object, and a declared one cannot
+      // pass as present but empty.
+      if (isEnumerable) {
+        define(fields, key, REJECTED_STAND_IN, true);
+      }
+      continue;
+    }
+    define(fields, key, dataView(ownValue(value, key), seen), isEnumerable);
+  }
+  return fields;
 }
 
 function recordView(valueType: z.ZodType, value: Fields): Fields {

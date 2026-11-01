@@ -487,6 +487,25 @@ test("json assert equals accessor counts as absent", () => {
   assert.equal(reads, 0);
 });
 
+test("check view rejects an unknown accessor field", () => {
+  let reads = 0;
+  const input = Object.defineProperty(
+    { id: "h", name: "H", url: "https://x/", intervalMs: 1000 },
+    "secret",
+    {
+      enumerable: true,
+      get() {
+        reads += 1;
+        return "sentinel-552";
+      },
+    },
+  );
+  assert.equal(validateAdminCheckView(input).ok, false);
+  const config = { revision, checks: [input], components: [], maintenance: [] };
+  assert.equal(validateAdminConfigResponse(config).ok, false);
+  assert.equal(reads, 0);
+});
+
 test("check view never runs a getter inside a json assert value", () => {
   let reads = 0;
   const equals = Object.defineProperty({}, "secret", {
