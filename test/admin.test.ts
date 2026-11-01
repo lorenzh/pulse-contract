@@ -1,5 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
+import { runInNewContext } from "node:vm";
 import {
   ADMIN_IF_MATCH_HEADER,
   ADMIN_STATUS_ORDER,
@@ -606,6 +607,31 @@ test("json assert value accepts a plain object with an own Object constructor", 
     maintenance: [],
   };
   assert.equal(validateAdminConfigResponse(config).ok, true);
+});
+
+test("json assert value accepts a plain object from another realm or prototype", () => {
+  for (const equals of [
+    runInNewContext("({ ok: true })") as unknown,
+    Object.create({}) as unknown,
+  ]) {
+    const input = {
+      id: "h",
+      name: "H",
+      url: "https://x/",
+      intervalMs: 1000,
+      jsonAssert: [{ pointer: "", equals }],
+    };
+    assert.equal(validateCheck(input).ok, true);
+    assert.equal(validateAdminCheckInput(input).ok, true);
+    assert.equal(validateAdminCheckView(input).ok, true);
+    const config = {
+      revision: `sha256-${"0".repeat(64)}`,
+      checks: [input],
+      components: [],
+      maintenance: [],
+    };
+    assert.equal(validateAdminConfigResponse(config).ok, true);
+  }
 });
 
 test("check view never runs a getter added to Object.prototype", () => {

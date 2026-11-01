@@ -121,23 +121,48 @@ function dataView(value, seen) {
     seen.delete(value);
     return view;
 }
-/** Whether an own `constructor` makes Zod treat the object as non-plain. Only `Object` keeps it plain. */
-function hasNonPlainConstructor(value) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, "constructor");
-    return (descriptor !== undefined &&
-        typeof descriptor.value === "function" &&
-        descriptor.value !== Object);
+/** The data value of `key` on `value` or its prototype chain. An accessor gives `{ isAccessor }`. */
+function lookupData(value, key) {
+    let current = value;
+    while (current !== null) {
+        const descriptor = Object.getOwnPropertyDescriptor(current, key);
+        if (descriptor !== undefined) {
+            return "value" in descriptor
+                ? { isAccessor: false, data: descriptor.value }
+                : { isAccessor: true, data: undefined };
+        }
+        current = Object.getPrototypeOf(current);
+    }
+    return { isAccessor: false, data: undefined };
+}
+/**
+ * Zod's plain-object test, read from property descriptors so no getter runs. An object from
+ * another realm or with a plain prototype stays plain. An accessor on the way counts as non-plain.
+ */
+function isZodPlain(value) {
+    const ctor = lookupData(value, "constructor");
+    if (ctor.isAccessor) {
+        return false;
+    }
+    if (typeof ctor.data !== "function") {
+        return true;
+    }
+    const prot = Object.getOwnPropertyDescriptor(ctor.data, "prototype");
+    if (prot === undefined || !("value" in prot)) {
+        return false;
+    }
+    const protValue = prot.value;
+    return (typeof protValue === "object" &&
+        protValue !== null &&
+        !Array.isArray(protValue) &&
+        Object.hasOwn(protValue, "isPrototypeOf"));
 }
 /** Copies the own data fields of a non-array object for dataView. */
 function objectCopy(value, seen) {
     // A plain object is copied onto a null prototype, any other (a Date, a class instance) onto a
     // trusted non-plain one. A JSON value schema still rejects the second, and no inherited getter
     // runs, also not one added to Object.prototype.
-    const proto = Object.getPrototypeOf(value);
-    // An own `constructor` function decides plainness in Zod by reading that untrusted function,
-    // so it is judged here by identity only: `Object` stays plain, any other is non-plain.
-    const isPlain = (proto === Object.prototype || proto === null) && !hasNonPlainConstructor(value);
-    const base = isPlain ? null : NON_PLAIN_PROTO;
+    const base = isZodPlain(value) ? null : NON_PLAIN_PROTO;
     const fields = Object.create(base);
     // Non-enumerable fields stay non-enumerable: the parse still reads a declared one by name,
     // and a strict object still ignores an unknown one, as it does on the original.
