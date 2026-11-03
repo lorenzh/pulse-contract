@@ -705,8 +705,8 @@ test("15d: unicode stays as written", () => {
   );
   same(
     p.validateComponent,
-    JSON.parse(`${COMPONENT_TEXT},"café":1,"café":2}`),
-    fail("component: has an unknown field: café, café"),
+    JSON.parse(`${COMPONENT_TEXT},"caf\u00e9":1,"cafe\u0301":2}`),
+    fail("component: has an unknown field: caf\u00e9, cafe\u0301"),
   );
 });
 
