@@ -1,6 +1,8 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
+  type CheckLatency,
+  type CheckUptime,
   MAX_TIMER_MS,
   validateAdminCheckInput,
   validateCheck,
@@ -9,6 +11,7 @@ import {
   validateCheckWithState,
   validateIncident,
   validateIncidentsResponse,
+  validateLatencyResponse,
   validateMaintenanceResponse,
   validateMaintenanceWindow,
   validatePostResultRequest,
@@ -674,4 +677,59 @@ test("hostile proxies in header references, records and arrays never throw", () 
     errorOf(validateCheck({ ...check, headers: headerRef })),
     "check: is not a valid value",
   );
+});
+
+const uptimeItem: CheckUptime = {
+  checkId: "c",
+  days: Array.from({ length: 90 }, (_, i) => ({
+    date: new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10),
+    uptime: 99.5,
+    results: 288,
+  })),
+  uptime: 99.5,
+};
+const latencyItem: CheckLatency = {
+  checkId: "c",
+  days: Array.from({ length: 90 }, (_, i) => ({
+    date: new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10),
+    p50Ms: 20,
+    p95Ms: 40,
+    count: 10,
+  })),
+};
+const responseCases = [
+  { name: "uptime", item: uptimeItem, validate: validateUptimeResponse },
+  { name: "latency", item: latencyItem, validate: validateLatencyResponse },
+] as const;
+
+test("top-level response elements count only as own data properties", () => {
+  for (const { name, item, validate } of responseCases) {
+    const mixed: unknown[] = [item];
+    mixed.length = 2;
+    Object.setPrototypeOf(mixed, [item, item]);
+    assert.deepEqual(validate(mixed), { ok: false, error: `${name}[1]: must be an object` });
+    const inherited: unknown[] = new Array(2);
+    Object.setPrototypeOf(inherited, [item, item]);
+    assert.deepEqual(validate(inherited), { ok: false, error: `${name}[0]: must be an object` });
+  }
+});
+
+test("top-level response holes and accessors keep their texts", () => {
+  for (const { name, item, validate } of responseCases) {
+    // biome-ignore lint/suspicious/noSparseArray: the hole is the case under test
+    assert.equal(errorOf(validate([item, , item])), `${name}[1]: must be an object`);
+    let calls = 0;
+    const accessor = Object.defineProperty([item], 0, {
+      enumerable: true,
+      get(): unknown {
+        calls += 1;
+        return item;
+      },
+    });
+    assert.equal(errorOf(validate(accessor)), `${name}[0]: is required`);
+    assert.equal(calls, 0);
+    const dense = [JSON.parse(JSON.stringify(item)) as unknown];
+    const result = validate(dense);
+    assert.equal(result.ok && result.value, dense);
+  }
 });
