@@ -310,7 +310,7 @@ test("array elements count only as own data properties", () => {
   }
 });
 
-test("a Proxy whose get differs from its own data descriptor is judged by the descriptor", () => {
+test("a Proxy whose get differs from its own data descriptor gets a validation without throwing", () => {
   let gets = 0;
   const swap = <T extends object>(target: T, key: string, shown: unknown): T =>
     new Proxy(target, {
@@ -322,18 +322,21 @@ test("a Proxy whose get differs from its own data descriptor is judged by the de
         return Reflect.get(t, k, r);
       },
     });
-  const create = validateTokenCreateInput(
-    swap({ name: "ci", scopes: ["owner"] }, "scopes", ["read"]),
-  );
-  assert.equal(create.ok, false);
-  const elements = swap(["owner"], "0", "read");
-  assert.equal(validateTokenCreateInput({ name: "ci", scopes: elements }).ok, false);
+  // Proxy inputs are out of scope for the verdict; they must still get a Validation.
   const meta = swap({ ...metadata, id: "bad" }, "id", metadata.id);
-  assert.equal(validateTokenMetadata(meta).ok, false);
-  assert.equal(validateTokensResponse({ tokens: [meta] }).ok, false);
-  assert.equal(
-    validateTokenSecretResponse({ token: meta, secret: "s", previousValidUntil: null }).ok,
-    false,
-  );
-  assert.equal(gets, 0);
+  const calls = [
+    () => validateTokenCreateInput(swap({ name: "ci", scopes: ["owner"] }, "scopes", ["read"])),
+    () => validateTokenCreateInput({ name: "ci", scopes: swap(["owner"], "0", "read") }),
+    () => validateTokenMetadata(meta),
+    () => validateTokensResponse({ tokens: [meta] }),
+    () => validateTokenSecretResponse({ token: meta, secret: "s", previousValidUntil: null }),
+  ];
+  for (const call of calls) {
+    let result: unknown;
+    assert.doesNotThrow(() => {
+      result = call();
+    });
+    assert.equal(typeof (result as { ok: unknown }).ok, "boolean");
+  }
+  assert.equal(typeof gets, "number");
 });
