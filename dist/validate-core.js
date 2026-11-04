@@ -246,6 +246,7 @@ const getPrototype = Object.getPrototypeOf;
 const hasOwn = Object.hasOwn;
 const getDescriptor = Object.getOwnPropertyDescriptor;
 const isArray = Array.isArray;
+const objectKeys = Object.keys;
 const OBJECT_PROTOTYPE = Object.prototype;
 const ARRAY_PROTOTYPE = Array.prototype;
 const FUNCTION_PROTOTYPE = Function.prototype;
@@ -432,12 +433,13 @@ function compileWalk(schema) {
     }
     return pass;
 }
-/** Zod's strict-key check is a `for … in` loop, which also sees inherited enumerable keys. */
+/**
+ * Zod's strict-key check is a `for … in` loop, which also sees inherited enumerable keys. Plain
+ * input inherits only from Object.prototype, whose prototype is null, so its own enumerable string
+ * keys are all such a loop can inherit. Object.keys is cheaper here than a `for … in` loop.
+ */
 function hasInheritedEnumerableKey() {
-    for (const key in OBJECT_PROTOTYPE) {
-        return typeof key === "string";
-    }
-    return false;
+    return objectKeys(OBJECT_PROTOTYPE).length !== 0;
 }
 /**
  * Returns the error text, or undefined when the value matches the schema. Plain own-data input,
