@@ -7,6 +7,8 @@ import {
   type AdminCheckInput,
   type AdminConfigResponse,
   adminCheckInputSchema,
+  adminFileStatusSchema,
+  adminKeepSchema,
 } from "../src/admin.ts";
 import { ADMIN_REVISION_PREFIX, isAdminRevision } from "../src/revision.ts";
 import { latencyDaySchema, locationSchema, manualIncidentSchema } from "../src/schema.ts";
@@ -16,7 +18,9 @@ import {
   validateAdminCheckView,
   validateAdminComponent,
   validateAdminComponentInput,
+  validateAdminConfigExport,
   validateAdminConfigResponse,
+  validateAdminConfigSummary,
   validateAdminMaintenanceInput,
   validateAdminMaintenanceView,
 } from "../src/validate-admin.ts";
@@ -53,6 +57,17 @@ const SENTINEL = "SENTINEL-secret-value";
 const revision = `${ADMIN_REVISION_PREFIX}${"a".repeat(64)}`;
 const revisionPattern = `^${ADMIN_REVISION_PREFIX}[0-9a-f]{64}$`;
 const http = { id: "a", name: "A", url: "https://x", intervalMs: 1000 };
+const httpView = { ...http, source: "file" as const };
+const heartbeat = { id: "h", name: "H", type: "heartbeat", period: 1000, grace: 0 };
+const okFile = { state: "ok", message: null, lastAppliedAt: 1 };
+const emptyConfig = {
+  revision,
+  checks: [],
+  shadowed: [],
+  components: [],
+  maintenance: [],
+  file: okFile,
+};
 
 test("revision format", () => {
   assert.equal(isAdminRevision(revision), true);
@@ -119,28 +134,39 @@ test("check input rejects a bad secret, unknown keys and state fields", () => {
   assert.equal(validateAdminCheckInput("x").ok, false);
 });
 
-test("check view carries names, hasBody and hasSecret only", () => {
+test("check view carries source, env references, keep markers and hasSecret only", () => {
   assert.equal(
-    validateAdminCheckView({ ...http, headers: ["X-Key"], hasBody: true, method: "POST" }).ok,
+    validateAdminCheckView({
+      ...httpView,
+      headers: { "X-Key": { keep: true }, "X-Env": { env: "PULSE_HEADER_KEY" } },
+      body: { keep: true },
+      method: "POST",
+    }).ok,
     true,
   );
-  const hb = { id: "h", name: "H", type: "heartbeat", period: 1000, grace: 0, hasSecret: true };
+  const hb = { ...heartbeat, hasSecret: true, source: "file" };
   assert.equal(validateAdminCheckView(hb).ok, true);
   assert.equal(validateAdminCheckView({ ...hb, hasSecret: undefined }).ok, false);
+  assert.equal(validateAdminCheckView({ ...hb, source: undefined }).ok, false);
+  assert.equal(validateAdminCheckView({ ...hb, source: "api" }).ok, false);
 });
 
-test("check view rejects header values, body and secret", () => {
-  assert.equal(validateAdminCheckView({ ...http, headers: { "X-Key": SENTINEL } }).ok, false);
-  assert.equal(
-    validateAdminCheckView({ ...http, headers: [{ env: "PULSE_HEADER_KEY" }] }).ok,
-    false,
-  );
-  assert.equal(validateAdminCheckView({ ...http, body: SENTINEL }).ok, false);
-  const hb = { id: "h", name: "H", type: "heartbeat", period: 1000, grace: 0, hasSecret: true };
+test("check view rejects header values, names arrays, hasBody, body and secret", () => {
+  assert.equal(validateAdminCheckView({ ...httpView, headers: { "X-Key": SENTINEL } }).ok, false);
+  assert.equal(validateAdminCheckView({ ...httpView, headers: ["X-Key"] }).ok, false);
+  assert.equal(validateAdminCheckView({ ...httpView, hasBody: true }).ok, false);
+  assert.equal(validateAdminCheckView({ ...httpView, body: SENTINEL }).ok, false);
+  const hb = { ...heartbeat, hasSecret: true, source: "database" };
   assert.equal(validateAdminCheckView({ ...hb, secret: SENTINEL }).ok, false);
   const tcp = { id: "t", name: "T", type: "tcp", host: "h", port: 1, intervalMs: 1000 };
-  assert.equal(validateAdminCheckView(tcp).ok, true);
-  assert.equal(validateAdminCheckView({ ...tcp, secret: SENTINEL }).ok, false);
+  assert.equal(validateAdminCheckView({ ...tcp, source: "file" }).ok, true);
+  assert.equal(validateAdminCheckView({ ...tcp, source: "file", secret: SENTINEL }).ok, false);
+  for (const result of [
+    validateAdminCheckView({ ...httpView, headers: { "X-Key": SENTINEL } }),
+    validateAdminCheckView({ ...httpView, body: SENTINEL }),
+  ]) {
+    assert.equal(JSON.stringify(result).includes(SENTINEL), false);
+  }
 });
 
 test("component and maintenance bodies are strict", () => {
@@ -159,9 +185,11 @@ test("component and maintenance bodies are strict", () => {
 test("config response", () => {
   const config: AdminConfigResponse = {
     revision,
-    checks: [{ ...http, headers: ["X-Key"] }],
+    checks: [{ ...httpView, headers: { "X-Key": { keep: true } } }],
+    shadowed: [{ ...httpView, source: "database" }],
     components: [{ id: "web", name: "Web", checkIds: ["a"] }],
     maintenance: [{ checkId: "a", start: 1, end: 2, note: "n", index: 0 }],
+    file: { state: "invalid", message: "checks[0].url: is required", lastAppliedAt: 5 },
   };
   assert.equal(validateAdminConfigResponse(config).ok, true);
   assert.deepEqual(validateAdminConfigResponse({ ...config, revision: "x" }), {
@@ -170,9 +198,11 @@ test("config response", () => {
   });
   assert.equal(validateAdminConfigResponse({ ...config, secret: SENTINEL }).ok, false);
   assert.equal(
-    validateAdminConfigResponse({ ...config, checks: [{ ...http, body: SENTINEL }] }).ok,
+    validateAdminConfigResponse({ ...config, checks: [{ ...httpView, body: SENTINEL }] }).ok,
     false,
   );
+  assert.equal(validateAdminConfigResponse({ ...config, shadowed: undefined }).ok, false);
+  assert.equal(validateAdminConfigResponse({ ...config, file: undefined }).ok, false);
 });
 
 test("check input reports a bad secret type and unknown secret on non-objects", () => {
@@ -190,6 +220,14 @@ test("status order names the token outcomes and keeps its statuses", () => {
   assert.deepEqual(
     ADMIN_STATUS_ORDER.map((entry) => entry.status),
     [404, 401, 403, 413, 400, 428, 503, 412, 422, 409, 404],
+  );
+  assert.equal(
+    ADMIN_STATUS_ORDER[6].meaning,
+    "checks file not writable (component and maintenance writes)",
+  );
+  assert.equal(
+    ADMIN_STATUS_ORDER[9].meaning,
+    "id exists, still referenced, a file check, or a shadowed database check",
   );
   assert.equal(
     ADMIN_STATUS_ORDER[1].meaning,
@@ -241,10 +279,17 @@ test("check input has an exported strict schema that the validator agrees with",
 });
 
 test("check view keeps the check refinements", () => {
-  const domain = { id: "d", name: "D", type: "domain", domain: "example.com", warnDays: 1 };
+  const domain = {
+    id: "d",
+    name: "D",
+    type: "domain",
+    domain: "example.com",
+    warnDays: 1,
+    source: "file",
+  };
   assert.equal(validateAdminCheckView({ ...domain, intervalMs: 3_600_000 }).ok, true);
   assert.equal(validateAdminCheckView({ ...domain, intervalMs: 1 }).ok, false);
-  assert.equal(validateAdminCheckView({ ...http, method: "HEAD", keyword: "x" }).ok, false);
+  assert.equal(validateAdminCheckView({ ...httpView, method: "HEAD", keyword: "x" }).ok, false);
 });
 
 test("heartbeat view requires hasSecret: true", () => {
@@ -384,7 +429,7 @@ test("admin check input rejects a userinfo url and an unprefixed env name", () =
 
 test("admin check view and http input reject a non-http url", () => {
   const message = "check.url: must be an http: or https: URL";
-  assert.deepEqual(validateAdminCheckView({ ...http, url: "file:///x" }), {
+  assert.deepEqual(validateAdminCheckView({ ...httpView, url: "file:///x" }), {
     ok: false,
     error: message,
   });
@@ -395,7 +440,15 @@ test("admin check view and http input reject a non-http url", () => {
 });
 
 test("check view never runs a getter on a field of a union option", () => {
-  const tls = { id: "t", name: "T", type: "tls", host: "h", port: 443, intervalMs: 1000 };
+  const tls = {
+    id: "t",
+    name: "T",
+    type: "tls",
+    host: "h",
+    port: 443,
+    intervalMs: 1000,
+    source: "file",
+  };
   const field = withAccessor(tls, "warnDays", {
     returns: 3651,
     isEnumerable: true,
@@ -416,6 +469,8 @@ test("check view never runs a getter on a field of a union option", () => {
     checks: [nested.input],
     components: [],
     maintenance: [],
+    shadowed: [],
+    file: okFile,
   };
   assert.equal(validateAdminConfigResponse(config).ok, false);
   assert.equal(nested.calls(), 0);
@@ -430,6 +485,7 @@ test("check view keeps a non-enumerable field in a union option", () => {
     port: 443,
     warnDays: 14,
     intervalMs: 1000,
+    source: "file",
   });
   Object.defineProperty(input, "headers", { value: { Authorization: "sentinel-552" } });
   assert.equal(validateAdminCheckView(input).ok, false);
@@ -455,6 +511,7 @@ test("json assert value rejects an object with a symbol key", () => {
     name: "H",
     url: "https://x/",
     intervalMs: 1000,
+    source: "database",
     jsonAssert: [{ pointer: "", equals: { [Symbol("non-json")]: "sentinel-552" } }],
   };
   assert.equal(validateCheck(input).ok, false);
@@ -476,12 +533,13 @@ test("json assert equals accessor counts as absent", () => {
     name: "H",
     url: "https://x/",
     intervalMs: 1000,
+    source: "database",
     jsonAssert: [assertion],
   };
   assert.equal(validateCheck(input).ok, false);
   assert.equal(validateAdminCheckInput(input).ok, false);
   assert.equal(validateAdminCheckView(input).ok, false);
-  const config = { revision, checks: [input], components: [], maintenance: [] };
+  const config = { ...emptyConfig, checks: [input] };
   assert.equal(validateAdminConfigResponse(config).ok, false);
   const valid = { ...input, jsonAssert: [{ pointer: "", exists: true }] };
   assert.equal(validateAdminConfigResponse({ ...config, checks: [valid] }).ok, true);
@@ -491,7 +549,7 @@ test("json assert equals accessor counts as absent", () => {
 test("check view rejects an unknown accessor field", () => {
   let reads = 0;
   const input = Object.defineProperty(
-    { id: "h", name: "H", url: "https://x/", intervalMs: 1000 },
+    { id: "h", name: "H", url: "https://x/", intervalMs: 1000, source: "file" },
     "secret",
     {
       enumerable: true,
@@ -502,7 +560,7 @@ test("check view rejects an unknown accessor field", () => {
     },
   );
   assert.equal(validateAdminCheckView(input).ok, false);
-  const config = { revision, checks: [input], components: [], maintenance: [] };
+  const config = { ...emptyConfig, checks: [input] };
   assert.equal(validateAdminConfigResponse(config).ok, false);
   assert.equal(reads, 0);
 });
@@ -521,6 +579,7 @@ test("check view never runs a getter inside a json assert value", () => {
     name: "H",
     url: "https://x/",
     intervalMs: 1000,
+    source: "database",
     jsonAssert: [{ pointer: "", equals }],
   };
   validateAdminCheckView(input);
@@ -534,6 +593,7 @@ test("json assert value still rejects a non-json object", () => {
       name: "H",
       url: "https://x/",
       intervalMs: 1000,
+      source: "database",
       jsonAssert: [{ pointer: "", equals }],
     };
     assert.equal(validateCheck(input).ok, false);
@@ -549,6 +609,7 @@ test("json assert value rejects a date with an own constructor", () => {
     name: "H",
     url: "https://x/",
     intervalMs: 1000,
+    source: "database",
     jsonAssert: [{ pointer: "", equals }],
   };
   assert.equal(validateCheck(input).ok, false);
@@ -572,6 +633,7 @@ test("json assert value rejects a plain object with an own constructor", () => {
       name: "H",
       url: "https://x/",
       intervalMs: 1000,
+      source: "database",
       jsonAssert: [{ pointer: "", equals }],
     };
     assert.equal(validateCheck(input).ok, false);
@@ -582,6 +644,8 @@ test("json assert value rejects a plain object with an own constructor", () => {
       checks: [input],
       components: [],
       maintenance: [],
+      shadowed: [],
+      file: okFile,
     };
     assert.equal(validateAdminConfigResponse(config).ok, false);
   }
@@ -595,6 +659,7 @@ test("json assert value accepts a plain object with an own Object constructor", 
     name: "H",
     url: "https://x/",
     intervalMs: 1000,
+    source: "database",
     jsonAssert: [{ pointer: "", equals }],
   };
   assert.equal(validateCheck(input).ok, true);
@@ -605,6 +670,8 @@ test("json assert value accepts a plain object with an own Object constructor", 
     checks: [input],
     components: [],
     maintenance: [],
+    shadowed: [],
+    file: okFile,
   };
   assert.equal(validateAdminConfigResponse(config).ok, true);
 });
@@ -619,6 +686,7 @@ test("json assert value accepts a plain object from another realm or prototype",
       name: "H",
       url: "https://x/",
       intervalMs: 1000,
+      source: "database",
       jsonAssert: [{ pointer: "", equals }],
     };
     assert.equal(validateCheck(input).ok, true);
@@ -629,6 +697,8 @@ test("json assert value accepts a plain object from another realm or prototype",
       checks: [input],
       components: [],
       maintenance: [],
+      shadowed: [],
+      file: okFile,
     };
     assert.equal(validateAdminConfigResponse(config).ok, true);
   }
@@ -644,13 +714,15 @@ test("check view never runs a getter added to Object.prototype", () => {
     },
   });
   try {
-    const input = { id: "h", name: "H", url: "https://x/", intervalMs: 1000 };
+    const input = { id: "h", name: "H", url: "https://x/", intervalMs: 1000, source: "file" };
     assert.equal(validateAdminCheckView(input).ok, true);
     const config = {
       revision: `sha256-${"0".repeat(64)}`,
       checks: [input],
       components: [],
       maintenance: [],
+      shadowed: [],
+      file: okFile,
     };
     assert.equal(validateAdminConfigResponse(config).ok, true);
   } finally {
@@ -670,13 +742,15 @@ test("http cross-field rules never run a getter added to Object.prototype", () =
       },
     });
     try {
-      const input = { id: "h", name: "H", url: "https://x/", intervalMs: 1000 };
+      const input = { id: "h", name: "H", url: "https://x/", intervalMs: 1000, source: "file" };
       assert.equal(validateAdminCheckView(input).ok, true);
       const config = {
         revision: `sha256-${"0".repeat(64)}`,
         checks: [input],
         components: [],
         maintenance: [],
+        shadowed: [],
+        file: okFile,
       };
       assert.equal(validateAdminConfigResponse(config).ok, true);
     } finally {
@@ -721,6 +795,7 @@ test("json assert value never runs a getter on a function", () => {
     name: "H",
     url: "https://x/",
     intervalMs: 1000,
+    source: "database",
     jsonAssert: [{ pointer: "", equals: { constructor: ctor } }],
   };
   assert.equal(validateCheck(input).ok, false);
@@ -731,7 +806,7 @@ test("json assert value never runs a getter on a function", () => {
 
 test("check view terminates on a proxy with a cyclic prototype", () => {
   const input: object = new Proxy(
-    { id: "h", name: "H", url: "https://x/", intervalMs: 1000 },
+    { id: "h", name: "H", url: "https://x/", intervalMs: 1000, source: "file" },
     {
       getPrototypeOf(): object {
         return input;
@@ -754,6 +829,7 @@ test("json assert value accepts hidden symbol metadata and an inherited construc
       name: "H",
       url: "https://x/",
       intervalMs: 1000,
+      source: "database",
       jsonAssert: [{ pointer: "", equals }],
     };
     const config = {
@@ -761,10 +837,375 @@ test("json assert value accepts hidden symbol metadata and an inherited construc
       checks: [input],
       components: [],
       maintenance: [],
+      shadowed: [],
+      file: okFile,
     };
     assert.equal(validateCheck(input).ok, true);
     assert.equal(validateAdminCheckInput(input).ok, true);
     assert.equal(validateAdminCheckView(input).ok, true);
     assert.equal(validateAdminConfigResponse(config).ok, true);
+  }
+});
+
+// Lossless save: views of database checks go back unchanged; markers are exact.
+const dbViews: Record<string, Record<string, unknown>> = {
+  http: {
+    id: "a",
+    name: "A",
+    url: "https://x",
+    intervalMs: 1000,
+    method: "POST",
+    headers: { "x-token": { keep: true }, "x-env": { env: "PULSE_HEADER_A" } },
+    body: { keep: true },
+    source: "database",
+  },
+  tls: {
+    id: "t",
+    name: "T",
+    type: "tls",
+    host: "h",
+    port: 443,
+    warnDays: 14,
+    intervalMs: 1000,
+    source: "database",
+  },
+  tcp: {
+    id: "c",
+    name: "C",
+    type: "tcp",
+    host: "h",
+    port: 1,
+    intervalMs: 1000,
+    source: "database",
+  },
+  dns: {
+    id: "d",
+    name: "D",
+    type: "dns",
+    dnsName: "example.com",
+    recordType: "A",
+    intervalMs: 1000,
+    source: "database",
+  },
+  domain: {
+    id: "m",
+    name: "M",
+    type: "domain",
+    domain: "example.com",
+    warnDays: 5,
+    intervalMs: 3_600_000,
+    source: "database",
+  },
+  heartbeat: {
+    id: "h",
+    name: "H",
+    type: "heartbeat",
+    period: 1000,
+    grace: 0,
+    hasSecret: true,
+    source: "database",
+  },
+};
+
+test("a database check view of every type is valid input unchanged", () => {
+  for (const [type, view] of Object.entries(dbViews)) {
+    assert.equal(validateAdminCheckView(view).ok, true, type);
+    const input = validateAdminCheckInput(view);
+    assert.equal(input.ok, true, type);
+    assert.equal(input.ok && input.value, view, type);
+  }
+});
+
+test("check input rejects source file and hasSecret off a heartbeat", () => {
+  for (const [type, view] of Object.entries(dbViews)) {
+    assert.equal(validateAdminCheckInput({ ...view, source: "file" }).ok, false, type);
+  }
+  assert.deepEqual(validateAdminCheckInput({ ...http, source: "file" }), {
+    ok: false,
+    error: 'check.source: must be "database"',
+  });
+  assert.equal(validateAdminCheckInput({ ...http, hasSecret: true }).ok, false);
+  assert.equal(validateAdminCheckInput({ ...dbViews.tcp, hasSecret: true }).ok, false);
+  assert.equal(validateAdminCheckInput({ ...heartbeat, hasSecret: false }).ok, false);
+  assert.equal(validateAdminCheckInput({ ...heartbeat, hasSecret: true, secret: "s" }).ok, true);
+});
+
+test("keep markers are exactly { keep: true }", () => {
+  assert.equal(adminKeepSchema.safeParse({ keep: true }).success, true);
+  for (const marker of [{ keep: true, x: 1 }, { keep: false }, { keep: "yes" }, {}, "keep"]) {
+    assert.equal(adminKeepSchema.safeParse(marker).success, false, JSON.stringify(marker));
+    const asHeader = { ...http, headers: { "x-token": marker } };
+    if (typeof marker !== "string") {
+      assert.equal(validateAdminCheckInput(asHeader).ok, false, JSON.stringify(marker));
+    }
+    const asBody = { ...http, method: "POST", body: marker };
+    if (typeof marker !== "string") {
+      assert.equal(validateAdminCheckInput(asBody).ok, false, JSON.stringify(marker));
+    }
+  }
+  // Counterexamples 7-10: literal, env and keep values in one write body.
+  const input = {
+    ...http,
+    method: "POST",
+    headers: { "x-token": "S1", "x-env": { env: "PULSE_HEADER_A" }, "X-Old": { keep: true } },
+    body: "B1",
+  };
+  assert.equal(validateAdminCheckInput(input).ok, true);
+  assert.equal(validateAdminCheckInput({ ...input, body: { keep: true } }).ok, true);
+  // Counterexample 12: a kept body with GET fails like a literal body.
+  assert.deepEqual(validateAdminCheckInput({ ...http, method: "GET", body: { keep: true } }), {
+    ok: false,
+    error: "check.body: is not allowed with GET",
+  });
+  // Counterexample 13: a view without body is valid; omitted means removed, not kept.
+  assert.equal(validateAdminCheckInput({ ...http, method: "POST" }).ok, true);
+});
+
+test("keep markers keep the header rules and count 0 literal bytes", () => {
+  const isOk = (headers: Record<string, unknown>): boolean =>
+    validateAdminCheckInput({ ...http, headers }).ok;
+  assert.equal(isOk({ host: { keep: true } }), false);
+  assert.equal(isOk({ "X-A": { keep: true }, "x-a": { keep: true } }), false);
+  assert.equal(isOk({ "bad name": { keep: true } }), false);
+  const many: Record<string, unknown> = {};
+  for (let i = 0; i < 21; i += 1) {
+    many[`x-${i}`] = { keep: true };
+  }
+  assert.equal(isOk(many), false);
+  // 4 headers of 4000 literal bytes plus a kept one stay under 16 KiB; a kept one adds no bytes.
+  const big: Record<string, unknown> = {};
+  for (let i = 0; i < 4; i += 1) {
+    big[`x-${i}`] = "v".repeat(4000);
+  }
+  assert.equal(isOk({ ...big, "x-kept": { keep: true } }), true);
+  assert.equal(isOk({ ...big, "x-5": "v".repeat(400) }), false);
+  assert.equal(
+    validateAdminCheckView({ ...httpView, headers: { host: { keep: true } } }).ok,
+    false,
+  );
+});
+
+test("counterexample 18: a heartbeat input without secret passes the schema", () => {
+  // The api answers 422 on a type change without secret; the schema keeps secret optional.
+  assert.equal(validateAdminCheckInput({ ...heartbeat, source: "database" }).ok, true);
+  assert.equal(validateAdminCheckInput({ ...heartbeat, secret: "" }).ok, false);
+});
+
+test("file status: message is null exactly when state is ok", () => {
+  const cases: [unknown, boolean][] = [
+    [{ state: "ok", message: null, lastAppliedAt: 1 }, true],
+    [{ state: "ok", message: "x", lastAppliedAt: 1 }, false],
+    [{ state: "invalid", message: "bad", lastAppliedAt: 1 }, true],
+    [{ state: "invalid", message: null, lastAppliedAt: 1 }, false],
+    [{ state: "unreadable", message: "cannot read the file (EACCES)", lastAppliedAt: 0 }, true],
+    [{ state: "written-not-applied", message: "m", lastAppliedAt: 2 }, true],
+    [{ state: "broken", message: "m", lastAppliedAt: 2 }, false],
+    [{ state: "ok", message: null }, false],
+    [{ state: "ok", message: null, lastAppliedAt: 1, x: 1 }, false],
+  ];
+  for (const [value, expected] of cases) {
+    assert.equal(adminFileStatusSchema.safeParse(value).success, expected, JSON.stringify(value));
+  }
+});
+
+const exportDoc = {
+  checks: [
+    {
+      id: "a",
+      name: "A",
+      url: "https://x",
+      intervalMs: 1000,
+      headers: { "x-env": { env: "PULSE_HEADER_A" } },
+    },
+    { id: "h", name: "H", type: "heartbeat", period: 1000, grace: 0 },
+  ],
+  components: [{ id: "web", name: "Web", checkIds: ["a"] }],
+  maintenance: [
+    { checkId: "a", start: "2026-01-01T00:00:00Z", end: "2026-01-01T01:00:00+01:00", note: "" },
+  ],
+  redacted: [
+    { checkId: "a", field: "headers.x-token" },
+    { checkId: "a", field: "body" },
+    { checkId: "h", field: "secret" },
+  ],
+};
+
+test("export: redacted values are listed, never served", () => {
+  const result = validateAdminConfigExport(exportDoc);
+  assert.ok(result.ok);
+  assert.equal(result.value, exportDoc);
+  const clean = {
+    checks: exportDoc.checks,
+    components: exportDoc.components,
+    maintenance: exportDoc.maintenance,
+  };
+  assert.equal(validateAdminConfigExport(clean).ok, true);
+  assert.equal(validateAdminConfigExport({ ...exportDoc, redacted: [] }).ok, false);
+  assert.equal(
+    validateAdminConfigExport({ ...exportDoc, redacted: [{ checkId: "a", field: "url" }] }).ok,
+    false,
+  );
+  assert.equal(validateAdminConfigExport({ ...exportDoc, shadowed: [] }).ok, false);
+  const window = { checkId: "a", start: 1, end: 2, note: "" };
+  assert.equal(validateAdminConfigExport({ ...clean, maintenance: [window] }).ok, false);
+});
+
+test("export checks reject secret, source, hasSecret and keep markers", () => {
+  const [httpCheck, hb] = exportDoc.checks;
+  const bad: [unknown, string][] = [
+    [{ ...hb, secret: SENTINEL }, "config.checks[0].secret: is not allowed on a heartbeat check"],
+    [{ ...hb, hasSecret: true }, "config.checks[0].hasSecret: is not allowed on a heartbeat check"],
+    [{ ...httpCheck, source: "database" }, "config.checks[0].source: is not allowed in an export"],
+    [{ ...httpCheck, secret: SENTINEL }, "config.checks[0].secret: is not allowed in an export"],
+    [
+      { ...httpCheck, headers: { "x-token": { keep: true } } },
+      "config.checks[0].headers.x-token: must be a string or an object {env: NAME}",
+    ],
+    [
+      { ...httpCheck, headers: { "x-token": { env: "PULSE_HEADER_A", keep: true } } },
+      "config.checks[0].headers.x-token: must not be a keep marker",
+    ],
+    [
+      { ...httpCheck, method: "POST", body: { keep: true } },
+      "config.checks[0].body: must be a string",
+    ],
+  ];
+  for (const [check, error] of bad) {
+    const result = validateAdminConfigExport({ ...exportDoc, checks: [check] });
+    assert.deepEqual(result, { ok: false, error }, JSON.stringify(check));
+    assert.equal(JSON.stringify(result).includes(SENTINEL), false);
+  }
+  assert.equal(validateAdminConfigExport("x").ok, false);
+  assert.equal(validateAdminConfigExport({ ...exportDoc, checks: "x" }).ok, false);
+});
+
+// Counterexamples 40-42: literal answers of a 1.x and a 2.0.0 api.
+const config1x = {
+  revision: `sha256-${"1".repeat(64)}`,
+  checks: [
+    {
+      id: "a",
+      name: "A",
+      url: "https://a.test",
+      intervalMs: 1000,
+      method: "POST",
+      headers: ["authorization"],
+      hasBody: true,
+    },
+    { id: "b", name: "B", url: "https://b.test", intervalMs: 1000 },
+  ],
+  components: [],
+  maintenance: [],
+};
+const config200 = {
+  revision: `sha256-${"2".repeat(64)}`,
+  checks: [
+    {
+      id: "a",
+      name: "A",
+      url: "https://a.test",
+      intervalMs: 1000,
+      method: "POST",
+      headers: { authorization: { keep: true } },
+      body: { keep: true },
+      source: "database",
+    },
+    { id: "b", name: "B", url: "https://b.test", intervalMs: 1000, source: "file" },
+    {
+      id: "h",
+      name: "H",
+      type: "heartbeat",
+      period: 1000,
+      grace: 0,
+      hasSecret: true,
+      source: "file",
+    },
+  ],
+  shadowed: [
+    { id: "b", name: "B db", url: "https://b.test", intervalMs: 1000, source: "database" },
+  ],
+  components: [],
+  maintenance: [],
+  file: { state: "invalid", message: "checks[0].url: is required", lastAppliedAt: 7 },
+};
+
+test("summary accepts the 1.x and the 2.0.0 config answer", () => {
+  const old = validateAdminConfigSummary(config1x);
+  assert.ok(old.ok);
+  assert.equal(old.value, config1x);
+  assert.equal(old.value.checks.length, 2);
+  const current = validateAdminConfigSummary(config200);
+  assert.ok(current.ok);
+  assert.equal(current.value.checks.length, 3);
+  assert.equal(validateAdminConfigResponse(config200).ok, true);
+  // The strict 2.0.0 validator rejects the 1.x answer; that is why the summary exists.
+  assert.equal(validateAdminConfigResponse(config1x).ok, false);
+});
+
+test("summary rejects each malformed revision, checks, entry and id with a safe path", () => {
+  const noRevision = { checks: config1x.checks, components: [], maintenance: [] };
+  const cases: [unknown, string][] = [
+    [noRevision, "config.revision: is required"],
+    [{ ...config1x, revision: "sha256-abc" }, `config.revision: must match ${revisionPattern}`],
+    [{ ...config1x, checks: "x" }, "config.checks: must be an array"],
+    [{ ...config1x, checks: ["x"] }, "config.checks[0]: must be an object"],
+    [{ ...config1x, checks: [{ name: "A" }] }, "config.checks[0].id: is required"],
+    [{ ...config1x, checks: [{ id: "" }] }, "config.checks[0].id: must be a non-empty string"],
+    [{ ...config1x, checks: [{ id: 7 }] }, "config.checks[0].id: must be a non-empty string"],
+    ["x", "config: must be an object"],
+  ];
+  for (const [value, error] of cases) {
+    assert.deepEqual(validateAdminConfigSummary(value), { ok: false, error }, error);
+  }
+});
+
+test("summary reads own data only and never runs a getter", () => {
+  let reads = 0;
+  const get = (): unknown => {
+    reads += 1;
+    throw new Error("getter ran");
+  };
+  const entry = Object.defineProperty({ id: "a" }, "name", { enumerable: true, get });
+  const value = Object.defineProperty({ ...config1x, checks: [entry] }, "extra", {
+    enumerable: true,
+    get,
+  });
+  const result = validateAdminConfigSummary(value);
+  assert.ok(result.ok);
+  assert.equal(result.value, value);
+  const idGetter = Object.defineProperty({}, "id", { enumerable: true, get });
+  assert.equal(validateAdminConfigSummary({ ...config1x, checks: [idGetter] }).ok, false);
+  const revisionGetter = Object.defineProperty({ checks: [] }, "revision", {
+    enumerable: true,
+    get,
+  });
+  assert.equal(validateAdminConfigSummary(revisionGetter).ok, false);
+  const inherited = Object.assign(Object.create({ revision: config1x.revision }) as object, {
+    checks: [],
+  });
+  assert.equal(validateAdminConfigSummary(inherited).ok, false);
+  assert.equal(reads, 0);
+});
+
+test("an own __proto__ header is rejected by every admin check validator", () => {
+  const file = { state: "ok", message: null, lastAppliedAt: 0 };
+  const config = { revision, checks: [], shadowed: [], components: [], maintenance: [], file };
+  const exported = { checks: [], components: [], maintenance: [] };
+  const literal: unknown = JSON.parse('{"__proto__":"literal-secret"}');
+  const marker: unknown = JSON.parse('{"__proto__":{"keep":true,"extra":"x"}}');
+  const view = { ...httpView, headers: literal };
+  const cases: [string, () => { ok: boolean }][] = [
+    ["input literal", () => validateAdminCheckInput({ ...http, headers: literal })],
+    ["input marker", () => validateAdminCheckInput({ ...http, headers: marker })],
+    ["view", () => validateAdminCheckView(view)],
+    ["config checks", () => validateAdminConfigResponse({ ...config, checks: [view] })],
+    ["config shadowed", () => validateAdminConfigResponse({ ...config, shadowed: [view] })],
+    [
+      "export marker",
+      () => validateAdminConfigExport({ ...exported, checks: [{ ...http, headers: marker }] }),
+    ],
+  ];
+  for (const [name, run] of cases) {
+    assert.equal(run().ok, false, name);
   }
 });

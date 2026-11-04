@@ -3,16 +3,21 @@ import {
   type AdminCheckView,
   type AdminComponent,
   type AdminComponentInput,
+  type AdminConfigExport,
   type AdminConfigResponse,
+  type AdminConfigSummary,
   type AdminMaintenanceInput,
   type AdminMaintenanceView,
   adminCheckInputSchemas,
   adminCheckViewSchema,
   adminComponentInputSchema,
+  adminConfigExportSchema,
   adminConfigResponseSchema,
+  adminConfigSummarySchema,
   adminMaintenanceInputSchema,
   adminMaintenanceViewSchema,
 } from "./admin.ts";
+import { arrayProblem, validateCheck } from "./validate.ts";
 import {
   isObject,
   ownValue,
@@ -21,6 +26,22 @@ import {
   validateWith,
   verdict,
 } from "./validate-core.ts";
+
+/**
+ * Zod's record parse skips an own `__proto__` key, while a validator returns the original object.
+ * So such a header would pass unchecked: a literal value in a view or a malformed keep marker.
+ */
+function protoHeaderProblem(check: unknown, path: string): string | undefined {
+  const headers = ownValue(check, "headers");
+  return isObject(headers) && Object.hasOwn(headers, "__proto__")
+    ? `${path}.headers.__proto__: is not an allowed header name`
+    : undefined;
+}
+
+/** A check view: the `__proto__` header rule, then the view schema. */
+function checkViewProblem(value: unknown, path: string): string | undefined {
+  return protoHeaderProblem(value, path) ?? problem(adminCheckViewSchema, value, path);
+}
 
 /** Picks the schema by `type`, so errors name the field instead of the whole union. */
 function checkInputProblem(value: unknown, path: string): string | undefined {
@@ -45,12 +66,13 @@ function checkInputProblem(value: unknown, path: string): string | undefined {
   if (unknown !== undefined) {
     return `${path}.${unknown}: is not allowed on this check`;
   }
-  return problem(schema, value, path);
+  return protoHeaderProblem(value, path) ?? problem(schema, value, path);
 }
 
 /**
- * Validates the body of `POST /admin/checks` or `PUT /admin/checks/:id`: a check, plus `secret`
- * (a non-empty string) on a heartbeat check only. Unknown keys, including state fields, are
+ * Validates the body of `POST /admin/checks` or `PUT /admin/checks/:id`: a check with keep
+ * markers, `source: "database"` on every type, plus `secret` (a non-empty string) and
+ * `hasSecret: true` on a heartbeat check only. Unknown keys, including state fields, are
  * rejected. Returns the same object.
  */
 export function validateAdminCheckInput(
@@ -62,7 +84,7 @@ export function validateAdminCheckInput(
 
 /** Validates a check as the admin api serves it. A header value, `body` or `secret` is rejected. */
 export function validateAdminCheckView(value: unknown, path = "check"): Validation<AdminCheckView> {
-  return validateWith(adminCheckViewSchema, value, path);
+  return verdict(value, path, () => checkViewProblem(value, path));
 }
 
 /** Validates the body of `POST|PUT /admin/components`. Unknown keys are rejected. */
@@ -102,5 +124,64 @@ export function validateAdminConfigResponse(
   value: unknown,
   path = "config",
 ): Validation<AdminConfigResponse> {
-  return validateWith(adminConfigResponseSchema, value, path);
+  return verdict(value, path, () => {
+    for (const key of ["checks", "shadowed"] as const) {
+      const checks = ownValue(value, key);
+      const error = Array.isArray(checks)
+        ? arrayProblem(protoHeaderProblem, checks, `${path}.${key}`)
+        : undefined;
+      if (error !== undefined) {
+        return error;
+      }
+    }
+    return problem(adminConfigResponseSchema, value, path);
+  });
+}
+
+/** Validates `GET /admin/config` as a 1.x or 2.0.0 api answers it: `revision` and the check ids. */
+export function validateAdminConfigSummary(
+  value: unknown,
+  path = "config",
+): Validation<AdminConfigSummary> {
+  return validateWith(adminConfigSummarySchema, value, path);
+}
+
+const EXPORT_FORBIDDEN_KEYS = ["source", "hasSecret", "secret"] as const;
+
+/** A checks-file check: the `Check` rules, no admin field and no keep marker. */
+function exportCheckProblem(value: unknown, path: string): string | undefined {
+  const checked = validateCheck(value, path);
+  if (!checked.ok) {
+    return checked.error;
+  }
+  const key = EXPORT_FORBIDDEN_KEYS.find((name) => Object.hasOwn(checked.value, name));
+  if (key !== undefined) {
+    return `${path}.${key}: is not allowed in an export`;
+  }
+  const headers = ownValue(checked.value, "headers");
+  if (!isObject(headers)) {
+    return undefined;
+  }
+  const marker = Object.keys(headers).find((name) => {
+    const header = ownValue(headers, name);
+    return isObject(header) && Object.hasOwn(header, "keep");
+  });
+  return marker === undefined ? undefined : `${path}.headers.${marker}: must not be a keep marker`;
+}
+
+/**
+ * Validates `GET /admin/config/export`. Each check follows the `Check` rules and carries no
+ * `source`, `hasSecret`, `secret` or keep marker; `redacted`, when present, is not empty.
+ */
+export function validateAdminConfigExport(
+  value: unknown,
+  path = "config",
+): Validation<AdminConfigExport> {
+  return verdict(value, path, () => {
+    const checks = ownValue(value, "checks");
+    const checksError = Array.isArray(checks)
+      ? arrayProblem(exportCheckProblem, checks, `${path}.checks`)
+      : undefined;
+    return checksError ?? problem(adminConfigExportSchema, value, path);
+  });
 }

@@ -284,42 +284,80 @@ it as on every route. The heartbeat pseudo-location is never listed.
 
 ## Admin config api
 
-Additive: `WIRE_VERSION` stays 1. The api owns the routes; the contract owns the shapes
-(`adminCheckViewSchema`, `adminComponentInputSchema`, `adminMaintenanceInputSchema`,
-`adminMaintenanceViewSchema`, `adminConfigResponseSchema`) and these constants.
+`WIRE_VERSION` stays 1. Contract 2.0.0 changes the admin shapes incompatibly; this breaks admin
+clients only. Public and probe shapes do not change. The api owns the routes; the contract owns the
+shapes (`adminCheckViewSchema`, `adminCheckInputSchema`, `adminComponentInputSchema`,
+`adminMaintenanceInputSchema`, `adminMaintenanceViewSchema`, `adminConfigResponseSchema`,
+`adminFileStatusSchema`, `adminKeepSchema`, `adminCheckSourceSchema`, `adminConfigExportSchema`,
+`adminExportRedactionSchema`, `adminConfigSummarySchema`) and these constants.
 
-- All routes need `Authorization: Bearer <admin token>`: `GET /admin/config`, `POST /admin/checks`,
-  `PUT|DELETE /admin/checks/{id}`, `POST /admin/components`, `PUT|DELETE /admin/components/{id}`,
-  `POST /admin/maintenance`, `PUT|DELETE /admin/maintenance/{index}` (`index` is the position in
-  `GET /admin/config`).
-- Revision: `"sha256-<hex>"` of the raw checks file bytes (`ADMIN_REVISION_PREFIX`, `isAdminRevision`).
-  It is sent as a quoted `ETag` header (`ADMIN_ETAG_HEADER`) and as `revision` in `AdminConfigResponse`.
+- All routes need `Authorization: Bearer <admin token>`: `GET /admin/config`,
+  `GET /admin/config/export`, `POST /admin/checks`, `PUT|DELETE /admin/checks/{id}`,
+  `POST /admin/components`, `PUT|DELETE /admin/components/{id}`, `POST /admin/maintenance`,
+  `PUT|DELETE /admin/maintenance/{index}` (`index` is the position in `GET /admin/config`).
+  `GET /admin/config` and its export need the same permission (`read` or `checks`).
+- Sources: a check comes from the applied checks file or from the database
+  (`ADMIN_CHECK_SOURCES`, `"file" | "database"`). Every check view has `source`. A file check
+  with the same id shadows a database check; `AdminConfigResponse.shadowed` lists the shadowed
+  database checks. Check writes change database checks only; a file check or a shadowed database
+  check answers 409 to a write (a shadowed one may still be deleted).
+- Revision: `"sha256-<hex>"` of the applied configuration (file and database)
+  (`ADMIN_REVISION_PREFIX`, `isAdminRevision`). It is sent as a quoted `ETag` header
+  (`ADMIN_ETAG_HEADER`) and as `revision` in `AdminConfigResponse`. Each committed check write
+  advances the database generation and so the revision: the next request needs the `ETag` of the
+  last success or a newly fetched revision.
 - `If-Match` (`ADMIN_IF_MATCH_HEADER`) is required on every write with the quoted revision; `*` is not
   supported.
-- Redaction: responses carry header names only, never header values, `{ "env": NAME }` references,
-  request bodies or heartbeat secrets. A heartbeat secret is write-only: a `PUT` without `secret`
-  keeps the old one.
+- File status: `AdminConfigResponse.file` is `AdminFileStatus`: `state` is one of
+  `ADMIN_FILE_STATES` (`ok`, `invalid`, `unreadable`, `written-not-applied`), `message` is `null`
+  exactly when `state` is `ok` and never quotes a value, `lastAppliedAt` is the epoch ms of the
+  last successful file apply. A database write never moves it.
+- Redaction and keep markers: views never carry a literal header value, a request body or a
+  heartbeat secret. A header stored as `{ "env": NAME }` is served as that reference; a literal
+  header value is served as `{ "keep": true }` (`AdminKeep`), and so is a stored body. A heartbeat
+  view has `hasSecret: true`. A write body may carry a header value as a string, `{ env }` or
+  `{ "keep": true }`, a body as a string or `{ "keep": true }`, `source: "database"`, and on a
+  heartbeat `hasSecret: true`. So a database check view can be sent back unchanged. A marker is
+  exactly `{ "keep": true }` and counts as 0 literal bytes in the 16 KiB header limit; every other
+  check rule still applies. The api resolves a marker against the stored database check with the
+  same id; a marker with nothing to keep answers 422. An omitted header or body is removed. A
+  heartbeat secret is write-only: a `PUT` without `secret` keeps the old one.
+- Export: `GET /admin/config/export` answers `AdminConfigExport`, the effective checks as a
+  checks file. `{ env }` references stay; literal header values, bodies and heartbeat secrets are
+  left out and listed in `redacted` as `{ checkId, field }` (`field` is `headers.<name>`, `body`
+  or `secret`). `redacted` is absent when nothing was left out. An export with `redacted` cannot be
+  loaded as a checks file until the operator puts the listed values back (heartbeat secrets new)
+  and removes `redacted`. Export checks never carry `source`, `hasSecret`, `secret` or a marker.
 - Body limit: `ADMIN_MAX_BODY_BYTES` (1 MB).
 - Statuses, in the order the api decides them (`ADMIN_STATUS_ORDER`), error body `ErrorResponse`:
 
-| Status | Meaning                                               |
-| ------ | ----------------------------------------------------- |
-| 404    | Feature off                                           |
-| 401    | Missing, unknown, expired, revoked or retired token   |
-| 403    | A valid token without the needed scope                |
-| 413    | Body too large                                        |
-| 400    | Bad JSON, bad `If-Match` (including `*`), id mismatch |
-| 428    | `If-Match` missing                                    |
-| 503    | Checks file not writable (the error names the cause)  |
-| 412    | Stale revision                                        |
-| 422    | Schema or reference error                             |
-| 409    | Id exists, or still referenced                        |
-| 404    | Unknown id or index                                   |
-| 2xx    | 201 create (with `Location`), 200 replace, 204 delete |
+| Status | Meaning                                                                 |
+| ------ | ----------------------------------------------------------------------- |
+| 404    | Feature off                                                             |
+| 401    | Missing, unknown, expired, revoked or retired token                     |
+| 403    | A valid token without the needed scope                                  |
+| 413    | Body too large                                                          |
+| 400    | Bad JSON, bad `If-Match` (including `*`), id mismatch                   |
+| 428    | `If-Match` missing                                                      |
+| 503    | Checks file not writable (component and maintenance writes)             |
+| 412    | Stale revision                                                          |
+| 422    | Schema or reference error                                               |
+| 409    | Id exists, still referenced, a file check, or a shadowed database check |
+| 404    | Unknown id or index                                                     |
+| 2xx    | 201 create (with `Location`), 200 replace, 204 delete                   |
 
-Validators: `validateAdminCheckInput` (also checks `secret`: heartbeat only, non-empty),
-`validateAdminCheckView`, `validateAdminComponentInput`, `validateAdminComponent`,
-`validateAdminMaintenanceInput`, `validateAdminMaintenanceView`, `validateAdminConfigResponse`.
+Check writes never answer 503: they need no writable file.
+
+Validators: `validateAdminCheckInput` (`secret` and `hasSecret` on heartbeat only, `source` only
+`"database"`), `validateAdminCheckView`, `validateAdminComponentInput`, `validateAdminComponent`,
+`validateAdminMaintenanceInput`, `validateAdminMaintenanceView`, `validateAdminConfigResponse`,
+`validateAdminConfigExport` and `validateAdminConfigSummary`.
+
+Compatibility: `validateAdminConfigResponse` of 2.0.0 rejects the answer of a 1.x api. A client
+that only counts checks, such as the console connection test, uses `validateAdminConfigSummary`.
+It reads only own data properties `revision` and `checks[].id`, ignores every other key and
+accepts the answers of apis before and after this change. So the console moves to 2.0.0 before
+the api; other consumers keep their pins until they need the new shapes.
 
 ## Tokens and audit
 
