@@ -23,7 +23,7 @@ repository. Bun 1.4.0, ESM, Bun, strict TypeScript (`tsc --noEmit`),
 
 ## Repository boundaries
 
-- `pulse-contract` holds shared types, plain-TS validators and the wire version. Its only runtime dependency is `zod` (exact version). It depends on no other repo.
+- `pulse-contract` holds Zod schemas, the types inferred from them, validators on those schemas and the wire version. Its only runtime dependency is `zod` (exact version). It depends on no other repo.
 - Import contract types with `import type` only. A service never imports another service.
 - Services talk to each other only over HTTP at run time, in the shapes the contract defines.
 - Use `pulse-kit`, `pulse-contract` or an approved package before writing infrastructure code. Propose an addition to `pulse-kit` instead of a local helper.
