@@ -16,9 +16,10 @@ export declare const isObject: (value: unknown) => value is Fields;
 export declare function ownValue(parent: unknown, key: PropertyKey): unknown;
 export declare const lookupGetter: (key: PropertyKey) => unknown;
 /**
- * Returns the error text, or undefined when the value matches the schema. The parse always reads
- * the own-data copy, never the input: a Proxy can report one own data value through its
- * descriptor and return another through `get`, so no check of the input can make it safe to parse.
+ * Returns the error text, or undefined when the value matches the schema. Plain own-data input,
+ * as JSON.parse returns it, is parsed directly once the walk certifies that it parses like the
+ * own-data copy; any other input parses the copy. Proxy inputs are out of scope: a Proxy whose
+ * traps disagree can pass the walk.
  */
 export declare function problem(schema: z.ZodType, value: unknown, path: string): string | undefined;
 /**

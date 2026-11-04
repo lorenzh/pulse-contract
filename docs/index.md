@@ -402,6 +402,15 @@ Error format: `<path>: <problem>` with a JSONPath-like path, e.g.
 `uptime[0].days[2].uptime: must be null or a number 0..100`. Only the first problem is reported;
 a missing required field reads `<path>: is required`. Inherited names (`constructor`, `__proto__`)
 never count as present.
+Array elements count only as own data properties at every level, top-level response elements
+included: an inherited element, a hole or an accessor element fails like a missing value, and no
+getter runs. Plain JSON (plain objects and dense arrays with only own data properties, as
+`JSON.parse` returns them) is parsed directly, without the own-data copy, and gives the same verdict
+and error text as the copy. Other input takes the copy path. Proxy inputs are out of scope: a
+validator never throws on one, but its result is not specified. Known limits: Zod still calls
+`propertyIsEnumerable` in record keys, the top-level array check still reads `__lookupGetter__`
+per element, and the exact depth at which very deep input fails with the stack limit depends on the
+engine; there is no separate depth limit.
 
 Rules: the full declared shape is checked (required fields, types, enums, non-empty `id` and
 `checkId`, finite numbers, the bounds below; nullable fields accept `null`; optional fields may be absent or `undefined`). Unknown

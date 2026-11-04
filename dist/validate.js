@@ -8,7 +8,7 @@ export const arrayProblem = (check, value, path) => {
         if (lookupGetter.call(value, i) !== undefined) {
             return `${path}[${i}]: is required`; // an accessor element is never read
         }
-        const error = check(value[i], `${path}[${i}]`);
+        const error = check(ownValue(value, i), `${path}[${i}]`);
         if (error !== undefined) {
             return error;
         }

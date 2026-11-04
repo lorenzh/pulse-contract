@@ -285,13 +285,256 @@ export const lookupGetter = (Object.prototype as any).__lookupGetter__ as (
   key: PropertyKey,
 ) => unknown;
 
+/** Built-ins captured at load, so a later change to a global or a prototype never runs here. */
+const getPrototype = Object.getPrototypeOf;
+const hasOwn = Object.hasOwn;
+const getDescriptor = Object.getOwnPropertyDescriptor;
+const isArray = Array.isArray;
+const objectKeys = Object.keys;
+const OBJECT_PROTOTYPE: object = Object.prototype;
+const ARRAY_PROTOTYPE: object = Array.prototype;
+const FUNCTION_PROTOTYPE: object = Function.prototype;
+const FUNCTION_CALL = Function.prototype.call;
+// biome-ignore lint/suspicious/noExplicitAny: Annex B method, absent from the lib types.
+const lookupSetter = (Object.prototype as any).__lookupSetter__ as (key: PropertyKey) => unknown;
+
+const NOT_DATA: unique symbol = Symbol("not data");
+
+/** True when certified input parses like its own-data copy. */
+type Walk = (value: unknown) => boolean;
+
+const pass: Walk = () => true;
+const isNonArrayObject = (value: unknown): value is object =>
+  typeof value === "object" && value !== null && !isArray(value);
+
+// A bound `call` reads no `call` or `get` from a prototype at run time.
+const walkCache = new WeakMap<z.ZodType, Walk>();
+const cachedWalk = Function.prototype.call.bind(WeakMap.prototype.get) as (
+  map: WeakMap<z.ZodType, Walk>,
+  key: z.ZodType,
+) => Walk | undefined;
+const storeWalk = Function.prototype.call.bind(WeakMap.prototype.set) as (
+  map: WeakMap<z.ZodType, Walk>,
+  key: z.ZodType,
+  walk: Walk,
+) => unknown;
+
+const keysCache = new WeakMap<z.ZodType, readonly string[]>();
+const cachedKeys = Function.prototype.call.bind(WeakMap.prototype.get) as (
+  map: WeakMap<z.ZodType, readonly string[]>,
+  key: z.ZodType,
+) => readonly string[] | undefined;
+const storeKeys = Function.prototype.call.bind(WeakMap.prototype.set) as (
+  map: WeakMap<z.ZodType, readonly string[]>,
+  key: z.ZodType,
+  keys: readonly string[],
+) => unknown;
+
+/** Every key an object walk under `schema` reads, collected once per schema. */
+function declaredKeysOf(schema: z.ZodType): readonly string[] {
+  const cached = cachedKeys(keysCache, schema);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const keys = [...new Set(collectKeys(schema))];
+  storeKeys(keysCache, schema, keys);
+  return keys;
+}
+
+/** Follows the schema as compileWalk does; records and lazy values are never walked. */
+function collectKeys(schema: z.ZodType): string[] {
+  const def = defOf(schema);
+  if (def.type !== undefined && WRAPPERS.has(def.type) && def.innerType !== undefined) {
+    return [...declaredKeysOf(def.innerType)];
+  }
+  if (def.type === "array" && def.element !== undefined) {
+    return [...declaredKeysOf(def.element)];
+  }
+  if (def.type === "union" && def.options !== undefined) {
+    const option = onlyObjectOption(def.options);
+    return option === undefined ? [] : [...declaredKeysOf(option)];
+  }
+  if (def.type === "object" && def.shape !== undefined) {
+    const shape = def.shape;
+    const keys = Object.keys(shape);
+    return keys.concat(...keys.map((key) => declaredKeysOf(shape[key] as z.ZodType)));
+  }
+  return [];
+}
+
 /**
- * Returns the error text, or undefined when the value matches the schema. The parse always reads
- * the own-data copy, never the input: a Proxy can report one own data value through its
- * descriptor and return another through `get`, so no check of the input can make it safe to parse.
+ * True when Object.prototype holds a declared key, as data or accessor. Without one, a read of a
+ * declared key on an object whose prototype is Object.prototype or null and that has no own
+ * getter for it finds only the object's own value, or undefined when the key is absent.
+ */
+function hasInheritedDeclaredKey(keys: readonly string[]): boolean {
+  for (let i = 0; i < keys.length; i++) {
+    if (hasOwn(OBJECT_PROTOTYPE, keys[i] as string)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function walkOf(schema: z.ZodType): Walk {
+  const cached = cachedWalk(walkCache, schema);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const walk = compileWalk(schema);
+  storeWalk(walkCache, schema, walk);
+  return walk;
+}
+
+/**
+ * True when `call` and the captured lookups are the built-ins, so `lookupGetter.call` below runs
+ * the real lookup. It reads descriptors and prototypes only.
+ */
+function hasCallIntegrity(): boolean {
+  const call = getDescriptor(FUNCTION_PROTOTYPE, "call");
+  return (
+    call !== undefined &&
+    hasOwn(call, "value") &&
+    call.value === FUNCTION_CALL &&
+    getPrototype(lookupGetter) === FUNCTION_PROTOTYPE &&
+    getPrototype(lookupSetter) === FUNCTION_PROTOTYPE &&
+    !hasOwn(lookupGetter, "call") &&
+    !hasOwn(lookupSetter, "call")
+  );
+}
+
+/**
+ * Reads an own property with neither a getter nor a setter, or returns NOT_DATA. Without a getter
+ * the read runs no code; a setter-only accessor reads as undefined, so only then is the setter
+ * looked up. Only valid after hasCallIntegrity.
+ */
+function ownDataOf(value: object, key: PropertyKey): unknown {
+  if (!hasOwn(value, key) || lookupGetter.call(value, key) !== undefined) {
+    return NOT_DATA;
+  }
+  const field: unknown = (value as Record<PropertyKey, unknown>)[key];
+  return field === undefined && lookupSetter.call(value, key) !== undefined ? NOT_DATA : field;
+}
+
+/**
+ * Reads a declared field of an object whose prototype is Object.prototype or null, or returns
+ * NOT_DATA for an accessor. Valid only after hasCallIntegrity and hasInheritedDeclaredKey: then no
+ * prototype holds the key, so no own getter means the read runs no code and sees own data only.
+ */
+function declaredFieldOf(value: object, key: string): unknown {
+  if (lookupGetter.call(value, key) !== undefined) {
+    return NOT_DATA;
+  }
+  const field: unknown = (value as Record<string, unknown>)[key];
+  // undefined is an absent key, an own undefined, or a setter-only accessor.
+  return field === undefined && lookupSetter.call(value, key) !== undefined ? NOT_DATA : field;
+}
+
+function compileObjectWalk(shape: Fields): Walk {
+  const keys = Object.keys(shape);
+  // A scalar field needs no walk of its value; null marks it.
+  const walks = keys.map((key) => {
+    const walk = walkOf(shape[key] as z.ZodType);
+    return walk === pass ? null : walk;
+  });
+  return (value) => {
+    if (typeof value !== "object" || value === null) {
+      return true; // ownView passes it through unchanged
+    }
+    // An array fails here too: ownView passes it through, so the copy path parses the same value.
+    const prototype: unknown = getPrototype(value);
+    if (prototype !== OBJECT_PROTOTYPE && prototype !== null) {
+      return false;
+    }
+    for (let i = 0; i < keys.length; i++) {
+      const field = declaredFieldOf(value, keys[i] as string);
+      const walk = walks[i];
+      if (field === NOT_DATA || (walk != null && !walk(field))) {
+        return false;
+      }
+    }
+    return true;
+  };
+}
+
+function compileArrayWalk(element: z.ZodType): Walk {
+  const walk = walkOf(element);
+  return (value) => {
+    if (!isArray(value)) {
+      return true;
+    }
+    if (getPrototype(value) !== ARRAY_PROTOTYPE) {
+      return false;
+    }
+    for (let i = 0; i < value.length; i++) {
+      const item = ownDataOf(value, i);
+      if (item === NOT_DATA || !walk(item)) {
+        return false;
+      }
+    }
+    return true;
+  };
+}
+
+function compileUnionWalk(options: readonly z.ZodType[]): Walk {
+  const option = onlyObjectOption(options);
+  if (option === undefined) {
+    return (value) => !isNonArrayObject(value); // dataView decides an object
+  }
+  const walk = walkOf(option);
+  return (value) => !isNonArrayObject(value) || walk(value);
+}
+
+/**
+ * Compiles the walk along the schema, as ownView copies it. A record value always fails: Zod's
+ * plain-object test reads `constructor` and more from it, which only the null-prototype copy
+ * avoids. A recursive JSON value is never entered, so the walk depth stays bounded by the schema.
+ */
+function compileWalk(schema: z.ZodType): Walk {
+  const def = defOf(schema);
+  if (def.type !== undefined && WRAPPERS.has(def.type) && def.innerType !== undefined) {
+    return walkOf(def.innerType);
+  }
+  if (def.type === "array" && def.element !== undefined) {
+    return compileArrayWalk(def.element);
+  }
+  if (def.type === "record" && def.valueType !== undefined) {
+    return (value) => !isNonArrayObject(value);
+  }
+  if (def.type === "union" && def.options !== undefined) {
+    return compileUnionWalk(def.options);
+  }
+  if (def.type === "object" && def.shape !== undefined) {
+    return compileObjectWalk(def.shape);
+  }
+  if (def.type === "lazy") {
+    return (value) => typeof value !== "function" && (typeof value !== "object" || value === null);
+  }
+  return pass;
+}
+
+/**
+ * Zod's strict-key check is a `for … in` loop, which also sees inherited enumerable keys. Plain
+ * input inherits only from Object.prototype, whose prototype is null, so its own enumerable string
+ * keys are all such a loop can inherit. Object.keys is cheaper here than a `for … in` loop.
+ */
+function hasInheritedEnumerableKey(): boolean {
+  return objectKeys(OBJECT_PROTOTYPE).length !== 0;
+}
+
+/**
+ * Returns the error text, or undefined when the value matches the schema. Plain own-data input,
+ * as JSON.parse returns it, is parsed directly once the walk certifies that it parses like the
+ * own-data copy; any other input parses the copy. Proxy inputs are out of scope: a Proxy whose
+ * traps disagree can pass the walk.
  */
 export function problem(schema: z.ZodType, value: unknown, path: string): string | undefined {
-  const parsed = schema.safeParse(ownView(schema, value));
+  const isPlain =
+    !hasInheritedEnumerableKey() &&
+    hasCallIntegrity() &&
+    !hasInheritedDeclaredKey(declaredKeysOf(schema)) &&
+    walkOf(schema)(value);
+  const parsed = schema.safeParse(isPlain ? value : ownView(schema, value));
   return parsed.success ? undefined : firstError(parsed.error, value, path);
 }
 
