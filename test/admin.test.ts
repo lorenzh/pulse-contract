@@ -1186,3 +1186,26 @@ test("summary reads own data only and never runs a getter", () => {
   assert.equal(validateAdminConfigSummary(inherited).ok, false);
   assert.equal(reads, 0);
 });
+
+test("an own __proto__ header is rejected by every admin check validator", () => {
+  const file = { state: "ok", message: null, lastAppliedAt: 0 };
+  const config = { revision, checks: [], shadowed: [], components: [], maintenance: [], file };
+  const exported = { checks: [], components: [], maintenance: [] };
+  const literal: unknown = JSON.parse('{"__proto__":"literal-secret"}');
+  const marker: unknown = JSON.parse('{"__proto__":{"keep":true,"extra":"x"}}');
+  const view = { ...httpView, headers: literal };
+  const cases: [string, () => { ok: boolean }][] = [
+    ["input literal", () => validateAdminCheckInput({ ...http, headers: literal })],
+    ["input marker", () => validateAdminCheckInput({ ...http, headers: marker })],
+    ["view", () => validateAdminCheckView(view)],
+    ["config checks", () => validateAdminConfigResponse({ ...config, checks: [view] })],
+    ["config shadowed", () => validateAdminConfigResponse({ ...config, shadowed: [view] })],
+    [
+      "export marker",
+      () => validateAdminConfigExport({ ...exported, checks: [{ ...http, headers: marker }] }),
+    ],
+  ];
+  for (const [name, run] of cases) {
+    assert.equal(run().ok, false, name);
+  }
+});

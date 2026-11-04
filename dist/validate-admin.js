@@ -1,6 +1,20 @@
 import { adminCheckInputSchemas, adminCheckViewSchema, adminComponentInputSchema, adminConfigExportSchema, adminConfigResponseSchema, adminConfigSummarySchema, adminMaintenanceInputSchema, adminMaintenanceViewSchema, } from "./admin.js";
 import { arrayProblem, validateCheck } from "./validate.js";
 import { isObject, ownValue, problem, validateWith, verdict, } from "./validate-core.js";
+/**
+ * Zod's record parse skips an own `__proto__` key, while a validator returns the original object.
+ * So such a header would pass unchecked: a literal value in a view or a malformed keep marker.
+ */
+function protoHeaderProblem(check, path) {
+    const headers = ownValue(check, "headers");
+    return isObject(headers) && Object.hasOwn(headers, "__proto__")
+        ? `${path}.headers.__proto__: is not an allowed header name`
+        : undefined;
+}
+/** A check view: the `__proto__` header rule, then the view schema. */
+function checkViewProblem(value, path) {
+    return protoHeaderProblem(value, path) ?? problem(adminCheckViewSchema, value, path);
+}
 /** Picks the schema by `type`, so errors name the field instead of the whole union. */
 function checkInputProblem(value, path) {
     if (!isObject(value)) {
@@ -23,7 +37,7 @@ function checkInputProblem(value, path) {
     if (unknown !== undefined) {
         return `${path}.${unknown}: is not allowed on this check`;
     }
-    return problem(schema, value, path);
+    return protoHeaderProblem(value, path) ?? problem(schema, value, path);
 }
 /**
  * Validates the body of `POST /admin/checks` or `PUT /admin/checks/:id`: a check with keep
@@ -36,7 +50,7 @@ export function validateAdminCheckInput(value, path = "check") {
 }
 /** Validates a check as the admin api serves it. A header value, `body` or `secret` is rejected. */
 export function validateAdminCheckView(value, path = "check") {
-    return validateWith(adminCheckViewSchema, value, path);
+    return verdict(value, path, () => checkViewProblem(value, path));
 }
 /** Validates the body of `POST|PUT /admin/components`. Unknown keys are rejected. */
 export function validateAdminComponentInput(value, path = "component") {
@@ -56,7 +70,18 @@ export function validateAdminMaintenanceView(value, path = "maintenance") {
 }
 /** Validates `GET /admin/config`. */
 export function validateAdminConfigResponse(value, path = "config") {
-    return validateWith(adminConfigResponseSchema, value, path);
+    return verdict(value, path, () => {
+        for (const key of ["checks", "shadowed"]) {
+            const checks = ownValue(value, key);
+            const error = Array.isArray(checks)
+                ? arrayProblem(protoHeaderProblem, checks, `${path}.${key}`)
+                : undefined;
+            if (error !== undefined) {
+                return error;
+            }
+        }
+        return problem(adminConfigResponseSchema, value, path);
+    });
 }
 /** Validates `GET /admin/config` as a 1.x or 2.0.0 api answers it: `revision` and the check ids. */
 export function validateAdminConfigSummary(value, path = "config") {
