@@ -3,16 +3,21 @@ import {
   type AdminCheckView,
   type AdminComponent,
   type AdminComponentInput,
+  type AdminConfigExport,
   type AdminConfigResponse,
+  type AdminConfigSummary,
   type AdminMaintenanceInput,
   type AdminMaintenanceView,
   adminCheckInputSchemas,
   adminCheckViewSchema,
   adminComponentInputSchema,
+  adminConfigExportSchema,
   adminConfigResponseSchema,
+  adminConfigSummarySchema,
   adminMaintenanceInputSchema,
   adminMaintenanceViewSchema,
 } from "./admin.ts";
+import { arrayProblem, validateCheck } from "./validate.ts";
 import {
   isObject,
   ownValue,
@@ -49,8 +54,9 @@ function checkInputProblem(value: unknown, path: string): string | undefined {
 }
 
 /**
- * Validates the body of `POST /admin/checks` or `PUT /admin/checks/:id`: a check, plus `secret`
- * (a non-empty string) on a heartbeat check only. Unknown keys, including state fields, are
+ * Validates the body of `POST /admin/checks` or `PUT /admin/checks/:id`: a check with keep
+ * markers, `source: "database"` on every type, plus `secret` (a non-empty string) and
+ * `hasSecret: true` on a heartbeat check only. Unknown keys, including state fields, are
  * rejected. Returns the same object.
  */
 export function validateAdminCheckInput(
@@ -103,4 +109,52 @@ export function validateAdminConfigResponse(
   path = "config",
 ): Validation<AdminConfigResponse> {
   return validateWith(adminConfigResponseSchema, value, path);
+}
+
+/** Validates `GET /admin/config` as a 1.x or 2.0.0 api answers it: `revision` and the check ids. */
+export function validateAdminConfigSummary(
+  value: unknown,
+  path = "config",
+): Validation<AdminConfigSummary> {
+  return validateWith(adminConfigSummarySchema, value, path);
+}
+
+const EXPORT_FORBIDDEN_KEYS = ["source", "hasSecret", "secret"] as const;
+
+/** A checks-file check: the `Check` rules, no admin field and no keep marker. */
+function exportCheckProblem(value: unknown, path: string): string | undefined {
+  const checked = validateCheck(value, path);
+  if (!checked.ok) {
+    return checked.error;
+  }
+  const key = EXPORT_FORBIDDEN_KEYS.find((name) => Object.hasOwn(checked.value, name));
+  if (key !== undefined) {
+    return `${path}.${key}: is not allowed in an export`;
+  }
+  const headers = ownValue(checked.value, "headers");
+  if (!isObject(headers)) {
+    return undefined;
+  }
+  const marker = Object.keys(headers).find((name) => {
+    const header = ownValue(headers, name);
+    return isObject(header) && Object.hasOwn(header, "keep");
+  });
+  return marker === undefined ? undefined : `${path}.headers.${marker}: must not be a keep marker`;
+}
+
+/**
+ * Validates `GET /admin/config/export`. Each check follows the `Check` rules and carries no
+ * `source`, `hasSecret`, `secret` or keep marker; `redacted`, when present, is not empty.
+ */
+export function validateAdminConfigExport(
+  value: unknown,
+  path = "config",
+): Validation<AdminConfigExport> {
+  return verdict(value, path, () => {
+    const checks = ownValue(value, "checks");
+    const checksError = Array.isArray(checks)
+      ? arrayProblem(exportCheckProblem, checks, `${path}.checks`)
+      : undefined;
+    return checksError ?? problem(adminConfigExportSchema, value, path);
+  });
 }

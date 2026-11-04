@@ -1,8 +1,14 @@
 import type {
   AdminCheckInput,
+  AdminCheckSource,
   AdminCheckView,
   AdminComponentInput,
+  AdminConfigExport,
   AdminConfigResponse,
+  AdminConfigSummary,
+  AdminExportRedaction,
+  AdminFileStatus,
+  AdminKeep,
   AdminMaintenanceInput,
   AdminMaintenanceView,
   AdminWriteResponse,
@@ -294,15 +300,38 @@ const adminInput: AdminCheckInput = {
   secret: "s",
 };
 const adminHttpInput: AdminCheckInput = { ...check, headers: { "X-A": "b" }, body: "x" };
-const adminView: AdminCheckView = { ...check, headers: ["X-A"], hasBody: true };
+const adminView: AdminCheckView = {
+  ...check,
+  headers: { "X-A": { keep: true }, "X-E": { env: "PULSE_HEADER_E" } },
+  method: "POST",
+  body: { keep: true },
+  source: "database",
+};
+// A database view is a valid write body.
+const adminViewAsInput: AdminCheckInput = { ...adminView, source: "database" };
+const adminSource: AdminCheckSource = "file";
+const adminKeep: AdminKeep = { keep: true };
+const adminFile: AdminFileStatus = { state: "ok", message: null, lastAppliedAt: 1 };
+const adminRedaction: AdminExportRedaction = { checkId: "a", field: "body" };
+const adminExport: AdminConfigExport = {
+  checks: [check],
+  components: [{ id: "web", name: "Web", checkIds: ["a"] }],
+  maintenance: [
+    { checkId: "a", start: "2026-01-01T00:00:00Z", end: "2026-01-02T00:00:00Z", note: "" },
+  ],
+  redacted: [adminRedaction],
+};
+const adminSummary: AdminConfigSummary = { revision: "sha256-x", checks: [{ id: "a" }] };
 const adminComponent: AdminComponentInput = { id: "web", name: "Web", checkIds: ["a"] };
 const adminWindow: AdminMaintenanceInput = { checkId: "a", start: 1, end: 2, note: "" };
 const adminWindowView: AdminMaintenanceView = { ...adminWindow, index: 0 };
 const adminConfig: AdminConfigResponse = {
   revision: "sha256-x",
   checks: [adminView],
+  shadowed: [],
   components: [adminComponent],
   maintenance: [adminWindowView],
+  file: adminFile,
 };
 const adminWrite: AdminWriteResponse = adminView;
 // @ts-expect-error a secret is for heartbeat checks only
@@ -314,6 +343,13 @@ export const adminFixtures = [
   adminWrite,
   adminSecretOnHttp,
 ];
+export const adminConfigFixtures = {
+  adminViewAsInput,
+  adminSource,
+  adminKeep,
+  adminExport,
+  adminSummary,
+};
 
 // Token api.
 const tokenScope: TokenScope = "admin";
