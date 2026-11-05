@@ -21,7 +21,10 @@ import {
   httpCheckSchema,
   type Incident,
   type IncidentsResponse,
+  type InternalManualIncident,
+  type InternalManualIncidentsResponse,
   incidentSchema,
+  internalManualIncidentSchema,
   type LatencyResponse,
   type Location,
   type LocationsResponse,
@@ -29,11 +32,15 @@ import {
   type MaintenanceResponse,
   type MaintenanceWindow,
   type ManualIncident,
+  type ManualIncidentDraftInput,
   type ManualIncidentInput,
+  type ManualIncidentNoteInput,
   type ManualIncidentsResponse,
   type ManualIncidentUpdateInput,
   maintenanceWindowSchema,
+  manualIncidentDraftInputSchema,
   manualIncidentInputSchema,
+  manualIncidentNoteInputSchema,
   manualIncidentSchema,
   manualIncidentUpdateInputSchema,
   type PostResultRequest,
@@ -334,4 +341,38 @@ export function validateManualIncidentUpdateInput(
   path = "update",
 ): Validation<ManualIncidentUpdateInput> {
   return validateWith(manualIncidentUpdateInputSchema, value, path);
+}
+
+/** Validates an `InternalManualIncident` including its invariants. Returns the same object. */
+export function validateInternalManualIncident(
+  value: unknown,
+  path = "manualIncident",
+): Validation<InternalManualIncident> {
+  return validateWith(internalManualIncidentSchema, value, path);
+}
+
+/** Validates `GET /admin/manual-incidents`; fails on the first bad element. */
+export function validateInternalManualIncidentsResponse(
+  value: unknown,
+  path = "manualIncidents",
+): Validation<InternalManualIncidentsResponse> {
+  return verdict(value, path, () =>
+    arrayProblem((item, p) => problem(internalManualIncidentSchema, item, p), value, path),
+  );
+}
+
+/** Validates the body that creates or replaces a draft incident. Returns the same object. */
+export function validateManualIncidentDraftInput(
+  value: unknown,
+  path = "manualIncident",
+): Validation<ManualIncidentDraftInput> {
+  return validateWith(manualIncidentDraftInputSchema, value, path);
+}
+
+/** Validates the body that adds a note. Returns the same object. */
+export function validateManualIncidentNoteInput(
+  value: unknown,
+  path = "note",
+): Validation<ManualIncidentNoteInput> {
+  return validateWith(manualIncidentNoteInputSchema, value, path);
 }

@@ -1,4 +1,4 @@
-import { type Check, type CheckLatency, type ChecksResponse, type CheckUptime, type CheckWithState, type Component, type ComponentsResponse, type ComponentsUptimeResponse, type ComponentUptime, type ComponentWithState, type Incident, type IncidentsResponse, type LatencyResponse, type Location, type LocationsResponse, type MaintenanceResponse, type MaintenanceWindow, type ManualIncident, type ManualIncidentInput, type ManualIncidentsResponse, type ManualIncidentUpdateInput, type PostResultRequest, type Result, type ResultsResponse, type Slo, type UptimeResponse } from "./schema.ts";
+import { type Check, type CheckLatency, type ChecksResponse, type CheckUptime, type CheckWithState, type Component, type ComponentsResponse, type ComponentsUptimeResponse, type ComponentUptime, type ComponentWithState, type Incident, type IncidentsResponse, type InternalManualIncident, type InternalManualIncidentsResponse, type LatencyResponse, type Location, type LocationsResponse, type MaintenanceResponse, type MaintenanceWindow, type ManualIncident, type ManualIncidentDraftInput, type ManualIncidentInput, type ManualIncidentNoteInput, type ManualIncidentsResponse, type ManualIncidentUpdateInput, type PostResultRequest, type Result, type ResultsResponse, type Slo, type UptimeResponse } from "./schema.ts";
 import { type Validation } from "./validate-core.ts";
 export declare const arrayProblem: (check: (item: unknown, path: string) => string | undefined, value: unknown, path: string) => string | undefined;
 /** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
@@ -57,3 +57,11 @@ export declare function validateManualIncidentsResponse(value: unknown, path?: s
 export declare function validateManualIncidentInput(value: unknown, path?: string): Validation<ManualIncidentInput>;
 /** Validates the body of `POST /manual-incidents/{id}/updates`. Returns the same object. */
 export declare function validateManualIncidentUpdateInput(value: unknown, path?: string): Validation<ManualIncidentUpdateInput>;
+/** Validates an `InternalManualIncident` including its invariants. Returns the same object. */
+export declare function validateInternalManualIncident(value: unknown, path?: string): Validation<InternalManualIncident>;
+/** Validates `GET /admin/manual-incidents`; fails on the first bad element. */
+export declare function validateInternalManualIncidentsResponse(value: unknown, path?: string): Validation<InternalManualIncidentsResponse>;
+/** Validates the body that creates or replaces a draft incident. Returns the same object. */
+export declare function validateManualIncidentDraftInput(value: unknown, path?: string): Validation<ManualIncidentDraftInput>;
+/** Validates the body that adds a note. Returns the same object. */
+export declare function validateManualIncidentNoteInput(value: unknown, path?: string): Validation<ManualIncidentNoteInput>;

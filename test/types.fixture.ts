@@ -37,6 +37,8 @@ import type {
   HttpMethod,
   Incident,
   IncidentsResponse,
+  InternalManualIncident,
+  InternalManualIncidentsResponse,
   JsonAssertion,
   Location,
   LocationResult,
@@ -44,9 +46,14 @@ import type {
   MaintenanceResponse,
   MaintenanceWindow,
   ManualIncident,
+  ManualIncidentDraft,
+  ManualIncidentDraftInput,
   ManualIncidentInput,
+  ManualIncidentNote,
+  ManualIncidentNoteInput,
   ManualIncidentsResponse,
   ManualIncidentUpdateInput,
+  ManualIncidentVisibility,
   PostResultRequest,
   Result,
   ResultsResponse,
@@ -234,6 +241,26 @@ const manualInput: ManualIncidentInput = {
   message: "Looking into it.",
 };
 const manualUpdateInput: ManualIncidentUpdateInput = { status: "monitoring", message: "Fix out." };
+const visibility: ManualIncidentVisibility = "internal";
+const incidentDraft: ManualIncidentDraft = {
+  status: "identified",
+  message: "Draft.",
+  savedAt: 500,
+};
+const incidentNote: ManualIncidentNote = { id: 1, at: 600, author: "console", message: "Private." };
+const internalIncident: InternalManualIncident = {
+  ...manualIncident,
+  visibility,
+  status: "identified",
+  publishedAt: null,
+  resolvedAt: null,
+  updates: [],
+  draft: incidentDraft,
+  notes: [incidentNote],
+};
+const internalIncidents: InternalManualIncidentsResponse = [internalIncident];
+const draftInput: ManualIncidentDraftInput = { ...manualInput, visibility: "public" };
+const noteInput: ManualIncidentNoteInput = { message: "Checked the logs." };
 const error: ErrorResponse = { error: "bad" };
 
 const noDataDay: UptimeDay = { date: "2026-10-26", uptime: null, results: 0 };
@@ -288,6 +315,10 @@ export const fixture = {
   manualIncidents,
   manualInput,
   manualUpdateInput,
+  internalIncident,
+  internalIncidents,
+  draftInput,
+  noteInput,
 };
 
 // Admin config api.

@@ -1,6 +1,6 @@
 import { z } from "zod";
 /** Actions an audit entry records, one per successful admin or token write. */
-export declare const AUDIT_ACTIONS: readonly ["check.create", "check.replace", "check.delete", "component.create", "component.replace", "component.delete", "maintenance.create", "maintenance.replace", "maintenance.delete", "manual-incident.create", "manual-incident.update", "manual-incident.resolve", "manual-incident.delete", "token.create", "token.rotate", "token.revoke", "token.import"];
+export declare const AUDIT_ACTIONS: readonly ["check.create", "check.replace", "check.delete", "component.create", "component.replace", "component.delete", "maintenance.create", "maintenance.replace", "maintenance.delete", "manual-incident.create", "manual-incident.update", "manual-incident.resolve", "manual-incident.delete", "manual-incident.edit", "manual-incident.draft-save", "manual-incident.draft-discard", "manual-incident.publish", "manual-incident.note-add", "manual-incident.note-delete", "token.create", "token.rotate", "token.revoke", "token.import"];
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 /** Kinds of the object an audit entry names. */
 export declare const AUDIT_TARGET_KINDS: readonly ["check", "component", "maintenance", "manual-incident", "token"];
@@ -30,6 +30,12 @@ export declare const auditEntrySchema: z.ZodObject<{
         "maintenance.replace": "maintenance.replace";
         "manual-incident.create": "manual-incident.create";
         "manual-incident.delete": "manual-incident.delete";
+        "manual-incident.draft-discard": "manual-incident.draft-discard";
+        "manual-incident.draft-save": "manual-incident.draft-save";
+        "manual-incident.edit": "manual-incident.edit";
+        "manual-incident.note-add": "manual-incident.note-add";
+        "manual-incident.note-delete": "manual-incident.note-delete";
+        "manual-incident.publish": "manual-incident.publish";
         "manual-incident.resolve": "manual-incident.resolve";
         "manual-incident.update": "manual-incident.update";
         "token.create": "token.create";
@@ -71,6 +77,12 @@ export declare const auditPageSchema: z.ZodObject<{
             "maintenance.replace": "maintenance.replace";
             "manual-incident.create": "manual-incident.create";
             "manual-incident.delete": "manual-incident.delete";
+            "manual-incident.draft-discard": "manual-incident.draft-discard";
+            "manual-incident.draft-save": "manual-incident.draft-save";
+            "manual-incident.edit": "manual-incident.edit";
+            "manual-incident.note-add": "manual-incident.note-add";
+            "manual-incident.note-delete": "manual-incident.note-delete";
+            "manual-incident.publish": "manual-incident.publish";
             "manual-incident.resolve": "manual-incident.resolve";
             "manual-incident.update": "manual-incident.update";
             "token.create": "token.create";

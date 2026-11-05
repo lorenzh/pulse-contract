@@ -742,3 +742,158 @@ export const manualIncidentSchema = z
         });
     }
 });
+/** Who may read a manual incident: everyone, or only the admin routes. */
+export const MANUAL_INCIDENT_VISIBILITIES = ["public", "internal"];
+/** At most this many notes per manual incident. */
+export const MANUAL_INCIDENT_MAX_NOTES = 100;
+/** At most this many draft incidents per installation. */
+export const MANUAL_INCIDENT_MAX_DRAFTS = 100;
+export const manualIncidentVisibilitySchema = oneOf(MANUAL_INCIDENT_VISIBILITIES);
+const strictObjectError = {
+    error: (issue) => issue.code === "unrecognized_keys"
+        ? `has an unknown field: ${(issue.keys ?? []).join(", ")}`
+        : "must be an object",
+};
+const positiveId = z
+    .int({ error: "must be a positive integer" })
+    .min(1, "must be a positive integer")
+    .max(Number.MAX_SAFE_INTEGER, "must be a positive integer");
+/** The one unpublished change of a manual incident. */
+export const manualIncidentDraftSchema = z.object({ status: manualIncidentStatusSchema, message: manualMessage, savedAt: finite }, objectError);
+/** A private note on a manual incident. `author` is the name of the token that wrote it. */
+export const manualIncidentNoteSchema = z.object({ id: positiveId, at: finite, author: nonEmpty, message: manualMessage }, objectError);
+function checkDraftIncident(incident, ctx) {
+    const { draft } = incident;
+    if (draft === null) {
+        ctx.addIssue({ code: "custom", path: ["draft"], message: "must be set while unpublished" });
+        return;
+    }
+    if (draft.status === "resolved") {
+        ctx.addIssue({
+            code: "custom",
+            path: ["draft", "status"],
+            message: "must not be resolved while unpublished",
+        });
+    }
+    if (incident.status !== draft.status) {
+        ctx.addIssue({ code: "custom", path: ["status"], message: "must equal the draft status" });
+    }
+}
+function checkPublishedUpdates(incident, ctx) {
+    const first = incident.updates[0];
+    if (first !== undefined && first.at !== incident.publishedAt) {
+        ctx.addIssue({ code: "custom", path: ["updates", 0, "at"], message: "must equal publishedAt" });
+    }
+    for (const [i, update] of incident.updates.entries()) {
+        const previous = incident.updates[i - 1];
+        if (previous !== undefined && update.at < previous.at) {
+            ctx.addIssue({
+                code: "custom",
+                path: ["updates", i, "at"],
+                message: "must not precede the previous update",
+            });
+        }
+    }
+    const last = incident.updates.at(-1);
+    if (last === undefined) {
+        return;
+    }
+    const index = incident.updates.length - 1;
+    if (last.status !== incident.status) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["updates", index, "status"],
+            message: "must equal the incident status",
+        });
+    }
+    if (incident.resolvedAt !== null && last.at !== incident.resolvedAt) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["updates", index, "at"],
+            message: "must equal resolvedAt",
+        });
+    }
+}
+function checkNotes(incident, ctx) {
+    const ids = new Set();
+    for (const [i, note] of incident.notes.entries()) {
+        if (ids.has(note.id)) {
+            ctx.addIssue({ code: "custom", path: ["notes", i, "id"], message: "must be unique" });
+        }
+        ids.add(note.id);
+        const previous = incident.notes[i - 1];
+        if (previous !== undefined &&
+            (note.at < previous.at || (note.at === previous.at && note.id < previous.id))) {
+            ctx.addIssue({
+                code: "custom",
+                path: ["notes", i],
+                message: "must be ordered by at, then id",
+            });
+        }
+    }
+}
+function checkInternalIncident(incident, ctx) {
+    const isPublished = incident.publishedAt !== null;
+    if (isPublished === (incident.updates.length === 0)) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["updates"],
+            message: "must be empty exactly when publishedAt is null",
+        });
+    }
+    if ((incident.status === "resolved") !== (incident.resolvedAt !== null)) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["resolvedAt"],
+            message: "must be set exactly when status is resolved",
+        });
+    }
+    if (isPublished) {
+        checkPublishedUpdates(incident, ctx);
+    }
+    else {
+        checkDraftIncident(incident, ctx);
+    }
+    if (incident.status === "resolved" && incident.draft !== null) {
+        ctx.addIssue({ code: "custom", path: ["draft"], message: "must be null when resolved" });
+    }
+    checkNotes(incident, ctx);
+}
+/**
+ * A manual incident as the admin routes serve it, with its visibility, draft and notes.
+ * Invariants: `publishedAt` is null iff `updates` is empty; while unpublished it has a draft that
+ * is not resolved and whose status the incident carries; once published, `updates[0].at` equals
+ * `publishedAt` and the `ManualIncident` invariants hold; a resolved incident has no draft; notes
+ * are ordered by `at`, then `id`, with unique ids.
+ */
+export const internalManualIncidentSchema = z
+    .object({
+    id: integer,
+    title: manualTitle,
+    componentIds: manualComponentIds,
+    impact: manualIncidentImpactSchema,
+    visibility: manualIncidentVisibilitySchema,
+    status: manualIncidentStatusSchema,
+    createdAt: finite,
+    publishedAt: finite.nullable(),
+    resolvedAt: finite.nullable(),
+    updates: z
+        .array(manualIncidentUpdateSchema, { error: "must be an array" })
+        .max(MANUAL_INCIDENT_MAX_UPDATES, `must have at most ${MANUAL_INCIDENT_MAX_UPDATES} updates`),
+    draft: manualIncidentDraftSchema.nullable(),
+    notes: z
+        .array(manualIncidentNoteSchema, { error: "must be an array" })
+        .max(MANUAL_INCIDENT_MAX_NOTES, `must have at most ${MANUAL_INCIDENT_MAX_NOTES} notes`),
+}, objectError)
+    .superRefine(checkInternalIncident);
+/** Body that creates or replaces a draft incident. Unknown keys are rejected. */
+export const manualIncidentDraftInputSchema = z.strictObject({
+    title: manualTitle,
+    impact: manualIncidentImpactSchema,
+    componentIds: manualComponentIds,
+    status: openStatusSchema.optional(),
+    message: manualMessage,
+    visibility: manualIncidentVisibilitySchema,
+}, strictObjectError);
+/** Body that adds a note. Unknown keys are rejected. */
+export const manualIncidentNoteInputSchema = z.strictObject({ message: manualMessage }, strictObjectError);

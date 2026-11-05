@@ -490,6 +490,116 @@ export declare const manualIncidentSchema: z.ZodObject<{
         message: z.ZodString;
     }, z.core.$strip>>;
 }, z.core.$strip>;
+/** Who may read a manual incident: everyone, or only the admin routes. */
+export declare const MANUAL_INCIDENT_VISIBILITIES: readonly ["public", "internal"];
+/** At most this many notes per manual incident. */
+export declare const MANUAL_INCIDENT_MAX_NOTES = 100;
+/** At most this many draft incidents per installation. */
+export declare const MANUAL_INCIDENT_MAX_DRAFTS = 100;
+export declare const manualIncidentVisibilitySchema: z.ZodEnum<{
+    internal: "internal";
+    public: "public";
+}>;
+/** The one unpublished change of a manual incident. */
+export declare const manualIncidentDraftSchema: z.ZodObject<{
+    status: z.ZodEnum<{
+        identified: "identified";
+        investigating: "investigating";
+        monitoring: "monitoring";
+        resolved: "resolved";
+    }>;
+    message: z.ZodString;
+    savedAt: z.ZodNumber;
+}, z.core.$strip>;
+/** A private note on a manual incident. `author` is the name of the token that wrote it. */
+export declare const manualIncidentNoteSchema: z.ZodObject<{
+    id: z.ZodInt;
+    at: z.ZodNumber;
+    author: z.ZodString;
+    message: z.ZodString;
+}, z.core.$strip>;
+/**
+ * A manual incident as the admin routes serve it, with its visibility, draft and notes.
+ * Invariants: `publishedAt` is null iff `updates` is empty; while unpublished it has a draft that
+ * is not resolved and whose status the incident carries; once published, `updates[0].at` equals
+ * `publishedAt` and the `ManualIncident` invariants hold; a resolved incident has no draft; notes
+ * are ordered by `at`, then `id`, with unique ids.
+ */
+export declare const internalManualIncidentSchema: z.ZodObject<{
+    id: z.ZodInt;
+    title: z.ZodString;
+    componentIds: z.ZodArray<z.ZodString>;
+    impact: z.ZodEnum<{
+        critical: "critical";
+        major: "major";
+        minor: "minor";
+        none: "none";
+    }>;
+    visibility: z.ZodEnum<{
+        internal: "internal";
+        public: "public";
+    }>;
+    status: z.ZodEnum<{
+        identified: "identified";
+        investigating: "investigating";
+        monitoring: "monitoring";
+        resolved: "resolved";
+    }>;
+    createdAt: z.ZodNumber;
+    publishedAt: z.ZodNullable<z.ZodNumber>;
+    resolvedAt: z.ZodNullable<z.ZodNumber>;
+    updates: z.ZodArray<z.ZodObject<{
+        at: z.ZodNumber;
+        status: z.ZodEnum<{
+            identified: "identified";
+            investigating: "investigating";
+            monitoring: "monitoring";
+            resolved: "resolved";
+        }>;
+        message: z.ZodString;
+    }, z.core.$strip>>;
+    draft: z.ZodNullable<z.ZodObject<{
+        status: z.ZodEnum<{
+            identified: "identified";
+            investigating: "investigating";
+            monitoring: "monitoring";
+            resolved: "resolved";
+        }>;
+        message: z.ZodString;
+        savedAt: z.ZodNumber;
+    }, z.core.$strip>>;
+    notes: z.ZodArray<z.ZodObject<{
+        id: z.ZodInt;
+        at: z.ZodNumber;
+        author: z.ZodString;
+        message: z.ZodString;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+/** Body that creates or replaces a draft incident. Unknown keys are rejected. */
+export declare const manualIncidentDraftInputSchema: z.ZodObject<{
+    title: z.ZodString;
+    impact: z.ZodEnum<{
+        critical: "critical";
+        major: "major";
+        minor: "minor";
+        none: "none";
+    }>;
+    componentIds: z.ZodArray<z.ZodString>;
+    status: z.ZodOptional<z.ZodEnum<{
+        identified: "identified";
+        investigating: "investigating";
+        monitoring: "monitoring";
+    }>>;
+    message: z.ZodString;
+    visibility: z.ZodEnum<{
+        internal: "internal";
+        public: "public";
+    }>;
+}, z.core.$strict>;
+/** Body that adds a note. Unknown keys are rejected. */
+export declare const manualIncidentNoteInputSchema: z.ZodObject<{
+    message: z.ZodString;
+}, z.core.$strict>;
 export type CheckStatus = z.infer<typeof checkStatusSchema>;
 /** A `CheckStatus`, or "unknown" (no result yet) or "maintenance" (active window). */
 export type CheckState = z.infer<typeof checkStateSchema>;
@@ -537,6 +647,20 @@ export type ManualIncident = z.infer<typeof manualIncidentSchema>;
 export type ManualIncidentInput = z.infer<typeof manualIncidentInputSchema>;
 /** Body of `POST /manual-incidents/{id}/updates`. */
 export type ManualIncidentUpdateInput = z.infer<typeof manualIncidentUpdateInputSchema>;
+/** `public` or `internal`; fixed once the incident is published. */
+export type ManualIncidentVisibility = z.infer<typeof manualIncidentVisibilitySchema>;
+/** The one unpublished change of a manual incident: `{ status, message, savedAt }`. */
+export type ManualIncidentDraft = z.infer<typeof manualIncidentDraftSchema>;
+/** A private note: `{ id, at, author, message }`. */
+export type ManualIncidentNote = z.infer<typeof manualIncidentNoteSchema>;
+/** A manual incident as the admin routes serve it, with visibility, draft and notes. */
+export type InternalManualIncident = z.infer<typeof internalManualIncidentSchema>;
+/** GET /admin/manual-incidents */
+export type InternalManualIncidentsResponse = InternalManualIncident[];
+/** Body that creates or replaces a draft incident. */
+export type ManualIncidentDraftInput = z.infer<typeof manualIncidentDraftInputSchema>;
+/** Body that adds a note. */
+export type ManualIncidentNoteInput = z.infer<typeof manualIncidentNoteInputSchema>;
 /** A planned maintenance window for one check, half-open `[start, end)`. */
 export type MaintenanceWindow = z.infer<typeof maintenanceWindowSchema>;
 /** The latest result of one probe location for a check. */
