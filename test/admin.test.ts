@@ -1263,6 +1263,20 @@ test("database window input refuses each invalid field with its path", () => {
   });
 });
 
+test("database window note limit counts UTF-16 code units", () => {
+  const rows: [string, boolean][] = [
+    ["😀".repeat(250), true],
+    ["😀".repeat(251), false],
+    [`${"x".repeat(499)}😀`, false],
+    ["x".repeat(500), true],
+  ];
+  for (const [note, isOk] of rows) {
+    const result = validateAdminMaintenanceWindowInput({ ...dbWindow, note });
+    assert.equal(result.ok, isOk, `${note.length} units`);
+    assert.equal(isOk || (!result.ok && result.error.startsWith("maintenance.note:")), true);
+  }
+});
+
 test("database window time limit is the last ms of year 9999", () => {
   assert.equal(MAX_MAINTENANCE_TIME, 253402300799999);
   const last = { ...dbWindow, start: 253402300799998, end: 253402300799999 };

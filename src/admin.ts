@@ -255,6 +255,12 @@ const endAfterStart = {
   error: "must be greater than start",
 };
 
+// Zod's max counts code points; the spec limits the note in UTF-16 code units.
+const noteSchema = plainText(1, MAX_MAINTENANCE_NOTE).refine(
+  (v) => v.length <= MAX_MAINTENANCE_NOTE,
+  { error: `must be 1..${MAX_MAINTENANCE_NOTE} characters` },
+);
+
 /** Body of `POST /admin/maintenance` and `PUT /admin/maintenance/:id`: a database window. Strict. */
 export const adminMaintenanceWindowInputSchema = z
   .strictObject(
@@ -266,7 +272,7 @@ export const adminMaintenanceWindowInputSchema = z
       start: windowTimeSchema,
       /** Epoch ms, exclusive; greater than `start`. */
       end: windowTimeSchema,
-      note: plainText(1, MAX_MAINTENANCE_NOTE),
+      note: noteSchema,
     },
     objectError,
   )
