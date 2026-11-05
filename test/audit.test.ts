@@ -38,6 +38,12 @@ test("audit constants have the spec values", () => {
       "manual-incident.update",
       "manual-incident.resolve",
       "manual-incident.delete",
+      "manual-incident.edit",
+      "manual-incident.draft-save",
+      "manual-incident.draft-discard",
+      "manual-incident.publish",
+      "manual-incident.note-add",
+      "manual-incident.note-delete",
       "token.create",
       "token.rotate",
       "token.revoke",
@@ -92,6 +98,26 @@ test("audit entry rejects the counterexamples with their field", () => {
       !result.ok && result.error.startsWith(expected),
       `${expected} vs ${String(!result.ok && result.error)}`,
     );
+  }
+});
+
+test("the incident draft and note actions name a manual-incident target", () => {
+  for (const action of [
+    "manual-incident.edit",
+    "manual-incident.draft-save",
+    "manual-incident.draft-discard",
+    "manual-incident.publish",
+    "manual-incident.note-add",
+    "manual-incident.note-delete",
+  ]) {
+    const ok = validateAuditEntry({
+      ...entry,
+      action,
+      target: { kind: "manual-incident", id: "4" },
+    });
+    assert.equal(ok.ok, true, action);
+    const wrong = validateAuditEntry({ ...entry, action, target: { kind: "check", id: "4" } });
+    assert.ok(!wrong.ok && wrong.error === "entry.target.kind: must match the action", action);
   }
 });
 

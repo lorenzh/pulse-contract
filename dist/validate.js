@@ -1,4 +1,4 @@
-import { checkLatencySchema, checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, locationSchema, maintenanceWindowSchema, manualIncidentInputSchema, manualIncidentSchema, manualIncidentUpdateInputSchema, postResultRequestSchema, resultSchema, sloSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
+import { checkLatencySchema, checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, internalManualIncidentSchema, locationSchema, maintenanceWindowSchema, manualIncidentDraftInputSchema, manualIncidentInputSchema, manualIncidentNoteInputSchema, manualIncidentSchema, manualIncidentUpdateInputSchema, postResultRequestSchema, resultSchema, sloSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
 import { isObject, lookupGetter, ownValue, problem, validateWith, verdict, } from "./validate-core.js";
 export const arrayProblem = (check, value, path) => {
     if (!Array.isArray(value)) {
@@ -164,4 +164,20 @@ export function validateManualIncidentInput(value, path = "manualIncident") {
 /** Validates the body of `POST /manual-incidents/{id}/updates`. Returns the same object. */
 export function validateManualIncidentUpdateInput(value, path = "update") {
     return validateWith(manualIncidentUpdateInputSchema, value, path);
+}
+/** Validates an `InternalManualIncident` including its invariants. Returns the same object. */
+export function validateInternalManualIncident(value, path = "manualIncident") {
+    return validateWith(internalManualIncidentSchema, value, path);
+}
+/** Validates `GET /admin/manual-incidents`; fails on the first bad element. */
+export function validateInternalManualIncidentsResponse(value, path = "manualIncidents") {
+    return verdict(value, path, () => arrayProblem((item, p) => problem(internalManualIncidentSchema, item, p), value, path));
+}
+/** Validates the body that creates or replaces a draft incident. Returns the same object. */
+export function validateManualIncidentDraftInput(value, path = "manualIncident") {
+    return validateWith(manualIncidentDraftInputSchema, value, path);
+}
+/** Validates the body that adds a note. Returns the same object. */
+export function validateManualIncidentNoteInput(value, path = "note") {
+    return validateWith(manualIncidentNoteInputSchema, value, path);
 }

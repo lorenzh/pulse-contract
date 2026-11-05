@@ -47,6 +47,12 @@ Every type exported from `src/index.ts`. Import them with `import type`.
 | `ManualIncidentInput`                           | Body of `POST /manual-incidents`: `title`, `impact`, `componentIds`, optional `status` (not `resolved`), `message`.                                        |
 | `ManualIncidentUpdateInput`                     | Body of `POST /manual-incidents/{id}/updates`: `status` (may be `resolved`), `message`.                                                                    |
 | `ManualIncidentsResponse`                       | Response of `GET /manual-incidents`: `ManualIncident[]`.                                                                                                   |
+| `ManualIncidentVisibility`                      | `"public"` or `"internal"` (`MANUAL_INCIDENT_VISIBILITIES`).                                                                                               |
+| `ManualIncidentDraft`, `ManualIncidentNote`     | The one unpublished change `{ status, message, savedAt }`, and a private note `{ id, at, author, message }`.                                               |
+| `InternalManualIncident`                        | A `ManualIncident` as the admin routes serve it, plus `visibility`, `publishedAt` (null while a draft), `draft` and `notes`.                               |
+| `InternalManualIncidentsResponse`               | Response of `GET /admin/manual-incidents`: `InternalManualIncident[]`.                                                                                     |
+| `ManualIncidentDraftInput`                      | Body that saves a draft incident: `title`, `impact`, `componentIds`, optional open `status`, `message`, required `visibility`. Strict.                     |
+| `ManualIncidentNoteInput`                       | Body that adds a note: `{ message }`. Strict.                                                                                                              |
 | `IncidentsResponse`                             | Response of `GET /incidents`: `Incident[]`.                                                                                                                |
 | `MaintenanceResponse`                           | Response of `GET /maintenance`: `MaintenanceWindow[]`.                                                                                                     |
 | `UptimeResponse`                                | Response of `GET /uptime`: `CheckUptime[]`, one per check, in the order of `GET /checks`.                                                                  |
@@ -264,6 +270,26 @@ concern.
 `undefined` (no change), `minor` gives `degraded`, `major` and `critical` give `down`. Resolved
 incidents imply nothing. Combine it with the check-derived state using `combineStates`.
 
+### Drafts, notes and internal incidents
+
+`InternalManualIncident` is the admin shape. Invariants, checked by `validateInternalManualIncident`:
+`publishedAt` is null exactly when `updates` is empty; while unpublished, `draft` is set, its status
+is not `resolved`, the incident carries its status and `resolvedAt` is null; once published,
+`updates[0].at` equals `publishedAt` and the `ManualIncident` invariants hold; a resolved incident has
+no draft; notes are ordered by `at`, then `id`, ids are unique. Limits: `MANUAL_INCIDENT_MAX_NOTES`
+(100 notes per incident) and `MANUAL_INCIDENT_MAX_DRAFTS` (100 draft incidents per installation).
+A note `author` is a non-empty token name without maximum. `ManualIncident` and its validators
+do not change, and neither does `WIRE_VERSION`.
+
+`isPublicManualIncident(value)` decides on raw upstream JSON, before validation, whether an item may
+be shown publicly. It reads only own property descriptors of `visibility` and `publishedAt`: an
+absent key (also an inherited one) counts as public, so items of an older api pass; `visibility`
+must otherwise be the string `"public"` and `publishedAt` a finite number. An accessor on either key
+makes the item non-public and its getter never runs. It never throws (a throwing or revoked proxy
+gives `false`). `publicManualIncident(incident)` returns a new object with exactly the eight
+`ManualIncident` fields and each update as `{ at, status, message }`. Both live in
+`manual-incident-public.js`, which imports only `schema.js` types, so a browser can load it.
+
 Read helpers: `getManualIncidents(baseUrl, options, status?)` (`status` is `open`, `resolved` or
 `all`) and `getManualIncident(baseUrl, id, options)` wrap `fetchJson`. With
 `isAbsentTolerated: true`, a 404 from an older api gives an empty list.
@@ -365,18 +391,18 @@ Additive: `WIRE_VERSION` stays 1. The api owns the routes (`/admin/tokens`, `/ad
 `/admin/tokens/{id}/rotate`, `/admin/tokens/{id}/revoke`, `/admin/audit`, `/admin/audit/export`);
 the contract owns the shapes and these constants.
 
-| Constant                                 | Value                                                                                                                                                                     |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TOKEN_SCOPES`                           | `["read", "checks", "incidents", "admin", "probe"]`                                                                                                                       |
-| `TOKEN_ROTATION_OVERLAP_MS`              | `600000` (10 minutes)                                                                                                                                                     |
-| `TOKEN_NAME_MAX`                         | `100`                                                                                                                                                                     |
-| `TOKEN_MAX_BODY_BYTES`                   | `4096`                                                                                                                                                                    |
-| `TOKEN_SECRET_PREFIX`                    | `"pulse_"`                                                                                                                                                                |
-| `TOKEN_ID_PREFIX`                        | `"tok_"`; ids match `^tok_[0-9a-f]{24}$`                                                                                                                                  |
-| `AUDIT_ACTIONS`                          | `check.`, `component.`, `maintenance.` `create`/`replace`/`delete`; `manual-incident.` `create`/`update`/`resolve`/`delete`; `token.` `create`/`rotate`/`revoke`/`import` |
-| `AUDIT_TARGET_KINDS`                     | `["check", "component", "maintenance", "manual-incident", "token"]`                                                                                                       |
-| `AUDIT_DEFAULT_LIMIT`, `AUDIT_MAX_LIMIT` | `100`, `1000`                                                                                                                                                             |
-| `AUDIT_EXPORT_CONTENT_TYPE`              | `"application/x-ndjson"`                                                                                                                                                  |
+| Constant                                 | Value                                                                                                                                                                                                                                            |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `TOKEN_SCOPES`                           | `["read", "checks", "incidents", "admin", "probe"]`                                                                                                                                                                                              |
+| `TOKEN_ROTATION_OVERLAP_MS`              | `600000` (10 minutes)                                                                                                                                                                                                                            |
+| `TOKEN_NAME_MAX`                         | `100`                                                                                                                                                                                                                                            |
+| `TOKEN_MAX_BODY_BYTES`                   | `4096`                                                                                                                                                                                                                                           |
+| `TOKEN_SECRET_PREFIX`                    | `"pulse_"`                                                                                                                                                                                                                                       |
+| `TOKEN_ID_PREFIX`                        | `"tok_"`; ids match `^tok_[0-9a-f]{24}$`                                                                                                                                                                                                         |
+| `AUDIT_ACTIONS`                          | `check.`, `component.`, `maintenance.` `create`/`replace`/`delete`; `manual-incident.` `create`/`update`/`resolve`/`delete`/`edit`/`draft-save`/`draft-discard`/`publish`/`note-add`/`note-delete`; `token.` `create`/`rotate`/`revoke`/`import` |
+| `AUDIT_TARGET_KINDS`                     | `["check", "component", "maintenance", "manual-incident", "token"]`                                                                                                                                                                              |
+| `AUDIT_DEFAULT_LIMIT`, `AUDIT_MAX_LIMIT` | `100`, `1000`                                                                                                                                                                                                                                    |
+| `AUDIT_EXPORT_CONTENT_TYPE`              | `"application/x-ndjson"`                                                                                                                                                                                                                         |
 
 Rules of the schemas:
 
@@ -427,11 +453,13 @@ returns `Validation<T>`: `{ ok: true; value: T } | { ok: false; error: string }`
   `validateResult`, `validateIncident`, `validateMaintenanceWindow`, `validateCheckUptime`,
   `validatePostResultRequest`, `validateComponent` (rejects unknown keys), `validateComponentWithState`,
   `validateComponentUptime`, `validateManualIncident`, `validateManualIncidentInput`,
-  `validateManualIncidentUpdateInput`, `validateLocation` (rejects unknown keys). Default paths: `check`, `result`, `incident`, `maintenance`, `uptime`, `component`.
+  `validateManualIncidentUpdateInput`, `validateInternalManualIncident`,
+  `validateManualIncidentDraftInput` (strict), `validateManualIncidentNoteInput` (strict, path `note`),
+  `validateLocation` (rejects unknown keys). Default paths: `check`, `result`, `incident`, `maintenance`, `uptime`, `component`.
 - Array validators, which fail on the first bad element and name its index: `validateChecksResponse`
   (uses `validateCheckWithState`), `validateResultsResponse`, `validateIncidentsResponse`,
   `validateMaintenanceResponse`, `validateUptimeResponse`, `validateComponentsResponse`,
-  `validateComponentsUptimeResponse`, `validateManualIncidentsResponse`, `validateLocationsResponse`. A consumer that skips bad items loops over
+  `validateComponentsUptimeResponse`, `validateManualIncidentsResponse`, `validateInternalManualIncidentsResponse`, `validateLocationsResponse`. A consumer that skips bad items loops over
   the raw array with the item validator and the path `checks[<i>]`; one that fails the whole
   response uses the array validator.
 
