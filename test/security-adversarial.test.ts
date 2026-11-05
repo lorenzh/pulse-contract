@@ -123,4 +123,45 @@ for (const [entry, api] of Object.entries({ source, built })) {
     });
     assert.equal(reads, 0);
   });
+
+  test(`${entry}: adversarial maintenance windows refuse special keys and never run accessors`, () => {
+    const input = { id: "a", checkIds: ["web"], start: 0, end: 1, note: "x" };
+    const view = { ...input, index: null, source: "database", phase: "current" };
+    const validators = [
+      (value: unknown) => api.validateAdminMaintenanceWindowInput(value),
+      (value: unknown) => api.validateAdminMaintenanceWindow(value),
+      (value: unknown) =>
+        api.validateAdminMaintenanceList({ revision, windows: [value], shadowed: [] }),
+    ];
+    const bases = [input, view, view];
+    let reads = 0;
+    const get = (): never => {
+      reads += 1;
+      throw new Error(sentinel);
+    };
+    for (const [i, validate] of validators.entries()) {
+      const base = bases[i] ?? input;
+      for (const key of ["__proto__", "constructor", "prototype"]) {
+        const extra = Object.defineProperty({ ...base }, key, {
+          value: sentinel,
+          enumerable: true,
+        });
+        const result = validate(extra);
+        assert.equal(result.ok, false, key);
+        assert.equal(JSON.stringify(result).includes(sentinel), false);
+      }
+      for (const key of ["note", "checkIds", "__proto__", "extra"]) {
+        const withGetter = Object.defineProperty({ ...base }, key, { enumerable: true, get });
+        const result = validate(withGetter);
+        assert.equal(result.ok, false, key);
+        assert.equal(JSON.stringify(result).includes(sentinel), false);
+      }
+    }
+    const list = Object.defineProperty({ revision, windows: [] }, "shadowed", {
+      enumerable: true,
+      get,
+    });
+    assert.equal(api.validateAdminMaintenanceList(list).ok, false);
+    assert.equal(reads, 0);
+  });
 }

@@ -10,7 +10,11 @@ import type {
   AdminFileStatus,
   AdminKeep,
   AdminMaintenanceInput,
+  AdminMaintenanceList,
+  AdminMaintenancePhase,
   AdminMaintenanceView,
+  AdminMaintenanceWindow,
+  AdminMaintenanceWindowInput,
   AdminWriteResponse,
   AuditAction,
   AuditEntry,
@@ -370,6 +374,37 @@ const adminConfig: AdminConfigResponse = {
   file: adminFile,
 };
 const adminWrite: AdminWriteResponse = adminView;
+const adminPhase: AdminMaintenancePhase = "current";
+const adminWindowInput: AdminMaintenanceWindowInput = {
+  id: "a",
+  checkIds: ["web"],
+  start: 0,
+  end: 1,
+  note: "x",
+};
+const adminDbWindow: AdminMaintenanceWindow = {
+  ...adminWindowInput,
+  index: null,
+  source: "database",
+  phase: adminPhase,
+};
+const adminFileWindow: AdminMaintenanceWindow = {
+  id: null,
+  index: 0,
+  source: "file",
+  checkIds: ["web"],
+  start: 0,
+  end: 1,
+  note: "x",
+  phase: "past",
+};
+const adminMaintenanceList: AdminMaintenanceList = {
+  revision: "sha256-x",
+  windows: [adminFileWindow, adminDbWindow],
+  shadowed: [],
+};
+const adminWindowWrite: AdminWriteResponse = adminDbWindow;
+export const adminMaintenanceFixtures = [adminMaintenanceList, adminWindowWrite];
 // @ts-expect-error a secret is for heartbeat checks only
 const adminSecretOnHttp: AdminCheckInput = { ...check, secret: "s" };
 export const adminFixtures = [

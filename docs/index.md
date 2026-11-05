@@ -9,70 +9,71 @@ repository. The main README is [README.md](../README.md).
 
 Every type exported from `src/index.ts`. Import them with `import type`.
 
-| Type                                            | Meaning                                                                                                                                                    |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CheckStatus`                                   | Result status: `"up"`, `"degraded"` or `"down"`.                                                                                                           |
-| `CheckState`                                    | A `CheckStatus`, or `"unknown"` (no result yet) or `"maintenance"` (active window).                                                                        |
-| `HttpCheck`                                     | An HTTP check: `url` (an `http:` or `https:` URL without userinfo), interval, optional timeout, latency objective, retries, retry delay and keyword.       |
-| `HttpMethod`                                    | `"GET"`, `"HEAD"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"` or `"OPTIONS"`.                                                                                |
-| `HeaderValue`                                   | A literal header value string, or `{ env: NAME }` that the probe resolves from its environment.                                                            |
-| `ExpectedStatus`                                | An accepted status: an integer 100..599 or a range string `"lo-hi"`.                                                                                       |
-| `JsonAssertion`                                 | `{ pointer, equals }` or `{ pointer, exists: true }`.                                                                                                      |
-| `TlsCheck`                                      | A check of the leaf certificate of a TLS endpoint: `host`, `port`, `warnDays`, interval.                                                                   |
-| `TcpCheck`                                      | A check that a TCP port accepts a connection: `host`, `port`, interval. Sends nothing.                                                                     |
-| `DnsCheck`                                      | A DNS lookup: `dnsName`, `recordType`, optional `expected` answers and `resolver`, interval.                                                               |
-| `DnsRecordType`                                 | `"A"`, `"AAAA"`, `"CNAME"`, `"MX"`, `"TXT"` or `"NS"`.                                                                                                     |
-| `DomainCheck`                                   | A check of a domain registration expiry (RDAP): `domain`, `warnDays`, `intervalMs` >= `MIN_DOMAIN_INTERVAL_MS`.                                            |
-| `HeartbeatCheck`                                | A check that a job pings: `period` and `grace` in ms. The probe never runs it.                                                                             |
-| `Check`                                         | `HttpCheck \| TlsCheck \| TcpCheck \| DnsCheck \| DomainCheck \| HeartbeatCheck`.                                                                          |
-| `MIN_DOMAIN_INTERVAL_MS`                        | Constant, not a type: the minimum domain `intervalMs`, 3600000 (1 hour).                                                                                   |
-| `Result`                                        | One probe result: check id, timestamp, status, status code, latency, reason, location, attempts, optional `certDaysLeft`.                                  |
-| `Incident`                                      | A run of down results: check id, `openedAt`, `resolvedAt` (null while open), reason.                                                                       |
-| `LocationResult`                                | The latest `Result` of one probe location, with a `stale` flag.                                                                                            |
-| `Location`                                      | A probe location in `GET /locations`: `name`, `lastResultAt` (epoch ms), `state` (`reporting` or `silent`). Unknown keys are rejected.                     |
-| `LocationsResponse`                             | Response of `GET /locations`: `Location[]`.                                                                                                                |
-| `MaintenanceWindow`                             | A planned window for one check, half-open `[start, end)` in epoch ms, with a note.                                                                         |
-| `CheckStateFields`                              | The evaluated state added to a check: `state`, `consecutiveDown`, `lastResultAt`, `lastReason`, `locations`, optional `maintenance` and `certDaysLeft`.    |
-| `CheckWithState`                                | `Check & CheckStateFields`; distributes over every check variant.                                                                                          |
-| `UptimeDay`                                     | Uptime of one UTC day (`date`, `uptime` 0..100 or null, `results`).                                                                                        |
-| `CheckUptime`                                   | The 90-day uptime of one check: `checkId`, 90 `days` oldest first, weighted `uptime`.                                                                      |
-| `Component`                                     | A customer-facing group of checks: `id`, `name`, optional `description`, `checkIds`, optional `group`. Unknown keys are rejected.                          |
-| `ComponentWithState`                            | `Component` plus `state` (`CheckState`), window `uptime` (0..100 or null) and `incidentIds` (open incidents of the member checks, ascending).              |
-| `ComponentUptime`                               | The 90-day uptime of one component: `componentId`, 90 `days` oldest first, weighted `uptime`.                                                              |
-| `PostResultRequest`                             | Body of `POST /results`: a `Result` where `location` and `attempts` may be absent (absent `attempts` means 1, absent or blank `location` means `default`). |
-| `ChecksResponse`                                | Response of `GET /checks`: `CheckWithState[]`.                                                                                                             |
-| `ResultsResponse`                               | Response of `GET /checks/:id/results`: `Result[]`.                                                                                                         |
-| `ManualIncident`                                | An incident an operator posts: `id`, `title`, `componentIds`, `impact`, `status`, `createdAt`, `resolvedAt` (null while open), `updates`.                  |
-| `ManualIncidentUpdate`                          | `{ at, status, message }`; its index in `updates` is the stable update number (0 is the creation message).                                                 |
-| `ManualIncidentInput`                           | Body of `POST /manual-incidents`: `title`, `impact`, `componentIds`, optional `status` (not `resolved`), `message`.                                        |
-| `ManualIncidentUpdateInput`                     | Body of `POST /manual-incidents/{id}/updates`: `status` (may be `resolved`), `message`.                                                                    |
-| `ManualIncidentsResponse`                       | Response of `GET /manual-incidents`: `ManualIncident[]`.                                                                                                   |
-| `ManualIncidentVisibility`                      | `"public"` or `"internal"` (`MANUAL_INCIDENT_VISIBILITIES`).                                                                                               |
-| `ManualIncidentDraft`, `ManualIncidentNote`     | The one unpublished change `{ status, message, savedAt }`, and a private note `{ id, at, author, message }`.                                               |
-| `InternalManualIncident`                        | A `ManualIncident` as the admin routes serve it, plus `visibility`, `publishedAt` (null while a draft), `draft` and `notes`.                               |
-| `InternalManualIncidentsResponse`               | Response of `GET /admin/manual-incidents`: `InternalManualIncident[]`.                                                                                     |
-| `ManualIncidentDraftInput`                      | Body that saves a draft incident: `title`, `impact`, `componentIds`, optional open `status`, `message`, required `visibility`. Strict.                     |
-| `ManualIncidentNoteInput`                       | Body that adds a note: `{ message }`. Strict.                                                                                                              |
-| `IncidentsResponse`                             | Response of `GET /incidents`: `Incident[]`.                                                                                                                |
-| `MaintenanceResponse`                           | Response of `GET /maintenance`: `MaintenanceWindow[]`.                                                                                                     |
-| `UptimeResponse`                                | Response of `GET /uptime`: `CheckUptime[]`, one per check, in the order of `GET /checks`.                                                                  |
-| `ComponentsResponse`                            | Response of `GET /components`: `ComponentWithState[]` in configured order.                                                                                 |
-| `ComponentsUptimeResponse`                      | Response of `GET /components/uptime`: `ComponentUptime[]` in configured order.                                                                             |
-| `ErrorResponse`                                 | Error body: `{ error: string }`.                                                                                                                           |
-| `AdminCheckInput`                               | Body of `POST /admin/checks` and `PUT /admin/checks/{id}`: a `Check`; a heartbeat check may carry a write-only `secret`. Unknown keys are rejected.        |
-| `AdminCheckView`                                | A check as the admin api serves it: `headers` is a list of names, `hasBody` replaces `body`, a heartbeat check has `hasSecret`. Strict.                    |
-| `AdminComponentInput`, `AdminComponent`         | A `Component` in an admin request and response.                                                                                                            |
-| `AdminMaintenanceInput`, `AdminMaintenanceView` | A `MaintenanceWindow` in a request; in a response it also carries its `index`.                                                                             |
-| `AdminConfigResponse`                           | Response of `GET /admin/config`: `revision`, `checks` (`AdminCheckView[]`), `components`, `maintenance` (`AdminMaintenanceView[]`).                        |
-| `AdminWriteResponse`                            | Body of a successful admin write: the stored `AdminCheckView`, `AdminComponent` or `AdminMaintenanceView`. `DELETE` answers 204 without a body.            |
-| `TokenScope`                                    | One of `TOKEN_SCOPES`: `"read"`, `"checks"`, `"incidents"`, `"admin"`, `"probe"`.                                                                          |
-| `TokenCreateInput`                              | Body of `POST /admin/tokens`: `{ name, scopes, location?, expiresAt? }`. Strict; the client never sends a secret.                                          |
-| `TokenMetadata`                                 | A token as the api serves it: id, name, scopes, location, source and times. It has no secret or digest field. Strict.                                      |
-| `TokensResponse`                                | Response of `GET /admin/tokens`: `{ tokens: TokenMetadata[] }`.                                                                                            |
-| `TokenSecretResponse`                           | Answer of a token create or rotate: `{ token, secret, previousValidUntil }`.                                                                               |
-| `AuditAction`, `AuditTargetKind`                | One of `AUDIT_ACTIONS` and of `AUDIT_TARGET_KINDS`.                                                                                                        |
-| `AuditEntry`                                    | One audit entry: `{ id, at, actor: { tokenId, name }, action, target: { kind, id }, revision }`. Strict.                                                   |
-| `AuditPage`                                     | Response of `GET /admin/audit`: `{ entries, nextBefore }`.                                                                                                 |
+| Type                                                                                                     | Meaning                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CheckStatus`                                                                                            | Result status: `"up"`, `"degraded"` or `"down"`.                                                                                                                          |
+| `CheckState`                                                                                             | A `CheckStatus`, or `"unknown"` (no result yet) or `"maintenance"` (active window).                                                                                       |
+| `HttpCheck`                                                                                              | An HTTP check: `url` (an `http:` or `https:` URL without userinfo), interval, optional timeout, latency objective, retries, retry delay and keyword.                      |
+| `HttpMethod`                                                                                             | `"GET"`, `"HEAD"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"` or `"OPTIONS"`.                                                                                               |
+| `HeaderValue`                                                                                            | A literal header value string, or `{ env: NAME }` that the probe resolves from its environment.                                                                           |
+| `ExpectedStatus`                                                                                         | An accepted status: an integer 100..599 or a range string `"lo-hi"`.                                                                                                      |
+| `JsonAssertion`                                                                                          | `{ pointer, equals }` or `{ pointer, exists: true }`.                                                                                                                     |
+| `TlsCheck`                                                                                               | A check of the leaf certificate of a TLS endpoint: `host`, `port`, `warnDays`, interval.                                                                                  |
+| `TcpCheck`                                                                                               | A check that a TCP port accepts a connection: `host`, `port`, interval. Sends nothing.                                                                                    |
+| `DnsCheck`                                                                                               | A DNS lookup: `dnsName`, `recordType`, optional `expected` answers and `resolver`, interval.                                                                              |
+| `DnsRecordType`                                                                                          | `"A"`, `"AAAA"`, `"CNAME"`, `"MX"`, `"TXT"` or `"NS"`.                                                                                                                    |
+| `DomainCheck`                                                                                            | A check of a domain registration expiry (RDAP): `domain`, `warnDays`, `intervalMs` >= `MIN_DOMAIN_INTERVAL_MS`.                                                           |
+| `HeartbeatCheck`                                                                                         | A check that a job pings: `period` and `grace` in ms. The probe never runs it.                                                                                            |
+| `Check`                                                                                                  | `HttpCheck \| TlsCheck \| TcpCheck \| DnsCheck \| DomainCheck \| HeartbeatCheck`.                                                                                         |
+| `MIN_DOMAIN_INTERVAL_MS`                                                                                 | Constant, not a type: the minimum domain `intervalMs`, 3600000 (1 hour).                                                                                                  |
+| `Result`                                                                                                 | One probe result: check id, timestamp, status, status code, latency, reason, location, attempts, optional `certDaysLeft`.                                                 |
+| `Incident`                                                                                               | A run of down results: check id, `openedAt`, `resolvedAt` (null while open), reason.                                                                                      |
+| `LocationResult`                                                                                         | The latest `Result` of one probe location, with a `stale` flag.                                                                                                           |
+| `Location`                                                                                               | A probe location in `GET /locations`: `name`, `lastResultAt` (epoch ms), `state` (`reporting` or `silent`). Unknown keys are rejected.                                    |
+| `LocationsResponse`                                                                                      | Response of `GET /locations`: `Location[]`.                                                                                                                               |
+| `MaintenanceWindow`                                                                                      | A planned window for one check, half-open `[start, end)` in epoch ms, with a note.                                                                                        |
+| `CheckStateFields`                                                                                       | The evaluated state added to a check: `state`, `consecutiveDown`, `lastResultAt`, `lastReason`, `locations`, optional `maintenance` and `certDaysLeft`.                   |
+| `CheckWithState`                                                                                         | `Check & CheckStateFields`; distributes over every check variant.                                                                                                         |
+| `UptimeDay`                                                                                              | Uptime of one UTC day (`date`, `uptime` 0..100 or null, `results`).                                                                                                       |
+| `CheckUptime`                                                                                            | The 90-day uptime of one check: `checkId`, 90 `days` oldest first, weighted `uptime`.                                                                                     |
+| `Component`                                                                                              | A customer-facing group of checks: `id`, `name`, optional `description`, `checkIds`, optional `group`. Unknown keys are rejected.                                         |
+| `ComponentWithState`                                                                                     | `Component` plus `state` (`CheckState`), window `uptime` (0..100 or null) and `incidentIds` (open incidents of the member checks, ascending).                             |
+| `ComponentUptime`                                                                                        | The 90-day uptime of one component: `componentId`, 90 `days` oldest first, weighted `uptime`.                                                                             |
+| `PostResultRequest`                                                                                      | Body of `POST /results`: a `Result` where `location` and `attempts` may be absent (absent `attempts` means 1, absent or blank `location` means `default`).                |
+| `ChecksResponse`                                                                                         | Response of `GET /checks`: `CheckWithState[]`.                                                                                                                            |
+| `ResultsResponse`                                                                                        | Response of `GET /checks/:id/results`: `Result[]`.                                                                                                                        |
+| `ManualIncident`                                                                                         | An incident an operator posts: `id`, `title`, `componentIds`, `impact`, `status`, `createdAt`, `resolvedAt` (null while open), `updates`.                                 |
+| `ManualIncidentUpdate`                                                                                   | `{ at, status, message }`; its index in `updates` is the stable update number (0 is the creation message).                                                                |
+| `ManualIncidentInput`                                                                                    | Body of `POST /manual-incidents`: `title`, `impact`, `componentIds`, optional `status` (not `resolved`), `message`.                                                       |
+| `ManualIncidentUpdateInput`                                                                              | Body of `POST /manual-incidents/{id}/updates`: `status` (may be `resolved`), `message`.                                                                                   |
+| `ManualIncidentsResponse`                                                                                | Response of `GET /manual-incidents`: `ManualIncident[]`.                                                                                                                  |
+| `ManualIncidentVisibility`                                                                               | `"public"` or `"internal"` (`MANUAL_INCIDENT_VISIBILITIES`).                                                                                                              |
+| `ManualIncidentDraft`, `ManualIncidentNote`                                                              | The one unpublished change `{ status, message, savedAt }`, and a private note `{ id, at, author, message }`.                                                              |
+| `InternalManualIncident`                                                                                 | A `ManualIncident` as the admin routes serve it, plus `visibility`, `publishedAt` (null while a draft), `draft` and `notes`.                                              |
+| `InternalManualIncidentsResponse`                                                                        | Response of `GET /admin/manual-incidents`: `InternalManualIncident[]`.                                                                                                    |
+| `ManualIncidentDraftInput`                                                                               | Body that saves a draft incident: `title`, `impact`, `componentIds`, optional open `status`, `message`, required `visibility`. Strict.                                    |
+| `ManualIncidentNoteInput`                                                                                | Body that adds a note: `{ message }`. Strict.                                                                                                                             |
+| `IncidentsResponse`                                                                                      | Response of `GET /incidents`: `Incident[]`.                                                                                                                               |
+| `MaintenanceResponse`                                                                                    | Response of `GET /maintenance`: `MaintenanceWindow[]`.                                                                                                                    |
+| `UptimeResponse`                                                                                         | Response of `GET /uptime`: `CheckUptime[]`, one per check, in the order of `GET /checks`.                                                                                 |
+| `ComponentsResponse`                                                                                     | Response of `GET /components`: `ComponentWithState[]` in configured order.                                                                                                |
+| `ComponentsUptimeResponse`                                                                               | Response of `GET /components/uptime`: `ComponentUptime[]` in configured order.                                                                                            |
+| `ErrorResponse`                                                                                          | Error body: `{ error: string }`.                                                                                                                                          |
+| `AdminCheckInput`                                                                                        | Body of `POST /admin/checks` and `PUT /admin/checks/{id}`: a `Check`; a heartbeat check may carry a write-only `secret`. Unknown keys are rejected.                       |
+| `AdminCheckView`                                                                                         | A check as the admin api serves it: `headers` is a list of names, `hasBody` replaces `body`, a heartbeat check has `hasSecret`. Strict.                                   |
+| `AdminComponentInput`, `AdminComponent`                                                                  | A `Component` in an admin request and response.                                                                                                                           |
+| `AdminMaintenanceInput`, `AdminMaintenanceView`                                                          | A `MaintenanceWindow` in a request; in a response it also carries its `index`.                                                                                            |
+| `AdminConfigResponse`                                                                                    | Response of `GET /admin/config`: `revision`, `checks` (`AdminCheckView[]`), `components`, `maintenance` (`AdminMaintenanceView[]`).                                       |
+| `AdminWriteResponse`                                                                                     | Body of a successful admin write: the stored `AdminCheckView`, `AdminComponent`, `AdminMaintenanceView` or `AdminMaintenanceWindow`. `DELETE` answers 204 without a body. |
+| `AdminMaintenanceWindowInput`, `AdminMaintenanceWindow`, `AdminMaintenanceList`, `AdminMaintenancePhase` | Database maintenance windows; see "Database maintenance windows".                                                                                                         |
+| `TokenScope`                                                                                             | One of `TOKEN_SCOPES`: `"read"`, `"checks"`, `"incidents"`, `"admin"`, `"probe"`.                                                                                         |
+| `TokenCreateInput`                                                                                       | Body of `POST /admin/tokens`: `{ name, scopes, location?, expiresAt? }`. Strict; the client never sends a secret.                                                         |
+| `TokenMetadata`                                                                                          | A token as the api serves it: id, name, scopes, location, source and times. It has no secret or digest field. Strict.                                                     |
+| `TokensResponse`                                                                                         | Response of `GET /admin/tokens`: `{ tokens: TokenMetadata[] }`.                                                                                                           |
+| `TokenSecretResponse`                                                                                    | Answer of a token create or rotate: `{ token, secret, previousValidUntil }`.                                                                                              |
+| `AuditAction`, `AuditTargetKind`                                                                         | One of `AUDIT_ACTIONS` and of `AUDIT_TARGET_KINDS`.                                                                                                                       |
+| `AuditEntry`                                                                                             | One audit entry: `{ id, at, actor: { tokenId, name }, action, target: { kind, id }, revision }`. Strict.                                                                  |
+| `AuditPage`                                                                                              | Response of `GET /admin/audit`: `{ entries, nextBefore }`.                                                                                                                |
 
 ## Details of the shared shapes
 
@@ -364,27 +365,52 @@ shapes (`adminCheckViewSchema`, `adminCheckInputSchema`, `adminComponentInputSch
 - Body limit: `ADMIN_MAX_BODY_BYTES` (1 MB).
 - Statuses, in the order the api decides them (`ADMIN_STATUS_ORDER`), error body `ErrorResponse`:
 
-| Status | Meaning                                                                 |
-| ------ | ----------------------------------------------------------------------- |
-| 404    | Feature off                                                             |
-| 401    | Missing, unknown, expired, revoked or retired token                     |
-| 403    | A valid token without the needed scope                                  |
-| 413    | Body too large                                                          |
-| 400    | Bad JSON, bad `If-Match` (including `*`), id mismatch                   |
-| 428    | `If-Match` missing                                                      |
-| 503    | Checks file not writable (component and maintenance writes)             |
-| 412    | Stale revision                                                          |
-| 422    | Schema or reference error                                               |
-| 409    | Id exists, still referenced, a file check, or a shadowed database check |
-| 404    | Unknown id or index                                                     |
-| 2xx    | 201 create (with `Location`), 200 replace, 204 delete                   |
+| Status | Meaning                                                                                |
+| ------ | -------------------------------------------------------------------------------------- |
+| 404    | Feature off                                                                            |
+| 401    | Missing, unknown, expired, revoked or retired token                                    |
+| 403    | A valid token without the needed scope                                                 |
+| 413    | Body too large                                                                         |
+| 400    | Bad JSON, bad `If-Match` (including `*`), id mismatch                                  |
+| 428    | `If-Match` missing                                                                     |
+| 503    | Checks file not writable (component writes)                                            |
+| 412    | Stale revision                                                                         |
+| 422    | Schema or reference error                                                              |
+| 409    | Id exists, still referenced, a file check, a file window, or a shadowed database check |
+| 404    | Unknown id or index                                                                    |
+| 2xx    | 201 create (with `Location`), 200 replace, 204 delete                                  |
 
-Check writes never answer 503: they need no writable file.
+Check and window writes never answer 503: they need no writable file.
 
 Validators: `validateAdminCheckInput` (`secret` and `hasSecret` on heartbeat only, `source` only
 `"database"`), `validateAdminCheckView`, `validateAdminComponentInput`, `validateAdminComponent`,
 `validateAdminMaintenanceInput`, `validateAdminMaintenanceView`, `validateAdminConfigResponse`,
 `validateAdminConfigExport` and `validateAdminConfigSummary`.
+
+### Database maintenance windows
+
+Contract 2.3.0 adds maintenance windows that the api stores in its database. The shapes are
+additive; `WIRE_VERSION` stays 1 and `GET /admin/config` and its export do not change.
+
+- `AdminMaintenanceWindowInput` (`adminMaintenanceWindowInputSchema`,
+  `validateAdminMaintenanceWindowInput`): body of `POST /admin/maintenance` and
+  `PUT /admin/maintenance/{id}`. Strict `{ id, checkIds, start, end, note }`. `id` matches
+  `MAINTENANCE_WINDOW_ID` (`^[a-z][a-z0-9._-]*$`) and has at most `MAX_MAINTENANCE_WINDOW_ID` (64)
+  characters; it starts with a letter, so it never looks like a file window index. `checkIds` has
+  1 to `MAX_MAINTENANCE_CHECKS` (50) distinct non-empty strings. `start` and `end` are integer
+  epoch ms with `0 <= start < end <= MAX_MAINTENANCE_TIME` (253402300799999,
+  `9999-12-31T23:59:59.999Z`): a later time gets an expanded year in `toISOString` and would not
+  pass the export schema. `note` is plain text of 1 to `MAX_MAINTENANCE_NOTE` (500) characters,
+  trimmed, without control characters.
+- `AdminMaintenanceWindow` (`adminMaintenanceWindowSchema`, `validateAdminMaintenanceWindow`): one
+  window as served, `{ id, index, source, checkIds, start, end, note, phase }`. A database window
+  has an `id` and `index: null`; a file window has its `index`, exactly one check id and its file id
+  or `null`. `phase` is one of `ADMIN_MAINTENANCE_PHASES` (`AdminMaintenancePhase`: `planned`,
+  `current`, `past`). A window write answers this shape (`AdminWriteResponse`).
+- `AdminMaintenanceList` (`adminMaintenanceListSchema`, `validateAdminMaintenanceList`):
+  `GET /admin/maintenance`, `{ revision, windows, shadowed }`. Every `shadowed` entry has
+  `source: "database"`.
+- `AdminMaintenanceInput` stays as the file window shape; the api no longer accepts it as a body.
 
 Compatibility: `validateAdminConfigResponse` of 2.0.0 rejects the answer of a 1.x api. A client
 that only counts checks, such as the console connection test, uses `validateAdminConfigSummary`.

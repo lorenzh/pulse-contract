@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ADMIN_REVISION } from "./revision.js";
-import { componentSchema, dnsCheckSchema, domainCheckSchema, headerValueSchema, heartbeatCheckSchema, httpCheckSchema, maintenanceWindowSchema, refineHttpCheck, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
+import { componentSchema, dnsCheckSchema, domainCheckSchema, headerValueSchema, heartbeatCheckSchema, httpCheckSchema, maintenanceWindowSchema, plainText, refineHttpCheck, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
 /** Request header that carries the revision a write is based on. Required on every write. */
 export const ADMIN_IF_MATCH_HEADER = "if-match";
 /** Response header that carries the revision, quoted: `"sha256-<hex>"`. */
@@ -18,12 +18,12 @@ export const ADMIN_STATUS_ORDER = [
     { status: 413, meaning: "body too large" },
     { status: 400, meaning: "bad JSON, bad If-Match (including *), or id mismatch" },
     { status: 428, meaning: "If-Match missing" },
-    { status: 503, meaning: "checks file not writable (component and maintenance writes)" },
+    { status: 503, meaning: "checks file not writable (component writes)" },
     { status: 412, meaning: "stale revision" },
     { status: 422, meaning: "schema or reference error" },
     {
         status: 409,
-        meaning: "id exists, still referenced, a file check, or a shadowed database check",
+        meaning: "id exists, still referenced, a file check, a file window, or a shadowed database check",
     },
     { status: 404, meaning: "unknown id or index" },
 ];
@@ -144,7 +144,10 @@ export const adminCheckInputSchema = z.union(Object.values(adminCheckInputSchema
 /** A component as configured; the same shape in requests and responses. */
 export const adminComponentSchema = componentSchema;
 export const adminComponentInputSchema = componentSchema;
-/** A maintenance window as written in a request. Strict. */
+/**
+ * A file maintenance window as the checks file holds it. Strict. The api no longer accepts it as
+ * a request body: `POST|PUT /admin/maintenance` take `adminMaintenanceWindowInputSchema`.
+ */
 export const adminMaintenanceInputSchema = z
     .strictObject(maintenanceWindowSchema.shape, objectError)
     .refine((window) => window.end > window.start, {
@@ -161,6 +164,101 @@ export const adminMaintenanceViewSchema = z
     path: ["end"],
     error: "must be greater than start",
 });
+/** Window id: starts with a letter, so a decimal path segment (a file window index) never is one. */
+export const MAINTENANCE_WINDOW_ID = /^[a-z][a-z0-9._-]*$/;
+/** Longest window id. */
+export const MAX_MAINTENANCE_WINDOW_ID = 64;
+/** Most check ids of one database window. */
+export const MAX_MAINTENANCE_CHECKS = 50;
+/** Longest note of a database window, in UTF-16 code units. */
+export const MAX_MAINTENANCE_NOTE = 500;
+/**
+ * Latest time of a database window, epoch ms: `9999-12-31T23:59:59.999Z`. A later time has an
+ * expanded year in `toISOString`, which the export schema refuses.
+ */
+export const MAX_MAINTENANCE_TIME = 253_402_300_799_999;
+/** Phase of a window at read time: before, inside or after `[start, end)`. */
+export const ADMIN_MAINTENANCE_PHASES = ["planned", "current", "past"];
+const windowIdSchema = z
+    .string({ error: "must be a string" })
+    .min(1, `must be 1..${MAX_MAINTENANCE_WINDOW_ID} characters`)
+    .max(MAX_MAINTENANCE_WINDOW_ID, `must be 1..${MAX_MAINTENANCE_WINDOW_ID} characters`)
+    .regex(MAINTENANCE_WINDOW_ID, { error: `must match ${MAINTENANCE_WINDOW_ID.source}` });
+const windowCheckIdsSchema = z
+    .array(z.string({ error: "must be a non-empty string" }).min(1, "must be a non-empty string"), {
+    error: "must be an array",
+})
+    .min(1, `must have 1..${MAX_MAINTENANCE_CHECKS} entries`)
+    .max(MAX_MAINTENANCE_CHECKS, `must have 1..${MAX_MAINTENANCE_CHECKS} entries`)
+    .refine((ids) => new Set(ids).size === ids.length, { error: "must not repeat a check id" });
+const windowTimeSchema = z
+    .int({ error: `must be an integer 0..${MAX_MAINTENANCE_TIME}` })
+    .min(0, `must be an integer 0..${MAX_MAINTENANCE_TIME}`)
+    .max(MAX_MAINTENANCE_TIME, `must be an integer 0..${MAX_MAINTENANCE_TIME}`);
+const endAfterStart = {
+    path: ["end"],
+    error: "must be greater than start",
+};
+// Zod's max counts code points; the spec limits the note in UTF-16 code units.
+const noteSchema = plainText(1, MAX_MAINTENANCE_NOTE).refine((v) => v.length <= MAX_MAINTENANCE_NOTE, { error: `must be 1..${MAX_MAINTENANCE_NOTE} characters` });
+/** Body of `POST /admin/maintenance` and `PUT /admin/maintenance/:id`: a database window. Strict. */
+export const adminMaintenanceWindowInputSchema = z
+    .strictObject({
+    id: windowIdSchema,
+    /** Check ids in the order sent, without duplicates. */
+    checkIds: windowCheckIdsSchema,
+    /** Epoch ms, inclusive. */
+    start: windowTimeSchema,
+    /** Epoch ms, exclusive; greater than `start`. */
+    end: windowTimeSchema,
+    note: noteSchema,
+}, objectError)
+    .refine((window) => window.end > window.start, endAfterStart);
+const nullableIndexSchema = z
+    .int({ error: "must be an integer >= 0 or null" })
+    .min(0, "must be an integer >= 0 or null")
+    .nullable();
+/**
+ * One window of `GET /admin/maintenance` and the body of a window write. A database window has an
+ * `id` and `index: null`; a file window has its `index`, one check id and its file id or `null`.
+ */
+export const adminMaintenanceWindowSchema = z
+    .strictObject({
+    id: windowIdSchema.nullable(),
+    index: nullableIndexSchema,
+    source: adminCheckSourceSchema,
+    checkIds: windowCheckIdsSchema,
+    start: maintenanceWindowSchema.shape.start,
+    end: maintenanceWindowSchema.shape.end,
+    note: z.string({ error: "must be a non-empty string" }).min(1, "must be a non-empty string"),
+    phase: z.enum(ADMIN_MAINTENANCE_PHASES, { error: 'must be "planned", "current" or "past"' }),
+}, objectError)
+    .refine((window) => window.end > window.start, endAfterStart)
+    .refine((window) => window.source !== "database" || window.id !== null, {
+    path: ["id"],
+    error: "must be a window id on a database window",
+})
+    .refine((window) => window.source !== "database" || window.index === null, {
+    path: ["index"],
+    error: "must be null on a database window",
+})
+    .refine((window) => window.source !== "file" || window.index !== null, {
+    path: ["index"],
+    error: "must be an integer >= 0 on a file window",
+})
+    .refine((window) => window.source !== "file" || window.checkIds.length === 1, {
+    path: ["checkIds"],
+    error: "must have exactly 1 entry on a file window",
+});
+/** `GET /admin/maintenance`: effective windows (file, then database) and shadowed database windows. */
+export const adminMaintenanceListSchema = z.strictObject({
+    revision: revisionSchema,
+    windows: z.array(adminMaintenanceWindowSchema, { error: "must be an array" }),
+    shadowed: z.array(adminMaintenanceWindowSchema.refine((window) => window.source === "database", {
+        path: ["source"],
+        error: 'must be "database"',
+    }), { error: "must be an array" }),
+}, objectError);
 /** States of the checks file, as the last read or apply left it. */
 export const ADMIN_FILE_STATES = ["ok", "invalid", "unreadable", "written-not-applied"];
 /** State of the checks file. `message` is `null` exactly when `state` is `ok`; it never quotes a value. */

@@ -379,6 +379,8 @@ export declare const checkLatencySchema: z.ZodObject<{
         count: z.ZodNumber;
     }, z.core.$strip>>;
 }, z.core.$strip>;
+/** Plain text of 1..max (or 0..max) characters: trimmed, without control characters. */
+export declare const plainText: (min: number, max: number) => z.ZodString;
 /** A customer-facing group of checks, as configured. Unknown keys are rejected. */
 export declare const componentSchema: z.ZodObject<{
     id: z.ZodString;

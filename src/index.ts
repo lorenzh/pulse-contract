@@ -11,7 +11,11 @@ export type {
   AdminFileStatus,
   AdminKeep,
   AdminMaintenanceInput,
+  AdminMaintenanceList,
+  AdminMaintenancePhase,
   AdminMaintenanceView,
+  AdminMaintenanceWindow,
+  AdminMaintenanceWindowInput,
   AdminWriteResponse,
 } from "./admin.ts";
 export {
@@ -19,6 +23,7 @@ export {
   ADMIN_ETAG_HEADER,
   ADMIN_FILE_STATES,
   ADMIN_IF_MATCH_HEADER,
+  ADMIN_MAINTENANCE_PHASES,
   ADMIN_MAX_BODY_BYTES,
   ADMIN_STATUS_ORDER,
   adminCheckInputSchema,
@@ -33,7 +38,15 @@ export {
   adminFileStatusSchema,
   adminKeepSchema,
   adminMaintenanceInputSchema,
+  adminMaintenanceListSchema,
   adminMaintenanceViewSchema,
+  adminMaintenanceWindowInputSchema,
+  adminMaintenanceWindowSchema,
+  MAINTENANCE_WINDOW_ID,
+  MAX_MAINTENANCE_CHECKS,
+  MAX_MAINTENANCE_NOTE,
+  MAX_MAINTENANCE_TIME,
+  MAX_MAINTENANCE_WINDOW_ID,
 } from "./admin.ts";
 export type { AuditAction, AuditEntry, AuditPage, AuditTargetKind } from "./audit.ts";
 export {
@@ -218,7 +231,10 @@ export {
   validateAdminConfigResponse,
   validateAdminConfigSummary,
   validateAdminMaintenanceInput,
+  validateAdminMaintenanceList,
   validateAdminMaintenanceView,
+  validateAdminMaintenanceWindow,
+  validateAdminMaintenanceWindowInput,
 } from "./validate-admin.ts";
 export { validateAuditEntry, validateAuditPage } from "./validate-audit.ts";
 export type { Validation } from "./validate-core.ts";

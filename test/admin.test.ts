@@ -9,6 +9,7 @@ import {
   adminCheckInputSchema,
   adminFileStatusSchema,
   adminKeepSchema,
+  MAX_MAINTENANCE_TIME,
 } from "../src/admin.ts";
 import { ADMIN_REVISION_PREFIX, isAdminRevision } from "../src/revision.ts";
 import { latencyDaySchema, locationSchema, manualIncidentSchema } from "../src/schema.ts";
@@ -22,7 +23,10 @@ import {
   validateAdminConfigResponse,
   validateAdminConfigSummary,
   validateAdminMaintenanceInput,
+  validateAdminMaintenanceList,
   validateAdminMaintenanceView,
+  validateAdminMaintenanceWindow,
+  validateAdminMaintenanceWindowInput,
 } from "../src/validate-admin.ts";
 
 // admin.ts loads schema.ts, so this suite also pins the shared rules it does not reach otherwise.
@@ -221,13 +225,10 @@ test("status order names the token outcomes and keeps its statuses", () => {
     ADMIN_STATUS_ORDER.map((entry) => entry.status),
     [404, 401, 403, 413, 400, 428, 503, 412, 422, 409, 404],
   );
-  assert.equal(
-    ADMIN_STATUS_ORDER[6].meaning,
-    "checks file not writable (component and maintenance writes)",
-  );
+  assert.equal(ADMIN_STATUS_ORDER[6].meaning, "checks file not writable (component writes)");
   assert.equal(
     ADMIN_STATUS_ORDER[9].meaning,
-    "id exists, still referenced, a file check, or a shadowed database check",
+    "id exists, still referenced, a file check, a file window, or a shadowed database check",
   );
   assert.equal(
     ADMIN_STATUS_ORDER[1].meaning,
@@ -1208,4 +1209,178 @@ test("an own __proto__ header is rejected by every admin check validator", () =>
   for (const [name, run] of cases) {
     assert.equal(run().ok, false, name);
   }
+});
+
+// Database maintenance windows (contract 2.3.0).
+const dbWindow = { id: "a", checkIds: ["web"], start: 0, end: 1, note: "x" };
+
+test("database window input accepts the minimal window and returns the same object", () => {
+  const result = validateAdminMaintenanceWindowInput(dbWindow);
+  assert.equal(result.ok, true);
+  assert.equal(result.ok && result.value, dbWindow);
+});
+
+test("database window input refuses each invalid field with its path", () => {
+  const rows: [Record<string, unknown>, string][] = [
+    [{ id: "" }, "maintenance.id:"],
+    [{ id: "1a" }, "maintenance.id:"],
+    [{ id: "A" }, "maintenance.id:"],
+    [{ id: "a b" }, "maintenance.id:"],
+    [{ id: `a${"b".repeat(64)}` }, "maintenance.id:"],
+    [{ id: 1 }, "maintenance.id:"],
+    [{ checkIds: [] }, "maintenance.checkIds:"],
+    [{ checkIds: ["web", "web"] }, "maintenance.checkIds:"],
+    [{ checkIds: [""] }, "maintenance.checkIds[0]:"],
+    [{ checkIds: Array.from({ length: 51 }, (_, i) => `c${i}`) }, "maintenance.checkIds:"],
+    [{ checkIds: "web" }, "maintenance.checkIds:"],
+    [{ start: -1 }, "maintenance.start:"],
+    [{ start: 0.5 }, "maintenance.start:"],
+    [{ start: "0" }, "maintenance.start:"],
+    [{ start: 1, end: 1 }, "maintenance.end:"],
+    [{ start: 2, end: 1 }, "maintenance.end:"],
+    [{ end: Number.NaN }, "maintenance.end:"],
+    [{ note: "" }, "maintenance.note:"],
+    [{ note: " x" }, "maintenance.note:"],
+    [{ note: "x\n" }, "maintenance.note:"],
+    [{ note: "a\u0007b" }, "maintenance.note:"],
+    [{ note: "x".repeat(501) }, "maintenance.note:"],
+    [{ checkId: "web" }, "maintenance: has an unknown field: checkId"],
+    [{ index: 0 }, "maintenance: has an unknown field: index"],
+  ];
+  for (const [patch, prefix] of rows) {
+    const result = validateAdminMaintenanceWindowInput({ ...dbWindow, ...patch });
+    assert.equal(result.ok, false, JSON.stringify(patch));
+    assert.equal(!result.ok && result.error.startsWith(prefix), true, JSON.stringify(result));
+  }
+  assert.equal(
+    validateAdminMaintenanceWindowInput({ ...dbWindow, note: "x".repeat(500) }).ok,
+    true,
+  );
+  const withoutNote = { id: "a", checkIds: ["web"], start: 0, end: 1 };
+  assert.deepEqual(validateAdminMaintenanceWindowInput(withoutNote), {
+    ok: false,
+    error: "maintenance.note: is required",
+  });
+});
+
+test("database window note limit counts UTF-16 code units", () => {
+  const rows: [string, boolean][] = [
+    ["😀".repeat(250), true],
+    ["😀".repeat(251), false],
+    [`${"x".repeat(499)}😀`, false],
+    ["x".repeat(500), true],
+  ];
+  for (const [note, isOk] of rows) {
+    const result = validateAdminMaintenanceWindowInput({ ...dbWindow, note });
+    assert.equal(result.ok, isOk, `${note.length} units`);
+    assert.equal(isOk || (!result.ok && result.error.startsWith("maintenance.note:")), true);
+  }
+});
+
+test("database window time limit is the last ms of year 9999", () => {
+  assert.equal(MAX_MAINTENANCE_TIME, 253402300799999);
+  const last = { ...dbWindow, start: 253402300799998, end: 253402300799999 };
+  assert.equal(validateAdminMaintenanceWindowInput(last).ok, true);
+  for (const end of [253402300800000, 8640000000000000]) {
+    const result = validateAdminMaintenanceWindowInput({ ...dbWindow, end });
+    assert.equal(result.ok, false);
+    assert.equal(!result.ok && result.error.startsWith("maintenance.end:"), true);
+  }
+});
+
+test("export keeps its four-digit-year time rule", () => {
+  const window = {
+    checkId: "web",
+    start: new Date(253402300799998).toISOString(),
+    end: new Date(253402300799999).toISOString(),
+    note: "x",
+  };
+  assert.equal(window.end, "9999-12-31T23:59:59.999Z");
+  const doc = { checks: [], components: [], maintenance: [window] };
+  assert.equal(validateAdminConfigExport(doc).ok, true);
+  const expanded = { ...doc, maintenance: [{ ...window, end: "+275760-09-13T00:00:00.000Z" }] };
+  assert.equal(validateAdminConfigExport(expanded).ok, false);
+});
+
+const fileEntry = {
+  id: null,
+  index: 0,
+  source: "file",
+  checkIds: ["web"],
+  start: 0,
+  end: 1,
+  note: "x",
+  phase: "past",
+};
+const dbEntry = { ...dbWindow, index: null, source: "database", phase: "planned" };
+
+test("maintenance window view accepts file and database entries", () => {
+  for (const entry of [fileEntry, { ...fileEntry, id: "f" }, dbEntry]) {
+    const result = validateAdminMaintenanceWindow(entry);
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.ok && result.value, entry);
+  }
+});
+
+test("maintenance window view refuses wrong source, index and check id combinations", () => {
+  const rows: [Record<string, unknown>, string][] = [
+    [{ ...dbEntry, index: 0 }, "maintenance.index:"],
+    [{ ...dbEntry, id: null }, "maintenance.id:"],
+    [{ ...fileEntry, index: null }, "maintenance.index:"],
+    [{ ...fileEntry, checkIds: ["web", "api"] }, "maintenance.checkIds:"],
+    [{ ...fileEntry, extra: 1 }, "maintenance:"],
+    [{ ...fileEntry, phase: "soon" }, "maintenance.phase:"],
+    [{ ...fileEntry, source: "disk" }, "maintenance.source:"],
+    [{ ...fileEntry, end: 0 }, "maintenance.end:"],
+    [{ ...fileEntry, note: "" }, "maintenance.note:"],
+  ];
+  for (const [entry, prefix] of rows) {
+    const result = validateAdminMaintenanceWindow(entry);
+    assert.equal(result.ok, false, JSON.stringify(entry));
+    assert.equal(!result.ok && result.error.startsWith(prefix), true, JSON.stringify(result));
+  }
+});
+
+test("maintenance list accepts windows and refuses a file entry in shadowed", () => {
+  const list = { revision, windows: [fileEntry, dbEntry], shadowed: [{ ...dbEntry, id: "b" }] };
+  const result = validateAdminMaintenanceList(list);
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.ok && result.value, list);
+  assert.deepEqual(validateAdminMaintenanceList({ ...list, shadowed: [fileEntry] }), {
+    ok: false,
+    error: 'maintenance.shadowed[0].source: must be "database"',
+  });
+  assert.equal(validateAdminMaintenanceList({ ...list, extra: 1 }).ok, false);
+  assert.equal(
+    validateAdminMaintenanceList({ ...list, windows: [{ ...dbEntry, index: 0 }] }).ok,
+    false,
+  );
+});
+
+test("old config shapes refuse a maintenance entry with an id", () => {
+  const response = {
+    revision,
+    checks: [],
+    shadowed: [],
+    components: [],
+    maintenance: [{ checkId: "web", start: 0, end: 1, note: "x", index: 0, id: "a" }],
+    file: { state: "ok", message: null, lastAppliedAt: 0 },
+  };
+  assert.equal(validateAdminConfigResponse(response).ok, false);
+  const view = { checkId: "web", start: 0, end: 1, note: "x", index: 0 };
+  assert.equal(validateAdminConfigResponse({ ...response, maintenance: [view] }).ok, true);
+  const exportDoc = {
+    checks: [],
+    components: [],
+    maintenance: [
+      {
+        checkId: "web",
+        start: "2026-01-01T00:00:00Z",
+        end: "2026-01-02T00:00:00Z",
+        note: "x",
+        id: "a",
+      },
+    ],
+  };
+  assert.equal(validateAdminConfigExport(exportDoc).ok, false);
 });

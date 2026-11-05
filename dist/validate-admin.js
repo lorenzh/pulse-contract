@@ -1,4 +1,4 @@
-import { adminCheckInputSchemas, adminCheckViewSchema, adminComponentInputSchema, adminConfigExportSchema, adminConfigResponseSchema, adminConfigSummarySchema, adminMaintenanceInputSchema, adminMaintenanceViewSchema, } from "./admin.js";
+import { adminCheckInputSchemas, adminCheckViewSchema, adminComponentInputSchema, adminConfigExportSchema, adminConfigResponseSchema, adminConfigSummarySchema, adminMaintenanceInputSchema, adminMaintenanceListSchema, adminMaintenanceViewSchema, adminMaintenanceWindowInputSchema, adminMaintenanceWindowSchema, } from "./admin.js";
 import { arrayProblem, validateCheck } from "./validate.js";
 import { isObject, ownValue, problem, validateWith, verdict, } from "./validate-core.js";
 /**
@@ -67,6 +67,18 @@ export function validateAdminMaintenanceInput(value, path = "maintenance") {
 /** Validates a maintenance window as the admin api serves it (with `index`). */
 export function validateAdminMaintenanceView(value, path = "maintenance") {
     return validateWith(adminMaintenanceViewSchema, value, path);
+}
+/** Validates the body of `POST /admin/maintenance` or `PUT /admin/maintenance/:id`. Strict. */
+export function validateAdminMaintenanceWindowInput(value, path = "maintenance") {
+    return validateWith(adminMaintenanceWindowInputSchema, value, path);
+}
+/** Validates one window of `GET /admin/maintenance` or the body of a window write. */
+export function validateAdminMaintenanceWindow(value, path = "maintenance") {
+    return validateWith(adminMaintenanceWindowSchema, value, path);
+}
+/** Validates `GET /admin/maintenance`. */
+export function validateAdminMaintenanceList(value, path = "maintenance") {
+    return validateWith(adminMaintenanceListSchema, value, path);
 }
 /** Validates `GET /admin/config`. */
 export function validateAdminConfigResponse(value, path = "config") {
