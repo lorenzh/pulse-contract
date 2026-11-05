@@ -1,3 +1,4 @@
+import { MAX_REASON_LENGTH } from "./schema.js";
 import { validateManualIncident, validateManualIncidentsResponse } from "./validate.js";
 import { checkWireVersion, WIRE_VERSION_HEADER } from "./version.js";
 /** Default cap for a response body: 5 MiB. */
@@ -99,11 +100,10 @@ async function exchange(url, options, signal) {
     return parseBody(text, options.validate, wire.status);
 }
 /**
- * GETs a JSON document and checks it. The timeout covers headers and body. It uses web APIs
- * only, and `AbortSignal.any` (Chrome 116, Firefox 124, Safari 17.4, Node 20.3).
- * Order of checks: HTTP status, wire header, size, JSON, validation.
+ * Runs `run` under the timeout and the caller's signal. The timeout covers headers and body.
+ * `onFail` maps an interruption or a thrown error to the result.
  */
-export async function fetchJson(url, options) {
+async function interruptible(options, run, onFail) {
     const own = new AbortController();
     const caller = options.signal;
     const signal = caller === undefined ? own.signal : AbortSignal.any([own.signal, caller]);
@@ -128,23 +128,105 @@ export async function fetchJson(url, options) {
     interrupted.catch(() => undefined); // the race below observes it
     try {
         if (caller?.aborted === true) {
-            return fail({ kind: "aborted", reason: caller.reason });
+            return onFail({ kind: "aborted", reason: caller.reason });
         }
-        return await Promise.race([exchange(url, options, signal), interrupted]);
+        return await Promise.race([run(signal), interrupted]);
     }
     catch (error) {
         if (interruption === "timeout") {
-            return fail({ kind: "timeout", timeoutMs: options.timeoutMs });
+            return onFail({ kind: "timeout", timeoutMs: options.timeoutMs });
         }
         if (interruption === "aborted" || caller?.aborted === true) {
-            return fail({ kind: "aborted", reason: caller?.reason });
+            return onFail({ kind: "aborted", reason: caller?.reason });
         }
-        return fail({ kind: "network", cause: error });
+        return onFail({ kind: "network", cause: error });
     }
     finally {
         stop();
         own.abort(); // frees a pending fetch or body read after a timeout, abort or cap
     }
+}
+/**
+ * GETs a JSON document and checks it. The timeout covers headers and body. It uses web APIs
+ * only, and `AbortSignal.any` (Chrome 116, Firefox 124, Safari 17.4, Node 20.3).
+ * Order of checks: HTTP status, wire header, size, JSON, validation.
+ */
+export function fetchJson(url, options) {
+    return interruptible(options, (signal) => exchange(url, options, signal), fail);
+}
+/** The `error` text of an `ErrorResponse` body, from an own data property only. */
+function errorText(text) {
+    let raw;
+    try {
+        raw = JSON.parse(text);
+    }
+    catch {
+        // A body that is not JSON just carries no reason.
+        return undefined;
+    }
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        return undefined;
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(raw, "error");
+    const value = descriptor?.value;
+    return typeof value === "string" ? value.slice(0, MAX_REASON_LENGTH) : undefined;
+}
+async function requestBody(response, meta, options) {
+    const maxBytes = options.maxBytes ?? DEFAULT_MAX_BODY_BYTES;
+    const failed = (error) => ({
+        ok: false,
+        error,
+        response: meta,
+    });
+    const { wire } = meta;
+    // Order: status, wire header, size, JSON, validation.
+    if (response.status < 200 || response.status > 299) {
+        const text = await readText(response, maxBytes);
+        const message = text === undefined ? undefined : errorText(text);
+        return failed(message === undefined
+            ? { kind: "http", status: response.status, wire }
+            : { kind: "http", status: response.status, wire, message });
+    }
+    if (wire.status === "mismatch") {
+        dropBody(response.body?.cancel.bind(response.body));
+        return failed({ kind: "wire-mismatch", message: wire.error });
+    }
+    const text = await readText(response, maxBytes);
+    if (text === undefined) {
+        return failed({ kind: "too-large", maxBytes });
+    }
+    const done = { ok: true, status: response.status, etag: meta.etag, wire: wire.status };
+    if (text === "") {
+        return { ...done, value: undefined };
+    }
+    const parsed = parseBody(text, options.validate, wire.status);
+    return parsed.ok ? { ...done, value: parsed.value } : failed(parsed.error);
+}
+async function requestExchange(url, options, signal, state) {
+    const headers = new Headers(options.headers);
+    const init = { method: options.method, redirect: "manual", signal, headers };
+    if (options.body !== undefined) {
+        headers.set("content-type", "application/json");
+        init.body = options.body;
+    }
+    const response = await options.fetch(url, init);
+    const meta = {
+        status: response.status,
+        etag: response.headers.get("etag"),
+        wire: checkWireVersion(response.headers.get(WIRE_VERSION_HEADER)),
+    };
+    state.response = meta;
+    return requestBody(response, meta, options);
+}
+/**
+ * Sends a POST, PUT or DELETE with an optional JSON body. It never follows a redirect and never
+ * retries; timeout, abort, size cap and wire check work as in `fetchJson`. A non-`2xx` answer is
+ * an `http` error whose `message` is the `ErrorResponse.error` text (at most 1000 characters) when
+ * the body is one and fits `maxBytes`. A `204` or empty body gives `value` `undefined`.
+ */
+export function requestJson(url, options) {
+    const state = { response: null };
+    return interruptible(options, (signal) => requestExchange(url, options, signal, state), (error) => ({ ok: false, error, response: state.response }));
 }
 function withValidator(options, validate) {
     return { ...options, validate };

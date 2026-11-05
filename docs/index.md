@@ -83,6 +83,13 @@ in `CheckWithState.maintenance`. `GET /maintenance` returns a `MaintenanceRespon
 `GET /uptime` returns an `UptimeResponse`: per check a `CheckUptime` with 90 UTC `UptimeDay`s (oldest
 first, `uptime` 0..100 or null without results) and the result-weighted 90-day `uptime`.
 
+`GET /checks/:id/location-uptime` returns a `CheckLocationUptime` (`validateCheckLocationUptime`):
+`checkId`, `windowDays` 90 and `locations`, one `LocationUptime` per location that has any stored
+result of the check, sorted by name in UTF-16 code-unit order, each once. The window is the one
+of `GET /uptime`, from `(today - 89) * 86400000` to the service's `now()`. `good` counts results
+that are not down (heartbeat results included), `results` counts all, `uptime` is
+`good / results * 100` unrounded and null exactly when `results` is 0; `good <= results`.
+
 ## Components
 
 A component groups checks under a customer-facing name. `GET /components` returns a
@@ -554,6 +561,26 @@ Order of checks: HTTP status, wire header, size, JSON, validation. A non-2xx res
 mismatching header is therefore `http`. The timer is always cleared and the request is aborted on
 timeout, cap and caller abort.
 An error found before the body is read returns at once; the body is cancelled without waiting.
+
+### Writes: `requestJson`
+
+`requestJson(url, options)` sends a POST, PUT or DELETE. Options are those of `fetchJson`
+without `onWireAbsent`, plus `method` (`"POST" | "PUT" | "DELETE"`) and an optional `body`
+(JSON text, sent with `content-type: application/json`). It always passes `redirect: "manual"`
+and never retries. Order of checks is the same as in `fetchJson`.
+
+The result is `{ ok: true; status; value; etag; wire }` (`value` is `undefined` for a `204` or an
+empty body, which is not validated; `etag` is the raw `etag` header or null) or
+`{ ok: false; error; response }`. `response` is a `RequestJsonResponse`
+(`{ status; etag; wire }`) when the response headers arrived, also for a `timeout` or `aborted`
+during the body read, and null for `timeout`, `aborted` and `network` before the headers. A
+failure with a `2xx` `response.status` means the server answered `2xx` and only the body was too
+large, not JSON, invalid or interrupted: `requestJson` never decides whether a write was saved.
+
+A non-2xx answer (also `1xx` and `3xx`) is an `http` error. Its optional `message` is the
+`error` string of a JSON `ErrorResponse` body, read from an own data property and cut to
+`MAX_REASON_LENGTH` (1000) characters. A body over `maxBytes`, not JSON or of another shape gives
+no `message`, never `too-large`. `fetchJson` never sets `message`.
 
 ## Bump the pin in a consumer
 

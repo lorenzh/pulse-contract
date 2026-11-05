@@ -54,6 +54,10 @@ export {
   getManualIncident,
   getManualIncidents,
   type ManualIncidentReadOptions,
+  type RequestJsonOptions,
+  type RequestJsonResponse,
+  type RequestJsonResult,
+  requestJson,
 } from "./client.ts";
 export { aggregateUptime, combineStates, incidentImpactState } from "./components.ts";
 export { isPublicManualIncident, publicManualIncident } from "./manual-incident-public.ts";
@@ -61,6 +65,7 @@ export { ADMIN_REVISION_PREFIX, isAdminRevision } from "./revision.ts";
 export type {
   Check,
   CheckLatency,
+  CheckLocationUptime,
   CheckState,
   CheckStateFields,
   CheckStatus,
@@ -91,6 +96,7 @@ export type {
   Location,
   LocationResult,
   LocationsResponse,
+  LocationUptime,
   MaintenanceResponse,
   MaintenanceWindow,
   ManualIncident,
@@ -173,6 +179,7 @@ export {
 export {
   validateCheck,
   validateCheckLatency,
+  validateCheckLocationUptime,
   validateChecksResponse,
   validateCheckUptime,
   validateCheckWithState,

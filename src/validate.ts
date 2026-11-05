@@ -1,6 +1,7 @@
 import {
   type Check,
   type CheckLatency,
+  type CheckLocationUptime,
   type ChecksResponse,
   type CheckUptime,
   type CheckWithState,
@@ -10,6 +11,7 @@ import {
   type ComponentUptime,
   type ComponentWithState,
   checkLatencySchema,
+  checkLocationUptimeSchema,
   checkStateFieldsSchema,
   checkUptimeSchema,
   componentSchema,
@@ -183,6 +185,14 @@ export function validateMaintenanceWindow(
 /** Validates a `CheckUptime`. Returns the same object. */
 export function validateCheckUptime(value: unknown, path = "uptime"): Validation<CheckUptime> {
   return validateWith(checkUptimeSchema, value, path);
+}
+
+/** Validates `GET /checks/:id/location-uptime`. Returns the same object. */
+export function validateCheckLocationUptime(
+  value: unknown,
+  path = "uptime",
+): Validation<CheckLocationUptime> {
+  return validateWith(checkLocationUptimeSchema, value, path);
 }
 
 /** Validates `GET /checks`; fails on the first bad element. */

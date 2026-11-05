@@ -1,4 +1,4 @@
-import type { ManualIncident, ManualIncidentsResponse } from "./schema.ts";
+import { type ManualIncident, type ManualIncidentsResponse } from "./schema.ts";
 import type { Validation } from "./validate-core.ts";
 import { type WireVersionCheck } from "./version.ts";
 /** Default cap for a response body: 5 MiB. */
@@ -13,10 +13,13 @@ export type FetchJsonError = {
 } | {
     kind: "network";
     cause: unknown;
-} | {
+}
+/** `message` is set only by `requestJson`: the `error` text of an `ErrorResponse` body. */
+ | {
     kind: "http";
     status: number;
     wire: WireVersionCheck;
+    message?: string;
 } | {
     kind: "too-large";
     maxBytes: number;
@@ -63,6 +66,40 @@ export type FetchJsonOptions<T> = {
  * Order of checks: HTTP status, wire header, size, JSON, validation.
  */
 export declare function fetchJson<T>(url: string | URL, options: FetchJsonOptions<T>): Promise<FetchJsonResult<T>>;
+/** Status, `ETag` and wire check of a response whose headers arrived. */
+export type RequestJsonResponse = {
+    status: number;
+    etag: string | null;
+    wire: WireVersionCheck;
+};
+export type RequestJsonOptions<T> = Omit<FetchJsonOptions<T>, "onWireAbsent"> & {
+    method: "POST" | "PUT" | "DELETE";
+    /** JSON text, sent with `content-type: application/json`. */
+    body?: string;
+};
+/**
+ * Outcome of `requestJson`. It does not throw for expected failures. `response` is set exactly
+ * when the response headers arrived: a failure with a `2xx` `response.status` means the server
+ * answered `2xx`, and only reading or checking its body failed.
+ */
+export type RequestJsonResult<T> = {
+    ok: true;
+    status: number;
+    value: T | undefined;
+    etag: string | null;
+    wire: "ok" | "absent";
+} | {
+    ok: false;
+    error: FetchJsonError;
+    response: RequestJsonResponse | null;
+};
+/**
+ * Sends a POST, PUT or DELETE with an optional JSON body. It never follows a redirect and never
+ * retries; timeout, abort, size cap and wire check work as in `fetchJson`. A non-`2xx` answer is
+ * an `http` error whose `message` is the `ErrorResponse.error` text (at most 1000 characters) when
+ * the body is one and fits `maxBytes`. A `204` or empty body gives `value` `undefined`.
+ */
+export declare function requestJson<T>(url: string | URL, options: RequestJsonOptions<T>): Promise<RequestJsonResult<T>>;
 export type ManualIncidentReadOptions = Omit<FetchJsonOptions<unknown>, "validate"> & {
     /** Treat a 404 (an older api without the route) as "no manual incidents". */
     isAbsentTolerated?: boolean;

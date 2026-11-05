@@ -1,4 +1,4 @@
-import { type Check, type CheckLatency, type ChecksResponse, type CheckUptime, type CheckWithState, type Component, type ComponentsResponse, type ComponentsUptimeResponse, type ComponentUptime, type ComponentWithState, type Incident, type IncidentsResponse, type InternalManualIncident, type InternalManualIncidentsResponse, type LatencyResponse, type Location, type LocationsResponse, type MaintenanceResponse, type MaintenanceWindow, type ManualIncident, type ManualIncidentDraftInput, type ManualIncidentInput, type ManualIncidentNoteInput, type ManualIncidentsResponse, type ManualIncidentUpdateInput, type PostResultRequest, type Result, type ResultsResponse, type Slo, type UptimeResponse } from "./schema.ts";
+import { type Check, type CheckLatency, type CheckLocationUptime, type ChecksResponse, type CheckUptime, type CheckWithState, type Component, type ComponentsResponse, type ComponentsUptimeResponse, type ComponentUptime, type ComponentWithState, type Incident, type IncidentsResponse, type InternalManualIncident, type InternalManualIncidentsResponse, type LatencyResponse, type Location, type LocationsResponse, type MaintenanceResponse, type MaintenanceWindow, type ManualIncident, type ManualIncidentDraftInput, type ManualIncidentInput, type ManualIncidentNoteInput, type ManualIncidentsResponse, type ManualIncidentUpdateInput, type PostResultRequest, type Result, type ResultsResponse, type Slo, type UptimeResponse } from "./schema.ts";
 import { type Validation } from "./validate-core.ts";
 export declare const arrayProblem: (check: (item: unknown, path: string) => string | undefined, value: unknown, path: string) => string | undefined;
 /** Validates a `Check` (http, tls or heartbeat). State fields are ignored. Returns the same object. */
@@ -19,6 +19,8 @@ export declare function validateIncident(value: unknown, path?: string): Validat
 export declare function validateMaintenanceWindow(value: unknown, path?: string): Validation<MaintenanceWindow>;
 /** Validates a `CheckUptime`. Returns the same object. */
 export declare function validateCheckUptime(value: unknown, path?: string): Validation<CheckUptime>;
+/** Validates `GET /checks/:id/location-uptime`. Returns the same object. */
+export declare function validateCheckLocationUptime(value: unknown, path?: string): Validation<CheckLocationUptime>;
 /** Validates `GET /checks`; fails on the first bad element. */
 export declare function validateChecksResponse(value: unknown, path?: string): Validation<ChecksResponse>;
 /** Validates `GET /checks/:id/results`; fails on the first bad element. */
