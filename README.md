@@ -32,7 +32,10 @@ Validators never throw. `error` reads `<path>: <problem>`, for example
 `checks[3].intervalMs: must be an integer 1..2147483647`. Ranges are enforced (timer values at most `MAX_TIMER_MS`, dates must exist, uptime 0..100); see the bounds table in [docs/index.md](docs/index.md#validators).
 
 `fetchJson` is a shared JSON GET client with timeout, size cap (5 MiB by default), wire-version
-check and validation; it returns a typed result instead of throwing. See
+check and validation; it returns a typed result instead of throwing. `requestJson` sends a
+POST, PUT or DELETE with the same limits, never follows a redirect and never retries; a failed
+result carries `response` (status, `ETag`, wire check) when the headers arrived, so a failure
+with a `2xx` `response.status` means the server answered `2xx`. See
 [docs/index.md](docs/index.md#api-client).
 
 The compiled output in `dist/` is committed, because Node does not strip types under

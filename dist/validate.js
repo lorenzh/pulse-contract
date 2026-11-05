@@ -1,4 +1,4 @@
-import { checkLatencySchema, checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, internalManualIncidentSchema, locationSchema, maintenanceWindowSchema, manualIncidentDraftInputSchema, manualIncidentInputSchema, manualIncidentNoteInputSchema, manualIncidentSchema, manualIncidentUpdateInputSchema, postResultRequestSchema, resultSchema, sloSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
+import { checkLatencySchema, checkLocationUptimeSchema, checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, internalManualIncidentSchema, locationSchema, maintenanceWindowSchema, manualIncidentDraftInputSchema, manualIncidentInputSchema, manualIncidentNoteInputSchema, manualIncidentSchema, manualIncidentUpdateInputSchema, postResultRequestSchema, resultSchema, sloSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
 import { isObject, lookupGetter, ownValue, problem, validateWith, verdict, } from "./validate-core.js";
 export const arrayProblem = (check, value, path) => {
     if (!Array.isArray(value)) {
@@ -88,6 +88,10 @@ export function validateMaintenanceWindow(value, path = "maintenance") {
 /** Validates a `CheckUptime`. Returns the same object. */
 export function validateCheckUptime(value, path = "uptime") {
     return validateWith(checkUptimeSchema, value, path);
+}
+/** Validates `GET /checks/:id/location-uptime`. Returns the same object. */
+export function validateCheckLocationUptime(value, path = "uptime") {
+    return validateWith(checkLocationUptimeSchema, value, path);
 }
 /** Validates `GET /checks`; fails on the first bad element. */
 export function validateChecksResponse(value, path = "checks") {

@@ -339,6 +339,30 @@ export declare const checkUptimeSchema: z.ZodObject<{
     }, z.core.$strip>>;
     uptime: z.ZodNullable<z.ZodNumber>;
 }, z.core.$strip>;
+/** The tally of one location in `CheckLocationUptime`. */
+export declare const locationUptimeSchema: z.ZodObject<{
+    location: z.ZodString;
+    good: z.ZodNumber;
+    results: z.ZodNumber;
+    uptime: z.ZodNullable<z.ZodNumber>;
+}, z.core.$strip>;
+/**
+ * `GET /checks/:id/location-uptime`. Window: the 90 UTC days of `GET /uptime`, from
+ * `(today - 89) * 86400000` to the service's `now()` inclusive. Sample set: every stored result
+ * of the check in the window at that location, any status, heartbeat results included. `good`
+ * counts results whose status is not down. Every location with at least one stored result at any
+ * age is listed, once, sorted by name in UTF-16 code-unit order.
+ */
+export declare const checkLocationUptimeSchema: z.ZodObject<{
+    checkId: z.ZodString;
+    windowDays: z.ZodLiteral<90>;
+    locations: z.ZodArray<z.ZodObject<{
+        location: z.ZodString;
+        good: z.ZodNumber;
+        results: z.ZodNumber;
+        uptime: z.ZodNullable<z.ZodNumber>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
 export declare const latencyDaySchema: z.ZodObject<{
     date: z.ZodString;
     p50Ms: z.ZodNullable<z.ZodNumber>;
@@ -674,6 +698,8 @@ export type CheckWithState = Check & CheckStateFields;
 export type UptimeDay = z.infer<typeof uptimeDaySchema>;
 /** The 90-day uptime of one check. */
 export type CheckUptime = z.infer<typeof checkUptimeSchema>;
+export type LocationUptime = z.infer<typeof locationUptimeSchema>;
+export type CheckLocationUptime = z.infer<typeof checkLocationUptimeSchema>;
 /** One UTC calendar day of a check's latency percentiles. */
 export type LatencyDay = z.infer<typeof latencyDaySchema>;
 /** The 90-day latency history (p50 and p95 per UTC day) of one check. */

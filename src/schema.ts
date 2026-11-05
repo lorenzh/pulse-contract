@@ -663,6 +663,68 @@ export const checkUptimeSchema = z.object(
   objectError,
 );
 
+/** The tally of one location in `CheckLocationUptime`. */
+export const locationUptimeSchema = z
+  .object(
+    {
+      location: nonEmpty,
+      /** Results with status up or degraded (not down). */
+      good: atLeast(0),
+      /** All results of the location in the window. */
+      results: atLeast(0),
+      /** `good / results * 100`, unrounded; null exactly when `results` is 0. */
+      uptime: percent,
+    },
+    objectError,
+  )
+  .superRefine((entry, ctx) => {
+    if (entry.good > entry.results) {
+      ctx.addIssue({ code: "custom", path: ["good"], message: "must be <= results" });
+    }
+    if ((entry.uptime === null) !== (entry.results === 0)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["uptime"],
+        message: "must be null exactly when results is 0",
+      });
+    }
+  });
+
+/**
+ * `GET /checks/:id/location-uptime`. Window: the 90 UTC days of `GET /uptime`, from
+ * `(today - 89) * 86400000` to the service's `now()` inclusive. Sample set: every stored result
+ * of the check in the window at that location, any status, heartbeat results included. `good`
+ * counts results whose status is not down. Every location with at least one stored result at any
+ * age is listed, once, sorted by name in UTF-16 code-unit order.
+ */
+export const checkLocationUptimeSchema = z.object(
+  {
+    checkId: nonEmpty,
+    windowDays: z.literal(90, { error: "must be 90" }),
+    locations: z
+      .array(locationUptimeSchema, { error: "must be an array" })
+      .superRefine((list, ctx) => {
+        for (let i = 1; i < list.length; i++) {
+          const previous = list[i - 1];
+          const current = list[i];
+          if (
+            previous !== undefined &&
+            current !== undefined &&
+            previous.location >= current.location
+          ) {
+            ctx.addIssue({
+              code: "custom",
+              path: [i, "location"],
+              message: "must be unique and sorted ascending",
+            });
+            return;
+          }
+        }
+      }),
+  },
+  objectError,
+);
+
 const LATENCY_DAYS = 90;
 
 const latencyMs = z
@@ -1191,6 +1253,10 @@ export type CheckWithState = Check & CheckStateFields;
 export type UptimeDay = z.infer<typeof uptimeDaySchema>;
 /** The 90-day uptime of one check. */
 export type CheckUptime = z.infer<typeof checkUptimeSchema>;
+
+export type LocationUptime = z.infer<typeof locationUptimeSchema>;
+
+export type CheckLocationUptime = z.infer<typeof checkLocationUptimeSchema>;
 /** One UTC calendar day of a check's latency percentiles. */
 export type LatencyDay = z.infer<typeof latencyDaySchema>;
 /** The 90-day latency history (p50 and p95 per UTC day) of one check. */

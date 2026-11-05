@@ -17,6 +17,7 @@ import type {
   AuditPage,
   AuditTargetKind,
   Check,
+  CheckLocationUptime,
   CheckState,
   CheckStatus,
   ChecksResponse,
@@ -43,6 +44,7 @@ import type {
   Location,
   LocationResult,
   LocationsResponse,
+  LocationUptime,
   MaintenanceResponse,
   MaintenanceWindow,
   ManualIncident,
@@ -55,6 +57,9 @@ import type {
   ManualIncidentUpdateInput,
   ManualIncidentVisibility,
   PostResultRequest,
+  RequestJsonOptions,
+  RequestJsonResponse,
+  RequestJsonResult,
   Result,
   ResultsResponse,
   TlsCheck,
@@ -425,3 +430,37 @@ const auditEntry: AuditEntry = {
 };
 const auditPage: AuditPage = { entries: [auditEntry], nextBefore: null };
 export const auditFixtures = { entry: auditEntry, page: auditPage };
+
+// Location uptime and the write client.
+const locationUptime: LocationUptime = { location: "eu", good: 4, results: 5, uptime: 80 };
+const checkLocationUptime: CheckLocationUptime = {
+  checkId: "web",
+  windowDays: 90,
+  locations: [locationUptime],
+};
+const requestResponse: RequestJsonResponse = { status: 200, etag: null, wire: { status: "ok" } };
+const requestFailed: RequestJsonResult<Check> = {
+  ok: false,
+  error: { kind: "http", status: 412, wire: { status: "ok" }, message: "changed" },
+  response: requestResponse,
+};
+const requestSaved: RequestJsonResult<Check> = {
+  ok: true,
+  status: 204,
+  value: undefined,
+  etag: null,
+  wire: "absent",
+};
+const requestOptions: RequestJsonOptions<unknown> = {
+  fetch: (input) => fetch(input),
+  method: "PUT",
+  body: "{}",
+  timeoutMs: 1000,
+  validate: (raw) => ({ ok: true, value: raw }),
+};
+export const writeFixtures = {
+  checkLocationUptime,
+  requestFailed,
+  requestSaved,
+  requestOptions,
+};
