@@ -7,7 +7,10 @@ import {
   type AdminConfigResponse,
   type AdminConfigSummary,
   type AdminMaintenanceInput,
+  type AdminMaintenanceList,
   type AdminMaintenanceView,
+  type AdminMaintenanceWindow,
+  type AdminMaintenanceWindowInput,
   adminCheckInputSchemas,
   adminCheckViewSchema,
   adminComponentInputSchema,
@@ -15,7 +18,10 @@ import {
   adminConfigResponseSchema,
   adminConfigSummarySchema,
   adminMaintenanceInputSchema,
+  adminMaintenanceListSchema,
   adminMaintenanceViewSchema,
+  adminMaintenanceWindowInputSchema,
+  adminMaintenanceWindowSchema,
 } from "./admin.ts";
 import { arrayProblem, validateCheck } from "./validate.ts";
 import {
@@ -117,6 +123,30 @@ export function validateAdminMaintenanceView(
   path = "maintenance",
 ): Validation<AdminMaintenanceView> {
   return validateWith(adminMaintenanceViewSchema, value, path);
+}
+
+/** Validates the body of `POST /admin/maintenance` or `PUT /admin/maintenance/:id`. Strict. */
+export function validateAdminMaintenanceWindowInput(
+  value: unknown,
+  path = "maintenance",
+): Validation<AdminMaintenanceWindowInput> {
+  return validateWith(adminMaintenanceWindowInputSchema, value, path);
+}
+
+/** Validates one window of `GET /admin/maintenance` or the body of a window write. */
+export function validateAdminMaintenanceWindow(
+  value: unknown,
+  path = "maintenance",
+): Validation<AdminMaintenanceWindow> {
+  return validateWith(adminMaintenanceWindowSchema, value, path);
+}
+
+/** Validates `GET /admin/maintenance`. */
+export function validateAdminMaintenanceList(
+  value: unknown,
+  path = "maintenance",
+): Validation<AdminMaintenanceList> {
+  return validateWith(adminMaintenanceListSchema, value, path);
 }
 
 /** Validates `GET /admin/config`. */

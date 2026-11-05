@@ -29,7 +29,7 @@ export declare const ADMIN_STATUS_ORDER: readonly [{
     readonly meaning: "If-Match missing";
 }, {
     readonly status: 503;
-    readonly meaning: "checks file not writable (component and maintenance writes)";
+    readonly meaning: "checks file not writable (component writes)";
 }, {
     readonly status: 412;
     readonly meaning: "stale revision";
@@ -38,7 +38,7 @@ export declare const ADMIN_STATUS_ORDER: readonly [{
     readonly meaning: "schema or reference error";
 }, {
     readonly status: 409;
-    readonly meaning: "id exists, still referenced, a file check, or a shadowed database check";
+    readonly meaning: "id exists, still referenced, a file check, a file window, or a shadowed database check";
 }, {
     readonly status: 404;
     readonly meaning: "unknown id or index";
@@ -563,7 +563,10 @@ export declare const adminComponentInputSchema: z.ZodObject<{
     group: z.ZodOptional<z.ZodString>;
     availabilityTarget: z.ZodOptional<z.ZodNumber>;
 }, z.core.$strict>;
-/** A maintenance window as written in a request. Strict. */
+/**
+ * A file maintenance window as the checks file holds it. Strict. The api no longer accepts it as
+ * a request body: `POST|PUT /admin/maintenance` take `adminMaintenanceWindowInputSchema`.
+ */
 export declare const adminMaintenanceInputSchema: z.ZodObject<{
     checkId: z.ZodString;
     start: z.ZodNumber;
@@ -577,6 +580,88 @@ export declare const adminMaintenanceViewSchema: z.ZodObject<{
     end: z.ZodNumber;
     note: z.ZodString;
     index: z.ZodInt;
+}, z.core.$strict>;
+/** Window id: starts with a letter, so a decimal path segment (a file window index) never is one. */
+export declare const MAINTENANCE_WINDOW_ID: RegExp;
+/** Longest window id. */
+export declare const MAX_MAINTENANCE_WINDOW_ID = 64;
+/** Most check ids of one database window. */
+export declare const MAX_MAINTENANCE_CHECKS = 50;
+/** Longest note of a database window, in UTF-16 code units. */
+export declare const MAX_MAINTENANCE_NOTE = 500;
+/**
+ * Latest time of a database window, epoch ms: `9999-12-31T23:59:59.999Z`. A later time has an
+ * expanded year in `toISOString`, which the export schema refuses.
+ */
+export declare const MAX_MAINTENANCE_TIME = 253402300799999;
+/** Phase of a window at read time: before, inside or after `[start, end)`. */
+export declare const ADMIN_MAINTENANCE_PHASES: readonly ["planned", "current", "past"];
+/** Body of `POST /admin/maintenance` and `PUT /admin/maintenance/:id`: a database window. Strict. */
+export declare const adminMaintenanceWindowInputSchema: z.ZodObject<{
+    id: z.ZodString;
+    checkIds: z.ZodArray<z.ZodString>;
+    start: z.ZodInt;
+    end: z.ZodInt;
+    note: z.ZodString;
+}, z.core.$strict>;
+/**
+ * One window of `GET /admin/maintenance` and the body of a window write. A database window has an
+ * `id` and `index: null`; a file window has its `index`, one check id and its file id or `null`.
+ */
+export declare const adminMaintenanceWindowSchema: z.ZodObject<{
+    id: z.ZodNullable<z.ZodString>;
+    index: z.ZodNullable<z.ZodInt>;
+    source: z.ZodEnum<{
+        database: "database";
+        file: "file";
+    }>;
+    checkIds: z.ZodArray<z.ZodString>;
+    start: z.ZodNumber;
+    end: z.ZodNumber;
+    note: z.ZodString;
+    phase: z.ZodEnum<{
+        current: "current";
+        past: "past";
+        planned: "planned";
+    }>;
+}, z.core.$strict>;
+/** `GET /admin/maintenance`: effective windows (file, then database) and shadowed database windows. */
+export declare const adminMaintenanceListSchema: z.ZodObject<{
+    revision: z.ZodString;
+    windows: z.ZodArray<z.ZodObject<{
+        id: z.ZodNullable<z.ZodString>;
+        index: z.ZodNullable<z.ZodInt>;
+        source: z.ZodEnum<{
+            database: "database";
+            file: "file";
+        }>;
+        checkIds: z.ZodArray<z.ZodString>;
+        start: z.ZodNumber;
+        end: z.ZodNumber;
+        note: z.ZodString;
+        phase: z.ZodEnum<{
+            current: "current";
+            past: "past";
+            planned: "planned";
+        }>;
+    }, z.core.$strict>>;
+    shadowed: z.ZodArray<z.ZodObject<{
+        id: z.ZodNullable<z.ZodString>;
+        index: z.ZodNullable<z.ZodInt>;
+        source: z.ZodEnum<{
+            database: "database";
+            file: "file";
+        }>;
+        checkIds: z.ZodArray<z.ZodString>;
+        start: z.ZodNumber;
+        end: z.ZodNumber;
+        note: z.ZodString;
+        phase: z.ZodEnum<{
+            current: "current";
+            past: "past";
+            planned: "planned";
+        }>;
+    }, z.core.$strict>>;
 }, z.core.$strict>;
 /** States of the checks file, as the last read or apply left it. */
 export declare const ADMIN_FILE_STATES: readonly ["ok", "invalid", "unreadable", "written-not-applied"];
@@ -1149,6 +1234,10 @@ export type AdminComponentInput = z.infer<typeof adminComponentInputSchema>;
 export type AdminMaintenanceInput = z.infer<typeof adminMaintenanceInputSchema>;
 export type AdminMaintenanceView = z.infer<typeof adminMaintenanceViewSchema>;
 export type AdminConfigResponse = z.infer<typeof adminConfigResponseSchema>;
+export type AdminMaintenancePhase = (typeof ADMIN_MAINTENANCE_PHASES)[number];
+export type AdminMaintenanceWindowInput = z.infer<typeof adminMaintenanceWindowInputSchema>;
+export type AdminMaintenanceWindow = z.infer<typeof adminMaintenanceWindowSchema>;
+export type AdminMaintenanceList = z.infer<typeof adminMaintenanceListSchema>;
 export type AdminCheckInput = z.infer<typeof adminCheckInputSchema>;
 export type AdminCheckSource = z.infer<typeof adminCheckSourceSchema>;
 export type AdminKeep = z.infer<typeof adminKeepSchema>;
@@ -1160,4 +1249,4 @@ export type AdminConfigExport = z.infer<typeof adminConfigExportSchema>;
  * Body of a successful admin write: the redacted entity that was stored. `DELETE` answers 204
  * without a body. The new revision is in the `ETag` header.
  */
-export type AdminWriteResponse = AdminCheckView | AdminComponent | AdminMaintenanceView;
+export type AdminWriteResponse = AdminCheckView | AdminComponent | AdminMaintenanceView | AdminMaintenanceWindow;

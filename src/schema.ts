@@ -779,7 +779,7 @@ const COMPONENT_ID = /^[a-z0-9][a-z0-9._-]*$/;
 const CONTROL_CHARACTER = /\p{Cc}/u;
 
 /** Plain text of 1..max (or 0..max) characters: trimmed, without control characters. */
-const plainText = (min: number, max: number): z.ZodString => {
+export const plainText = (min: number, max: number): z.ZodString => {
   const range = min === 0 ? `at most ${max}` : `${min}..${max}`;
   return z
     .string({ error: "must be a string" })

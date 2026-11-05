@@ -634,7 +634,7 @@ const COMPONENT_ID = /^[a-z0-9][a-z0-9._-]*$/;
 // Control characters (C0, DEL, C1) are not allowed in customer-facing text.
 const CONTROL_CHARACTER = /\p{Cc}/u;
 /** Plain text of 1..max (or 0..max) characters: trimmed, without control characters. */
-const plainText = (min, max) => {
+export const plainText = (min, max) => {
     const range = min === 0 ? `at most ${max}` : `${min}..${max}`;
     return z
         .string({ error: "must be a string" })
