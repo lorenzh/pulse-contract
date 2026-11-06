@@ -1,7 +1,15 @@
 import { z } from "zod";
 import { TOKEN_ID } from "./token-id.js";
 /** Token scopes, in the order the api lists them. */
-export const TOKEN_SCOPES = ["read", "checks", "incidents", "admin", "probe"];
+export const TOKEN_SCOPES = [
+    "read",
+    "checks",
+    "incidents",
+    "admin",
+    "probe",
+    "status",
+    "notify",
+];
 /** How long a rotated-out credential keeps working: 10 minutes. */
 export const TOKEN_ROTATION_OVERLAP_MS = 600_000;
 /** Longest name of a token created over the api, in characters after trim. */
@@ -29,14 +37,19 @@ const trimmedText = (max) => z.string({ error: "must be a string" }).refine((v) 
 const nullableTime = z.number({ error: "must be a finite number or null" }).nullable();
 const distinct = (scopes) => new Set(scopes).size === scopes.length;
 const isProbeOnly = (scopes) => scopes.length === 1 && scopes[0] === "probe";
-/** Scopes of a token: distinct, and `probe` only alone. */
+/** Scopes that a token holds only alone. */
+const SOLE_SCOPES = ["probe", "status", "notify"];
+/** Scopes of a token: distinct, and `probe`, `status` and `notify` each only alone. */
 const scopesSchema = z
     .array(tokenScopeSchema, { error: "must be an array" })
     .min(1, `must hold 1..${MAX_ADMIN_SCOPES} scopes`)
     .max(MAX_ADMIN_SCOPES, `must hold 1..${MAX_ADMIN_SCOPES} scopes`)
     .refine(distinct, { error: "must not repeat a scope" })
-    .refine((s) => !s.includes("probe") || s.length === 1, {
-    error: "probe must be the only scope",
+    .superRefine((scopes, ctx) => {
+    const sole = SOLE_SCOPES.find((scope) => scopes.includes(scope));
+    if (sole !== undefined && scopes.length > 1) {
+        ctx.addIssue({ code: "custom", message: `${sole} must be the only scope` });
+    }
 });
 export const tokenCreateInputSchema = z
     .strictObject({

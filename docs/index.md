@@ -66,7 +66,7 @@ Every type exported from `src/index.ts`. Import them with `import type`.
 | `AdminConfigResponse`                                                                                    | Response of `GET /admin/config`: `revision`, `checks` (`AdminCheckView[]`), `components`, `maintenance` (`AdminMaintenanceView[]`).                                       |
 | `AdminWriteResponse`                                                                                     | Body of a successful admin write: the stored `AdminCheckView`, `AdminComponent`, `AdminMaintenanceView` or `AdminMaintenanceWindow`. `DELETE` answers 204 without a body. |
 | `AdminMaintenanceWindowInput`, `AdminMaintenanceWindow`, `AdminMaintenanceList`, `AdminMaintenancePhase` | Database maintenance windows; see "Database maintenance windows".                                                                                                         |
-| `TokenScope`                                                                                             | One of `TOKEN_SCOPES`: `"read"`, `"checks"`, `"incidents"`, `"admin"`, `"probe"`.                                                                                         |
+| `TokenScope`                                                                                             | One of `TOKEN_SCOPES`: `"read"`, `"checks"`, `"incidents"`, `"admin"`, `"probe"`, `"status"`, `"notify"`.                                                                 |
 | `TokenCreateInput`                                                                                       | Body of `POST /admin/tokens`: `{ name, scopes, location?, expiresAt? }`. Strict; the client never sends a secret.                                                         |
 | `TokenMetadata`                                                                                          | A token as the api serves it: id, name, scopes, location, source and times. It has no secret or digest field. Strict.                                                     |
 | `TokensResponse`                                                                                         | Response of `GET /admin/tokens`: `{ tokens: TokenMetadata[] }`.                                                                                                           |
@@ -424,23 +424,24 @@ Additive: `WIRE_VERSION` stays 1. The api owns the routes (`/admin/tokens`, `/ad
 `/admin/tokens/{id}/rotate`, `/admin/tokens/{id}/revoke`, `/admin/audit`, `/admin/audit/export`);
 the contract owns the shapes and these constants.
 
-| Constant                                 | Value                                                                                                                                                                                                                                            |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `TOKEN_SCOPES`                           | `["read", "checks", "incidents", "admin", "probe"]`                                                                                                                                                                                              |
-| `TOKEN_ROTATION_OVERLAP_MS`              | `600000` (10 minutes)                                                                                                                                                                                                                            |
-| `TOKEN_NAME_MAX`                         | `100`                                                                                                                                                                                                                                            |
-| `TOKEN_MAX_BODY_BYTES`                   | `4096`                                                                                                                                                                                                                                           |
-| `TOKEN_SECRET_PREFIX`                    | `"pulse_"`                                                                                                                                                                                                                                       |
-| `TOKEN_ID_PREFIX`                        | `"tok_"`; ids match `^tok_[0-9a-f]{24}$`                                                                                                                                                                                                         |
-| `AUDIT_ACTIONS`                          | `check.`, `component.`, `maintenance.` `create`/`replace`/`delete`; `manual-incident.` `create`/`update`/`resolve`/`delete`/`edit`/`draft-save`/`draft-discard`/`publish`/`note-add`/`note-delete`; `token.` `create`/`rotate`/`revoke`/`import` |
-| `AUDIT_TARGET_KINDS`                     | `["check", "component", "maintenance", "manual-incident", "token"]`                                                                                                                                                                              |
-| `AUDIT_DEFAULT_LIMIT`, `AUDIT_MAX_LIMIT` | `100`, `1000`                                                                                                                                                                                                                                    |
-| `AUDIT_EXPORT_CONTENT_TYPE`              | `"application/x-ndjson"`                                                                                                                                                                                                                         |
+| Constant                                 | Value                                                                                                                                                                                                                                                                                                                                              |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TOKEN_SCOPES`                           | `["read", "checks", "incidents", "admin", "probe", "status", "notify"]`                                                                                                                                                                                                                                                                            |
+| `TOKEN_ROTATION_OVERLAP_MS`              | `600000` (10 minutes)                                                                                                                                                                                                                                                                                                                              |
+| `TOKEN_NAME_MAX`                         | `100`                                                                                                                                                                                                                                                                                                                                              |
+| `TOKEN_MAX_BODY_BYTES`                   | `4096`                                                                                                                                                                                                                                                                                                                                             |
+| `TOKEN_SECRET_PREFIX`                    | `"pulse_"`                                                                                                                                                                                                                                                                                                                                         |
+| `TOKEN_ID_PREFIX`                        | `"tok_"`; ids match `^tok_[0-9a-f]{24}$`                                                                                                                                                                                                                                                                                                           |
+| `AUDIT_ACTIONS`                          | `check.`, `component.`, `maintenance.` `create`/`replace`/`delete`; `manual-incident.` `create`/`update`/`resolve`/`delete`/`edit`/`draft-save`/`draft-discard`/`publish`/`note-add`/`note-delete`; `token.` `create`/`rotate`/`revoke`/`import`; `status-settings.replace`; `notify-channel.` `create`/`replace`/`delete`; `notify-resend.create` |
+| `AUDIT_TARGET_KINDS`                     | `["check", "component", "maintenance", "manual-incident", "token", "status-settings", "notify-channel", "notify-resend"]`                                                                                                                                                                                                                          |
+| `AUDIT_DEFAULT_LIMIT`, `AUDIT_MAX_LIMIT` | `100`, `1000`                                                                                                                                                                                                                                                                                                                                      |
+| `AUDIT_EXPORT_CONTENT_TYPE`              | `"application/x-ndjson"`                                                                                                                                                                                                                                                                                                                           |
 
 Rules of the schemas:
 
 - `TokenCreateInput`: `name` is 1..100 characters after trim, without control characters.
-  `scopes` holds 1..4 distinct scopes, and `probe` only alone. `location` (1..64 characters after
+  `scopes` holds 1..4 distinct scopes. `probe`, `status` and `notify` are each only alone
+  (`<scope> must be the only scope`). `location` (1..64 characters after
   trim) is required exactly for a probe token. `expiresAt` is an optional positive safe integer; the
   api checks that it lies in the future, since the contract has no clock.
 - `TokenMetadata`: `name` is non-empty with no maximum (imported names). `location` is not null
@@ -454,6 +455,76 @@ Rules of the schemas:
 Validators: `validateTokenCreateInput`, `validateTokenMetadata`, `validateTokensResponse`,
 `validateTokenSecretResponse`, `validateAuditEntry`, `validateAuditPage`. Like every validator they
 read own data properties only and never run a getter.
+
+## Status and notify settings
+
+Contract 2.4.0 adds the shapes that let the console edit status page settings and notify channels,
+and resend a failed delivery. Additive: `WIRE_VERSION` stays 1. All objects are strict; an unknown
+key gives `has an unknown field: <key>`, and `null` is never a setting value. A revision is the admin
+revision `sha256-<64 hex>`; times are epoch ms integers. Every byte limit measures UTF-8 bytes of
+`JSON.stringify(value)`; every length counts UTF-16 code units (`string.length`).
+
+| Constant                                                     | Value                                                                                                                |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `STATUS_COLOR_KEYS`                                          | the 20 colour keys of status `theme-config.ts`                                                                       |
+| `STATUS_FONT_KEYS`, `STATUS_RADIUS_KEYS`                     | `font-sans`, `font-mono`; `radius-sm`, `radius-md`, `radius-pill`                                                    |
+| `STATUS_NAME_MAX`, `STATUS_COMPONENT_ORDER_MAX`              | `60`, `500`                                                                                                          |
+| `STATUS_RADIUS_MAX`, `STATUS_SETTINGS_MAX_BYTES`             | `32`, `65536`                                                                                                        |
+| `NOTIFY_SECRET_ENV_PREFIX`                                   | `"PULSE_NOTIFY_SECRET_"`                                                                                             |
+| `NOTIFY_CHANNEL_MAX`, `NOTIFY_CHANNEL_DEFINITION_MAX_BYTES`  | `100`, `16384`                                                                                                       |
+| `NOTIFY_CHANNELS_MAX_BYTES`                                  | `262144`: sum over all database channels, applied by the api                                                         |
+| `NOTIFY_FAILED_REPORT_MAX`, `NOTIFY_FILE_CHANNEL_REPORT_MAX` | `200`, `200`                                                                                                         |
+| `NOTIFY_FAILED_EVENTS`                                       | `opened`, `update`, `resolved`, `reminder`, `budget-low`, `tls-expiry`, `domain-expiry`, `unknown`                   |
+| `SERVICE_REPORT_MAX_BYTES`, `SERVICE_REPORT_STALE_MS`        | `524288`, `180000`                                                                                                   |
+| `RESEND_COMMAND_STATES`                                      | `queued`, `claimed`, `admitted`, `delivered`, `failed`, `dropped`, `not-failed`, `no-payload`, `channel-unavailable` |
+| `RESEND_CLAIM_MAX`, `RESEND_CLAIM_TIMEOUT_MS`                | `20`, `60000`                                                                                                        |
+| `RESEND_COMMAND_MAX`, `RESEND_REQUEST_MAX`                   | `1000`, `10000`                                                                                                      |
+| `RESEND_RETENTION_MS`                                        | `604800000` (7 days)                                                                                                 |
+
+Rules of the schemas:
+
+- `StatusSettings`: `name` 1..60 characters; `logoUrl` an `https:` URL of at most 2048 printable
+  ASCII characters without space, `"`, `\`, `<`, `>` and userinfo; `theme` (`StatusTheme`) with
+  `light`/`dark` palettes, fonts and radii (a radius is at most 32 characters); `componentOrder` 0..500
+  distinct component ids (duplicate: `componentOrder[<i>]: must not repeat an id`); the flags
+  `showChecks`, `showLatency`, `showSlos`, `hideDetails`. The whole document is at most 65536 bytes.
+- `ServiceStatusSettings`: `{revision, settings}`. `StatusServiceReport`: `{at, startedAt,
+  appliedRevision, rejected, locked}` with at most 60 `StatusLockedField`s.
+- `StatusServiceState` and `NotifyServiceState`: `{state, receivedAt, report}`. `never` has
+  `receivedAt: null` and `report: null`; `fresh` and `stale` have both.
+- `AdminStatusSettingsView`: `{revision, settings, service}`.
+- `NotifyChannelDefinition`: `webhook`, `slack`, `teams` or `email` (`file` is refused), id
+  `^[a-z0-9][a-z0-9_-]{0,63}$`, the routing fields (lists of at most 200 strings of at most 200
+  characters), and secret references only: env references match
+  `^PULSE_NOTIFY_SECRET_[A-Z0-9_]{1,64}$`, file references are basenames matching
+  `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`. Webhook, slack and teams need exactly one of `urlEnv`,
+  `urlFile`. The keys `url`, `password` and `secret` are unknown fields. One definition is at most
+  16384 bytes.
+- `NotifyChannelRecord`: a definition plus `createdAt` and `updatedAt`; the byte limit is measured
+  without them. `NotifyDatabaseChannelView` adds `source: "database"`.
+- `ServiceNotifyChannels`: `{revision, channels: NotifyChannelRecord[]}`. It is checked in two steps:
+  `validateServiceNotifyChannels` checks only the envelope (`ServiceNotifyChannelsEnvelope`: keys,
+  revision, at most 100 elements, each a plain object with a valid, distinct own `id`) and never
+  fails because of the rest of an element; `validateNotifyChannelRecord` checks each element. An
+  answer is a `ServiceNotifyChannels` when both pass.
+- `NotifyServiceReport`: `fileChannels` (0..200 `NotifyFileChannelView`, any type including `file`,
+  `id` and each of at most 6 `refs` 1..200 characters), `fileChannelsTotal`, `shadowedIds` (0..100),
+  `rejected` (0..100 `NotifyRejectedChannel`), `failed` (0..200 `NotifyFailedDelivery`), `failedTotal`.
+  A total is at least the length of its list. The contract checks the limits; notify cuts display text.
+- `NotifyFailedDelivery`: `{channelId (1..200), key (1..300), event, isManual, failedAt, hasPayload}`.
+- `AdminNotifyChannelsView`: `{revision, channels, shadowed, service}`; `channels` and `shadowed`
+  hold database views only. `AdminNotifyFailedView`: `{state, receivedAt, failed, failedTotal}`,
+  without the rest of the report.
+- `ResendRequest`: `{channelId, key, requestId}` with `requestId` matching `^[A-Za-z0-9_-]{16,64}$`.
+  `ResendCommand` adds an `id` of 24 base64url characters, `state`, `createdAt`, `updatedAt`.
+  `ResendClaimResponse` holds at most 20 commands. `ResendResultInput` is `{state}` with an
+  admission or a final outcome; `queued` and `claimed` are refused.
+
+Validators: `validateStatusSettings`, `validateServiceStatusSettings`,
+`validateStatusServiceReport`, `validateAdminStatusSettingsView`, `validateNotifyChannelDefinition`,
+`validateNotifyChannelRecord`, `validateServiceNotifyChannels`, `validateNotifyServiceReport`,
+`validateAdminNotifyChannelsView`, `validateAdminNotifyFailedView`, `validateResendRequest`,
+`validateResendCommand`, `validateResendClaimResponse`, `validateResendResultInput`.
 
 ## Latency history and availability SLOs
 

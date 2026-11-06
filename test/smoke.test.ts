@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fixture, tokenFixtures } from "./types.fixture.ts";
+import { fixture, runtimeFixtures, tokenFixtures } from "./types.fixture.ts";
 
 const root = new URL("..", import.meta.url).pathname;
 
@@ -26,7 +26,10 @@ test("dist matches a fresh build of src", () => {
       "audit",
       "index",
       "manual-incident-public",
+      "notify-channels",
+      "resend",
       "revision",
+      "runtime-settings",
       "schema",
       "token-id",
       "tokens",
@@ -34,6 +37,7 @@ test("dist matches a fresh build of src", () => {
       "validate-admin",
       "validate-audit",
       "validate-core",
+      "validate-runtime",
       "validate-tokens",
       "version",
     ].flatMap((n) => [`${n}.d.ts`, `${n}.js`])) {
@@ -198,11 +202,71 @@ test("package entry exports the validators and the wire version", async () => {
       "validateTokenMetadata",
       "validateTokenSecretResponse",
       "validateTokensResponse",
+      "validateStatusSettings",
+      "validateServiceStatusSettings",
+      "validateStatusServiceReport",
+      "validateAdminStatusSettingsView",
+      "validateNotifyChannelDefinition",
+      "validateNotifyChannelRecord",
+      "validateServiceNotifyChannels",
+      "validateNotifyServiceReport",
+      "validateAdminNotifyChannelsView",
+      "validateAdminNotifyFailedView",
+      "validateResendRequest",
+      "validateResendCommand",
+      "validateResendClaimResponse",
+      "validateResendResultInput",
+      "STATUS_COLOR_KEYS",
+      "STATUS_FONT_KEYS",
+      "STATUS_RADIUS_KEYS",
+      "STATUS_NAME_MAX",
+      "STATUS_COMPONENT_ORDER_MAX",
+      "NOTIFY_SECRET_ENV_PREFIX",
+      "NOTIFY_CHANNEL_MAX",
+      "NOTIFY_CHANNELS_MAX_BYTES",
+      "NOTIFY_FAILED_REPORT_MAX",
+      "NOTIFY_FILE_CHANNEL_REPORT_MAX",
+      "SERVICE_REPORT_MAX_BYTES",
+      "SERVICE_REPORT_STALE_MS",
+      "RESEND_CLAIM_MAX",
+      "RESEND_CLAIM_TIMEOUT_MS",
+      "RESEND_COMMAND_MAX",
+      "RESEND_COMMAND_STATES",
+      "STATUS_RADIUS_MAX",
+      "STATUS_SETTINGS_MAX_BYTES",
+      "NOTIFY_CHANNEL_DEFINITION_MAX_BYTES",
+      "RESEND_REQUEST_MAX",
+      "RESEND_RETENTION_MS",
+      "NOTIFY_FAILED_EVENTS",
     ].sort(byName),
   );
   assert.equal(mod.HEADER_ENV_PREFIX, "PULSE_HEADER_");
   assert.equal(mod.MAX_REASON_LENGTH, 1000);
   assert.equal(mod.MAX_WARN_DAYS, 3650);
+  const runtimeConstants: Record<string, unknown> = {
+    STATUS_NAME_MAX: 60,
+    STATUS_COMPONENT_ORDER_MAX: 500,
+    NOTIFY_SECRET_ENV_PREFIX: "PULSE_NOTIFY_SECRET_",
+    NOTIFY_CHANNEL_MAX: 100,
+    NOTIFY_CHANNELS_MAX_BYTES: 262144,
+    NOTIFY_FAILED_REPORT_MAX: 200,
+    NOTIFY_FILE_CHANNEL_REPORT_MAX: 200,
+    SERVICE_REPORT_MAX_BYTES: 524288,
+    SERVICE_REPORT_STALE_MS: 180000,
+    RESEND_CLAIM_MAX: 20,
+    RESEND_CLAIM_TIMEOUT_MS: 60000,
+    RESEND_COMMAND_MAX: 1000,
+    STATUS_RADIUS_MAX: 32,
+    STATUS_SETTINGS_MAX_BYTES: 65536,
+    NOTIFY_CHANNEL_DEFINITION_MAX_BYTES: 16384,
+    RESEND_REQUEST_MAX: 10000,
+    RESEND_RETENTION_MS: 604800000,
+  };
+  for (const [name, value] of Object.entries(runtimeConstants)) {
+    assert.equal((mod as Record<string, unknown>)[name], value, name);
+  }
+  assert.deepEqual(mod.STATUS_FONT_KEYS, ["font-sans", "font-mono"]);
+  assert.deepEqual(mod.STATUS_RADIUS_KEYS, ["radius-sm", "radius-md", "radius-pill"]);
 });
 
 test("fixture covers maintenance types", () => {
@@ -250,4 +314,16 @@ test("fixture covers token types", () => {
   assert.equal(secret.previousValidUntil, null);
   assert.equal(list.tokens.length, 1);
   assert.equal(scope, "admin");
+});
+
+test("fixture covers the runtime settings, channel and resend types", () => {
+  const f = runtimeFixtures;
+  assert.equal(f.statusView.service.state, "never");
+  assert.equal(f.channels.channels[0]?.type, "webhook");
+  assert.equal(f.envelope.channels[0]?.id, "a");
+  assert.equal(f.notifyView.service.report?.failed[0]?.event, "update");
+  assert.equal(f.failedView.failedTotal, 1);
+  assert.equal(f.claim.commands[0]?.state, "claimed");
+  assert.equal(f.result.state, "delivered");
+  assert.equal(f.request.requestId, "req_0123456789abcd");
 });

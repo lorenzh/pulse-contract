@@ -48,11 +48,25 @@ test("audit constants have the spec values", () => {
       "token.rotate",
       "token.revoke",
       "token.import",
+      "status-settings.replace",
+      "notify-channel.create",
+      "notify-channel.replace",
+      "notify-channel.delete",
+      "notify-resend.create",
     ],
   );
   assert.deepEqual(
     [...AUDIT_TARGET_KINDS],
-    ["check", "component", "maintenance", "manual-incident", "token"],
+    [
+      "check",
+      "component",
+      "maintenance",
+      "manual-incident",
+      "token",
+      "status-settings",
+      "notify-channel",
+      "notify-resend",
+    ],
   );
   assert.equal(AUDIT_DEFAULT_LIMIT, 100);
   assert.equal(AUDIT_MAX_LIMIT, 1000);
@@ -164,4 +178,24 @@ test("entries nested in a record or a nullable union keep the own-data rule", ()
   assert.equal(validateWith(latest, null, "latest").ok, true);
   assert.equal(validateWith(latest, hostile, "latest").ok, false);
   assert.equal(calls, 0);
+});
+
+test("the runtime settings actions name their own target kind", () => {
+  const create = {
+    ...entry,
+    action: "notify-channel.create",
+    target: { kind: "notify-channel", id: "ops" },
+  };
+  const accepted = validateAuditEntry(create);
+  assert.ok(accepted.ok && Object.is(accepted.value, create));
+  for (const [action, kind] of [
+    ["status-settings.replace", "status-settings"],
+    ["notify-resend.create", "notify-resend"],
+  ]) {
+    assert.equal(validateAuditEntry({ ...entry, action, target: { kind, id: "x" } }).ok, true);
+  }
+  assert.deepEqual(validateAuditEntry({ ...create, target: { kind: "check", id: "ops" } }), {
+    ok: false,
+    error: "entry.target.kind: must match the action",
+  });
 });
