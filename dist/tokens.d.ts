@@ -1,6 +1,6 @@
 import { z } from "zod";
 /** Token scopes, in the order the api lists them. */
-export declare const TOKEN_SCOPES: readonly ["read", "checks", "incidents", "admin", "probe"];
+export declare const TOKEN_SCOPES: readonly ["read", "checks", "incidents", "admin", "probe", "status", "notify"];
 /** How long a rotated-out credential keeps working: 10 minutes. */
 export declare const TOKEN_ROTATION_OVERLAP_MS = 600000;
 /** Longest name of a token created over the api, in characters after trim. */
@@ -13,8 +13,10 @@ export declare const tokenScopeSchema: z.ZodEnum<{
     admin: "admin";
     checks: "checks";
     incidents: "incidents";
+    notify: "notify";
     probe: "probe";
     read: "read";
+    status: "status";
 }>;
 export type TokenScope = z.infer<typeof tokenScopeSchema>;
 export declare const tokenCreateInputSchema: z.ZodObject<{
@@ -23,8 +25,10 @@ export declare const tokenCreateInputSchema: z.ZodObject<{
         admin: "admin";
         checks: "checks";
         incidents: "incidents";
+        notify: "notify";
         probe: "probe";
         read: "read";
+        status: "status";
     }>>;
     location: z.ZodOptional<z.ZodString>;
     expiresAt: z.ZodOptional<z.ZodInt>;
@@ -38,8 +42,10 @@ export declare const tokenMetadataSchema: z.ZodObject<{
         admin: "admin";
         checks: "checks";
         incidents: "incidents";
+        notify: "notify";
         probe: "probe";
         read: "read";
+        status: "status";
     }>>;
     location: z.ZodNullable<z.ZodString>;
     source: z.ZodEnum<{
@@ -63,8 +69,10 @@ export declare const tokensResponseSchema: z.ZodObject<{
             admin: "admin";
             checks: "checks";
             incidents: "incidents";
+            notify: "notify";
             probe: "probe";
             read: "read";
+            status: "status";
         }>>;
         location: z.ZodNullable<z.ZodString>;
         source: z.ZodEnum<{
@@ -89,8 +97,10 @@ export declare const tokenSecretResponseSchema: z.ZodObject<{
             admin: "admin";
             checks: "checks";
             incidents: "incidents";
+            notify: "notify";
             probe: "probe";
             read: "read";
+            status: "status";
         }>>;
         location: z.ZodNullable<z.ZodString>;
         source: z.ZodEnum<{

@@ -1,9 +1,9 @@
 import { z } from "zod";
 /** Actions an audit entry records, one per successful admin or token write. */
-export declare const AUDIT_ACTIONS: readonly ["check.create", "check.replace", "check.delete", "component.create", "component.replace", "component.delete", "maintenance.create", "maintenance.replace", "maintenance.delete", "manual-incident.create", "manual-incident.update", "manual-incident.resolve", "manual-incident.delete", "manual-incident.edit", "manual-incident.draft-save", "manual-incident.draft-discard", "manual-incident.publish", "manual-incident.note-add", "manual-incident.note-delete", "token.create", "token.rotate", "token.revoke", "token.import"];
+export declare const AUDIT_ACTIONS: readonly ["check.create", "check.replace", "check.delete", "component.create", "component.replace", "component.delete", "maintenance.create", "maintenance.replace", "maintenance.delete", "manual-incident.create", "manual-incident.update", "manual-incident.resolve", "manual-incident.delete", "manual-incident.edit", "manual-incident.draft-save", "manual-incident.draft-discard", "manual-incident.publish", "manual-incident.note-add", "manual-incident.note-delete", "token.create", "token.rotate", "token.revoke", "token.import", "status-settings.replace", "notify-channel.create", "notify-channel.replace", "notify-channel.delete", "notify-resend.create"];
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 /** Kinds of the object an audit entry names. */
-export declare const AUDIT_TARGET_KINDS: readonly ["check", "component", "maintenance", "manual-incident", "token"];
+export declare const AUDIT_TARGET_KINDS: readonly ["check", "component", "maintenance", "manual-incident", "token", "status-settings", "notify-channel", "notify-resend"];
 export type AuditTargetKind = (typeof AUDIT_TARGET_KINDS)[number];
 /** Page size of `GET /admin/audit` without `limit`. */
 export declare const AUDIT_DEFAULT_LIMIT = 100;
@@ -38,6 +38,11 @@ export declare const auditEntrySchema: z.ZodObject<{
         "manual-incident.publish": "manual-incident.publish";
         "manual-incident.resolve": "manual-incident.resolve";
         "manual-incident.update": "manual-incident.update";
+        "notify-channel.create": "notify-channel.create";
+        "notify-channel.delete": "notify-channel.delete";
+        "notify-channel.replace": "notify-channel.replace";
+        "notify-resend.create": "notify-resend.create";
+        "status-settings.replace": "status-settings.replace";
         "token.create": "token.create";
         "token.import": "token.import";
         "token.revoke": "token.revoke";
@@ -49,6 +54,9 @@ export declare const auditEntrySchema: z.ZodObject<{
             component: "component";
             maintenance: "maintenance";
             "manual-incident": "manual-incident";
+            "notify-channel": "notify-channel";
+            "notify-resend": "notify-resend";
+            "status-settings": "status-settings";
             token: "token";
         }>;
         id: z.ZodString;
@@ -85,6 +93,11 @@ export declare const auditPageSchema: z.ZodObject<{
             "manual-incident.publish": "manual-incident.publish";
             "manual-incident.resolve": "manual-incident.resolve";
             "manual-incident.update": "manual-incident.update";
+            "notify-channel.create": "notify-channel.create";
+            "notify-channel.delete": "notify-channel.delete";
+            "notify-channel.replace": "notify-channel.replace";
+            "notify-resend.create": "notify-resend.create";
+            "status-settings.replace": "status-settings.replace";
             "token.create": "token.create";
             "token.import": "token.import";
             "token.revoke": "token.revoke";
@@ -96,6 +109,9 @@ export declare const auditPageSchema: z.ZodObject<{
                 component: "component";
                 maintenance: "maintenance";
                 "manual-incident": "manual-incident";
+                "notify-channel": "notify-channel";
+                "notify-resend": "notify-resend";
+                "status-settings": "status-settings";
                 token: "token";
             }>;
             id: z.ZodString;

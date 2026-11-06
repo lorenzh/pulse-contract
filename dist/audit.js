@@ -26,6 +26,11 @@ export const AUDIT_ACTIONS = [
     "token.rotate",
     "token.revoke",
     "token.import",
+    "status-settings.replace",
+    "notify-channel.create",
+    "notify-channel.replace",
+    "notify-channel.delete",
+    "notify-resend.create",
 ];
 /** Kinds of the object an audit entry names. */
 export const AUDIT_TARGET_KINDS = [
@@ -34,6 +39,9 @@ export const AUDIT_TARGET_KINDS = [
     "maintenance",
     "manual-incident",
     "token",
+    "status-settings",
+    "notify-channel",
+    "notify-resend",
 ];
 /** Page size of `GET /admin/audit` without `limit`. */
 export const AUDIT_DEFAULT_LIMIT = 100;

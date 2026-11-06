@@ -27,6 +27,11 @@ export const AUDIT_ACTIONS = [
   "token.rotate",
   "token.revoke",
   "token.import",
+  "status-settings.replace",
+  "notify-channel.create",
+  "notify-channel.replace",
+  "notify-channel.delete",
+  "notify-resend.create",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -37,6 +42,9 @@ export const AUDIT_TARGET_KINDS = [
   "maintenance",
   "manual-incident",
   "token",
+  "status-settings",
+  "notify-channel",
+  "notify-resend",
 ] as const;
 export type AuditTargetKind = (typeof AUDIT_TARGET_KINDS)[number];
 

@@ -74,7 +74,66 @@ export {
 } from "./client.ts";
 export { aggregateUptime, combineStates, incidentImpactState } from "./components.ts";
 export { isPublicManualIncident, publicManualIncident } from "./manual-incident-public.ts";
+export type {
+  AdminNotifyChannelsView,
+  AdminNotifyFailedView,
+  NotifyChannelDefinition,
+  NotifyChannelRecord,
+  NotifyDatabaseChannelView,
+  NotifyFailedDelivery,
+  NotifyFailedEvent,
+  NotifyFileChannelView,
+  NotifyRejectedChannel,
+  NotifyServiceReport,
+  NotifyServiceState,
+  ServiceNotifyChannels,
+  ServiceNotifyChannelsEnvelope,
+} from "./notify-channels.ts";
+export {
+  NOTIFY_CHANNEL_DEFINITION_MAX_BYTES,
+  NOTIFY_CHANNEL_MAX,
+  NOTIFY_CHANNELS_MAX_BYTES,
+  NOTIFY_FAILED_EVENTS,
+  NOTIFY_FAILED_REPORT_MAX,
+  NOTIFY_FILE_CHANNEL_REPORT_MAX,
+  NOTIFY_SECRET_ENV_PREFIX,
+  SERVICE_REPORT_MAX_BYTES,
+  SERVICE_REPORT_STALE_MS,
+} from "./notify-channels.ts";
+export type {
+  ResendClaimResponse,
+  ResendCommand,
+  ResendCommandState,
+  ResendRequest,
+  ResendResultInput,
+} from "./resend.ts";
+export {
+  RESEND_CLAIM_MAX,
+  RESEND_CLAIM_TIMEOUT_MS,
+  RESEND_COMMAND_MAX,
+  RESEND_COMMAND_STATES,
+  RESEND_REQUEST_MAX,
+  RESEND_RETENTION_MS,
+} from "./resend.ts";
 export { ADMIN_REVISION_PREFIX, isAdminRevision } from "./revision.ts";
+export type {
+  AdminStatusSettingsView,
+  ServiceStatusSettings,
+  StatusLockedField,
+  StatusServiceReport,
+  StatusServiceState,
+  StatusSettings,
+  StatusTheme,
+} from "./runtime-settings.ts";
+export {
+  STATUS_COLOR_KEYS,
+  STATUS_COMPONENT_ORDER_MAX,
+  STATUS_FONT_KEYS,
+  STATUS_NAME_MAX,
+  STATUS_RADIUS_KEYS,
+  STATUS_RADIUS_MAX,
+  STATUS_SETTINGS_MAX_BYTES,
+} from "./runtime-settings.ts";
 export type {
   Check,
   CheckLatency,
@@ -238,6 +297,22 @@ export {
 } from "./validate-admin.ts";
 export { validateAuditEntry, validateAuditPage } from "./validate-audit.ts";
 export type { Validation } from "./validate-core.ts";
+export {
+  validateAdminNotifyChannelsView,
+  validateAdminNotifyFailedView,
+  validateAdminStatusSettingsView,
+  validateNotifyChannelDefinition,
+  validateNotifyChannelRecord,
+  validateNotifyServiceReport,
+  validateResendClaimResponse,
+  validateResendCommand,
+  validateResendRequest,
+  validateResendResultInput,
+  validateServiceNotifyChannels,
+  validateServiceStatusSettings,
+  validateStatusServiceReport,
+  validateStatusSettings,
+} from "./validate-runtime.ts";
 export {
   validateTokenCreateInput,
   validateTokenMetadata,

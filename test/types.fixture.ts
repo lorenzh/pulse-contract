@@ -15,6 +15,9 @@ import type {
   AdminMaintenanceView,
   AdminMaintenanceWindow,
   AdminMaintenanceWindowInput,
+  AdminNotifyChannelsView,
+  AdminNotifyFailedView,
+  AdminStatusSettingsView,
   AdminWriteResponse,
   AuditAction,
   AuditEntry,
@@ -60,12 +63,34 @@ import type {
   ManualIncidentsResponse,
   ManualIncidentUpdateInput,
   ManualIncidentVisibility,
+  NotifyChannelDefinition,
+  NotifyChannelRecord,
+  NotifyDatabaseChannelView,
+  NotifyFailedDelivery,
+  NotifyFailedEvent,
+  NotifyFileChannelView,
+  NotifyRejectedChannel,
+  NotifyServiceReport,
+  NotifyServiceState,
   PostResultRequest,
   RequestJsonOptions,
   RequestJsonResponse,
   RequestJsonResult,
+  ResendClaimResponse,
+  ResendCommand,
+  ResendCommandState,
+  ResendRequest,
+  ResendResultInput,
   Result,
   ResultsResponse,
+  ServiceNotifyChannels,
+  ServiceNotifyChannelsEnvelope,
+  ServiceStatusSettings,
+  StatusLockedField,
+  StatusServiceReport,
+  StatusServiceState,
+  StatusSettings,
+  StatusTheme,
   TlsCheck,
   TokenCreateInput,
   TokenMetadata,
@@ -498,4 +523,107 @@ export const writeFixtures = {
   requestFailed,
   requestSaved,
   requestOptions,
+};
+
+// Runtime settings, notify channels and resend.
+const revision = `sha256-${"0".repeat(64)}`;
+const statusTheme: StatusTheme = { light: { accent: "#112233" }, "radius-sm": "4px" };
+const statusSettings: StatusSettings = {
+  name: "Acme",
+  theme: statusTheme,
+  componentOrder: ["web"],
+};
+const statusLocked: StatusLockedField = {
+  field: "showChecks",
+  source: "env",
+  via: "PULSE_STATUS_SHOW_CHECKS",
+  value: false,
+};
+const statusReport: StatusServiceReport = {
+  at: 2,
+  startedAt: 1,
+  appliedRevision: revision,
+  rejected: null,
+  locked: [statusLocked],
+};
+const statusState: StatusServiceState = { state: "never", receivedAt: null, report: null };
+const statusFresh: StatusServiceState = { state: "fresh", receivedAt: 3, report: statusReport };
+const statusAnswer: ServiceStatusSettings = { revision, settings: statusSettings };
+const statusView: AdminStatusSettingsView = {
+  revision,
+  settings: statusSettings,
+  service: statusState,
+};
+const definition: NotifyChannelDefinition = {
+  id: "a",
+  type: "webhook",
+  urlEnv: "PULSE_NOTIFY_SECRET_HOOK",
+};
+const record: NotifyChannelRecord = { ...definition, createdAt: 1, updatedAt: 1 };
+const databaseView: NotifyDatabaseChannelView = { ...record, source: "database" };
+const channels: ServiceNotifyChannels = { revision, channels: [record] };
+const envelope: ServiceNotifyChannelsEnvelope = { revision, channels: [{ id: "a", type: "x" }] };
+const fileView: NotifyFileChannelView = { source: "file", id: "ops", type: "file", refs: [] };
+const rejectedChannel: NotifyRejectedChannel = { channelId: null, reason: "channels answer: bad" };
+const failedEvent: NotifyFailedEvent = "update";
+const failed: NotifyFailedDelivery = {
+  channelId: "a",
+  key: "manual:3:update",
+  event: failedEvent,
+  isManual: true,
+  failedAt: 1,
+  hasPayload: true,
+};
+const notifyReport: NotifyServiceReport = {
+  at: 2,
+  startedAt: 1,
+  appliedRevision: null,
+  fileChannels: [fileView],
+  fileChannelsTotal: 1,
+  shadowedIds: [],
+  rejected: [rejectedChannel],
+  failed: [failed],
+  failedTotal: 1,
+};
+const notifyState: NotifyServiceState = { state: "stale", receivedAt: 3, report: notifyReport };
+const notifyView: AdminNotifyChannelsView = {
+  revision,
+  channels: [databaseView],
+  shadowed: [],
+  service: notifyState,
+};
+const failedView: AdminNotifyFailedView = {
+  state: "fresh",
+  receivedAt: 3,
+  failed: [failed],
+  failedTotal: 1,
+};
+const resendRequest: ResendRequest = {
+  channelId: "a",
+  key: "1:opened",
+  requestId: "req_0123456789abcd",
+};
+const commandState: ResendCommandState = "claimed";
+const command: ResendCommand = {
+  id: "c".repeat(24),
+  channelId: "a",
+  key: "1:opened",
+  requestId: resendRequest.requestId,
+  state: commandState,
+  createdAt: 1,
+  updatedAt: 1,
+};
+const claim: ResendClaimResponse = { commands: [command] };
+const resendResult: ResendResultInput = { state: "delivered" };
+export const runtimeFixtures = {
+  statusAnswer,
+  statusFresh,
+  statusView,
+  channels,
+  envelope,
+  notifyView,
+  failedView,
+  request: resendRequest,
+  claim,
+  result: resendResult,
 };

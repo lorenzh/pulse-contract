@@ -33,7 +33,15 @@ const metadata: TokenMetadata = {
 };
 
 test("constants equal the spec literals", () => {
-  assert.deepEqual(TOKEN_SCOPES, ["read", "checks", "incidents", "admin", "probe"]);
+  assert.deepEqual(TOKEN_SCOPES, [
+    "read",
+    "checks",
+    "incidents",
+    "admin",
+    "probe",
+    "status",
+    "notify",
+  ]);
   assert.equal(TOKEN_ROTATION_OVERLAP_MS, 600000);
   assert.equal(TOKEN_NAME_MAX, 100);
   assert.equal(TOKEN_MAX_BODY_BYTES, 4096);
@@ -339,4 +347,52 @@ test("a Proxy whose get differs from its own data descriptor gets a validation w
     assert.equal(typeof (result as { ok: unknown }).ok, "boolean");
   }
   assert.equal(typeof gets, "number");
+});
+
+test("status and notify are each the only scope, without a location", () => {
+  const cases: [unknown, string][] = [
+    [{ name: "s", scopes: ["status", "read"] }, "token.scopes: status must be the only scope"],
+    [{ name: "n", scopes: ["read", "notify"] }, "token.scopes: notify must be the only scope"],
+    [
+      { name: "p", scopes: ["probe", "read"], location: "eu" },
+      "token.scopes: probe must be the only scope",
+    ],
+    [
+      { name: "s", scopes: ["status"], location: "eu" },
+      "token.location: is required for a probe token and not allowed otherwise",
+    ],
+    [
+      { name: "n", scopes: ["notify"], location: "eu" },
+      "token.location: is required for a probe token and not allowed otherwise",
+    ],
+  ];
+  for (const [input, error] of cases) {
+    assert.deepEqual(validateTokenCreateInput(input), { ok: false, error });
+  }
+  for (const scope of ["status", "notify"]) {
+    const input = { name: scope, scopes: [scope] };
+    const result = validateTokenCreateInput(input);
+    assert.ok(result.ok && Object.is(result.value, input));
+  }
+});
+
+test("metadata accepts a notify token and the older scope lists", () => {
+  const token = {
+    id: "tok_0123456789abcdef01234567",
+    name: "notify",
+    scopes: ["notify"],
+    location: null,
+    source: "api",
+    createdAt: 1,
+    lastUsedAt: null,
+    expiresAt: null,
+    revokedAt: null,
+    rotatedAt: null,
+    previousValidUntil: null,
+  };
+  for (const scopes of [["notify"], ["status"], ["read", "checks", "incidents", "admin"]]) {
+    const input = { ...token, scopes };
+    const result = validateTokenMetadata(input);
+    assert.ok(result.ok && Object.is(result.value, input), JSON.stringify(result));
+  }
 });
