@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { addServiceStateIssues, epochMs, jsonByteLength, objectError, oneOf, revisionSchema, serviceStateNameSchema, } from "./runtime-settings.js";
+import { isObject, ownValue } from "./validate-core.js";
 /** Prefix of every env reference of a database channel. */
 export const NOTIFY_SECRET_ENV_PREFIX = "PULSE_NOTIFY_SECRET_";
 /** Most database channels. */
@@ -223,17 +224,38 @@ export const notifyDatabaseChannelViewSchema = z
     z.strictObject({ ...shapes.email, ...timestamps, ...databaseSource }, objectError),
 ], unionError)
     .superRefine(addChannelIssues);
-const ownId = z.looseObject({ id: channelIdSchema }, objectError);
+// Decision 6: the envelope reads only the own data `id` of each element. A loose object schema
+// would read every other key and run its getter.
+const ownId = z.unknown().superRefine((channel, ctx) => {
+    if (!isObject(channel)) {
+        ctx.addIssue({ code: "custom", message: "must be an object" });
+        return;
+    }
+    const id = ownValue(channel, "id");
+    if (id === undefined) {
+        ctx.addIssue({ code: "custom", path: ["id"], message: "is required" });
+        return;
+    }
+    const parsed = channelIdSchema.safeParse(id);
+    if (!parsed.success) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["id"],
+            message: parsed.error.issues[0]?.message ?? "is invalid",
+        });
+    }
+});
 const envelopeChannels = z
     .array(ownId, { error: "must be an array" })
     .max(NOTIFY_CHANNEL_MAX, `must hold at most ${NOTIFY_CHANNEL_MAX} channels`)
     .superRefine((channels, ctx) => {
     const seen = new Set();
     channels.forEach((channel, i) => {
-        if (seen.has(channel.id)) {
+        const id = ownValue(channel, "id");
+        if (seen.has(id)) {
             ctx.addIssue({ code: "custom", path: [i, "id"], message: "must not repeat an id" });
         }
-        seen.add(channel.id);
+        seen.add(id);
     });
 });
 export const serviceNotifyChannelsEnvelopeSchema = z.strictObject({ revision: revisionSchema, channels: envelopeChannels }, objectError);

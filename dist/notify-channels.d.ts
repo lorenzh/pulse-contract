@@ -310,9 +310,7 @@ export declare const notifyDatabaseChannelViewSchema: z.ZodDiscriminatedUnion<[z
 export type NotifyDatabaseChannelView = z.infer<typeof notifyDatabaseChannelViewSchema>;
 export declare const serviceNotifyChannelsEnvelopeSchema: z.ZodObject<{
     revision: z.ZodString & z.ZodType<string, string, z.core.$ZodTypeInternals<string, string>>;
-    channels: z.ZodArray<z.ZodObject<{
-        id: z.ZodString;
-    }, z.core.$loose>>;
+    channels: z.ZodArray<z.ZodUnknown>;
 }, z.core.$strict>;
 /** The envelope of `GET /service/notify/channels`: the elements are checked one by one. */
 export type ServiceNotifyChannelsEnvelope = {
