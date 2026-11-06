@@ -62,7 +62,7 @@ Every type exported from `src/index.ts`. Import them with `import type`.
 | `AdminCheckInput`                                                                                        | Body of `POST /admin/checks` and `PUT /admin/checks/{id}`: a `Check`; a heartbeat check may carry a write-only `secret`. Unknown keys are rejected.                       |
 | `AdminCheckView`                                                                                         | A check as the admin api serves it: `headers` is a list of names, `hasBody` replaces `body`, a heartbeat check has `hasSecret`. Strict.                                   |
 | `AdminComponentInput`, `AdminComponent`                                                                  | A `Component` in an admin request and response.                                                                                                                           |
-| `AdminMaintenanceInput`, `AdminMaintenanceView`                                                          | A `MaintenanceWindow` in a request; in a response it also carries its `index`.                                                                                            |
+| `AdminMaintenanceInput`, `AdminMaintenanceView`                                                          | The file window shape of the checks file; the view adds its file `index`, served in `GET /admin/config`. Window writes take `AdminMaintenanceWindowInput`.                |
 | `AdminConfigResponse`                                                                                    | Response of `GET /admin/config`: `revision`, `checks` (`AdminCheckView[]`), `components`, `maintenance` (`AdminMaintenanceView[]`).                                       |
 | `AdminWriteResponse`                                                                                     | Body of a successful admin write: the stored `AdminCheckView`, `AdminComponent`, `AdminMaintenanceView` or `AdminMaintenanceWindow`. `DELETE` answers 204 without a body. |
 | `AdminMaintenanceWindowInput`, `AdminMaintenanceWindow`, `AdminMaintenanceList`, `AdminMaintenancePhase` | Database maintenance windows; see "Database maintenance windows".                                                                                                         |
@@ -328,7 +328,7 @@ shapes (`adminCheckViewSchema`, `adminCheckInputSchema`, `adminComponentInputSch
 - All routes need `Authorization: Bearer <admin token>`: `GET /admin/config`,
   `GET /admin/config/export`, `POST /admin/checks`, `PUT|DELETE /admin/checks/{id}`,
   `POST /admin/components`, `PUT|DELETE /admin/components/{id}`, `POST /admin/maintenance`,
-  `PUT|DELETE /admin/maintenance/{index}` (`index` is the position in `GET /admin/config`).
+  `GET /admin/maintenance`, `PUT|DELETE /admin/maintenance/{id}` (`id` is a database window id).
   `GET /admin/config` and its export need the same permission (`read` or `checks`).
 - Sources: a check comes from the applied checks file or from the database
   (`ADMIN_CHECK_SOURCES`, `"file" | "database"`). Every check view has `source`. A file check
@@ -377,7 +377,7 @@ shapes (`adminCheckViewSchema`, `adminCheckInputSchema`, `adminComponentInputSch
 | 412    | Stale revision                                                                         |
 | 422    | Schema or reference error                                                              |
 | 409    | Id exists, still referenced, a file check, a file window, or a shadowed database check |
-| 404    | Unknown id or index                                                                    |
+| 404    | Unknown id                                                                             |
 | 2xx    | 201 create (with `Location`), 200 replace, 204 delete                                  |
 
 Check and window writes never answer 503: they need no writable file.
