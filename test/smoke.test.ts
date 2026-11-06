@@ -31,6 +31,7 @@ test("dist matches a fresh build of src", () => {
       "revision",
       "runtime-settings",
       "schema",
+      "subscriptions",
       "token-id",
       "tokens",
       "validate",
@@ -38,6 +39,7 @@ test("dist matches a fresh build of src", () => {
       "validate-audit",
       "validate-core",
       "validate-runtime",
+      "validate-subscriptions",
       "validate-tokens",
       "version",
     ].flatMap((n) => [`${n}.d.ts`, `${n}.js`])) {
@@ -238,11 +240,27 @@ test("package entry exports the validators and the wire version", async () => {
       "RESEND_REQUEST_MAX",
       "RESEND_RETENTION_MS",
       "NOTIFY_FAILED_EVENTS",
+      "SUBSCRIBER_EMAIL_MAX",
+      "SUBSCRIPTION_CLEANUP_INTERVAL_MS",
+      "SUBSCRIPTION_CONFIRM_TOKEN_PATTERN",
+      "SUBSCRIPTION_CONFIRM_TTL_MS",
+      "SUBSCRIPTION_MAX_BODY_BYTES",
+      "SUBSCRIPTION_RESULTS",
+      "SUBSCRIPTION_ROUTES",
+      "SUBSCRIPTION_UNSUBSCRIBE_TOKEN_PATTERN",
+      "normalizeSubscriberEmail",
+      "subscriptionAnswerSchema",
+      "subscriptionRequestSchema",
+      "subscriptionTokenRequestSchema",
+      "validateSubscriptionAnswer",
+      "validateSubscriptionRequest",
+      "validateSubscriptionTokenRequest",
     ].sort(byName),
   );
   assert.equal(mod.HEADER_ENV_PREFIX, "PULSE_HEADER_");
   assert.equal(mod.MAX_REASON_LENGTH, 1000);
   assert.equal(mod.MAX_WARN_DAYS, 3650);
+  assert.equal(mod.WIRE_VERSION, 1);
   const runtimeConstants: Record<string, unknown> = {
     STATUS_NAME_MAX: 60,
     STATUS_COMPONENT_ORDER_MAX: 500,
@@ -261,6 +279,10 @@ test("package entry exports the validators and the wire version", async () => {
     NOTIFY_CHANNEL_DEFINITION_MAX_BYTES: 16384,
     RESEND_REQUEST_MAX: 10000,
     RESEND_RETENTION_MS: 604800000,
+    SUBSCRIPTION_CONFIRM_TTL_MS: 86400000,
+    SUBSCRIPTION_CLEANUP_INTERVAL_MS: 3600000,
+    SUBSCRIPTION_MAX_BODY_BYTES: 1024,
+    SUBSCRIBER_EMAIL_MAX: 254,
   };
   for (const [name, value] of Object.entries(runtimeConstants)) {
     assert.equal((mod as Record<string, unknown>)[name], value, name);

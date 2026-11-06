@@ -456,6 +456,61 @@ Validators: `validateTokenCreateInput`, `validateTokenMetadata`, `validateTokens
 `validateTokenSecretResponse`, `validateAuditEntry`, `validateAuditPage`. Like every validator they
 read own data properties only and never run a getter.
 
+## Subscriptions
+
+Additive: `WIRE_VERSION` stays 1. Status page visitors subscribe to incident emails. Status calls
+the notify listener on these routes (`SUBSCRIPTION_ROUTES`); the contract owns the shapes and the
+constants.
+
+| Route                        | Method | Body                       | Answers                                                                   |
+| ---------------------------- | ------ | -------------------------- | ------------------------------------------------------------------------- |
+| `/subscriptions`             | `POST` | `SubscriptionRequest`      | `202 {"status":"accepted"}`; `400`, `401`, `413`, `415`, `503`            |
+| `/subscriptions/confirm`     | `POST` | `SubscriptionTokenRequest` | `200 {"status":"confirmed"}`; `400`, `401`, `404`, `413`, `415`, `503`    |
+| `/subscriptions/unsubscribe` | `POST` | `SubscriptionTokenRequest` | `200 {"status":"unsubscribed"}`; `400`, `401`, `404`, `413`, `415`, `503` |
+
+The subscribe route answers `202 {"status":"accepted"}` for every valid request, whether the
+address is new, pending, confirmed or over a limit. It never answers `429` or `404`, and its body
+never depends on the store, so an answer does not tell whether an address is subscribed. Errors
+use `ErrorResponse`.
+
+| Constant                                 | Value                                                      |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| `SUBSCRIPTION_MAX_BODY_BYTES`            | `1024`                                                     |
+| `SUBSCRIPTION_CONFIRM_TTL_MS`            | `86400000` (24 hours): a confirmation link works this long |
+| `SUBSCRIPTION_CLEANUP_INTERVAL_MS`       | `3600000` (1 hour): period of notify's cleanup             |
+| `SUBSCRIBER_EMAIL_MAX`                   | `254`                                                      |
+| `SUBSCRIPTION_CONFIRM_TOKEN_PATTERN`     | `^[A-Za-z0-9_-]{43}$`                                      |
+| `SUBSCRIPTION_UNSUBSCRIBE_TOKEN_PATTERN` | `^[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$`                   |
+| `SUBSCRIPTION_RESULTS`                   | `["accepted", "confirmed", "unsubscribed"]`                |
+
+The two time constants are not settings. Notify uses them, and the status page notice states
+them: the link works 24 hours, and an unconfirmed address is gone within 25 hours of the last
+confirmation email.
+
+`normalizeSubscriberEmail(value)` returns the normalized address or `undefined`, and never throws.
+Rules, in order:
+
+1. not a string: `undefined`;
+2. remove leading and trailing spaces and tabs only;
+3. every remaining character is in U+0021..U+007E (no CR, LF, inner space or non-ASCII);
+4. exactly one `@`;
+5. local part: 1..64 characters of ``A-Z a-z 0-9 ! # $ % & ' * + / = ? ^ _ ` { | } ~ . -``, not
+   starting or ending with `.`, no `..`;
+6. domain: 1..253 characters, at least two labels, each 1..63 characters of `A-Z a-z 0-9 -` not
+   starting or ending with `-`; the last label is not all digits; no `[` literal;
+7. the whole address in lower case, at most 254 characters.
+
+Rules of the schemas:
+
+- `SubscriptionRequest`: strict `{ email }`, where `normalizeSubscriberEmail(email) === email`.
+  Only the normalized form is valid on the wire.
+- `SubscriptionTokenRequest`: strict `{ token }`, a string of at most 128 characters. The route
+  checks the token pattern.
+- `SubscriptionAnswer`: strict `{ status }` with a `SubscriptionResult`.
+
+Validators: `validateSubscriptionRequest`, `validateSubscriptionTokenRequest`,
+`validateSubscriptionAnswer`. They return the object they were given and never throw.
+
 ## Status and notify settings
 
 Contract 2.4.0 adds the shapes that let the console edit status page settings and notify channels,
