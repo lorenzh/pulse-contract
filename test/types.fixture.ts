@@ -91,6 +91,10 @@ import type {
   StatusServiceState,
   StatusSettings,
   StatusTheme,
+  SubscriptionAnswer,
+  SubscriptionRequest,
+  SubscriptionResult,
+  SubscriptionTokenRequest,
   TlsCheck,
   TokenCreateInput,
   TokenMetadata,
@@ -626,4 +630,12 @@ export const runtimeFixtures = {
   request: resendRequest,
   claim,
   result: resendResult,
+};
+
+// Subscriptions.
+const subscriptionResult: SubscriptionResult = "accepted";
+export const subscriptionFixtures = {
+  request: { email: "a@example.com" } satisfies SubscriptionRequest,
+  token: { token: "abc" } satisfies SubscriptionTokenRequest,
+  answer: { status: subscriptionResult } satisfies SubscriptionAnswer,
 };
