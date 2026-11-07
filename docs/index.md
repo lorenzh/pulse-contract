@@ -517,7 +517,12 @@ Contract 2.4.0 adds the shapes that let the console edit status page settings an
 and resend a failed delivery. Additive: `WIRE_VERSION` stays 1. All objects are strict; an unknown
 key gives `has an unknown field: <key>`, and `null` is never a setting value. A revision is the admin
 revision `sha256-<64 hex>`; times are epoch ms integers. Every byte limit measures UTF-8 bytes of
-`JSON.stringify(value)`; every length counts UTF-16 code units (`string.length`).
+`JSON.stringify(value)`. The six notify report text lengths (file view `id` and `refs`, rejected
+`channelId` and `reason`, failed `channelId` and `key`) count UTF-16 code units (`string.length`), as
+notify cuts them; every other text limit of this section counts Unicode code points.
+
+Contract 2.5.1 is a patch that tightens the notify channel, report and failed-view validators to
+notify's own rules. `WIRE_VERSION` stays 1.
 
 | Constant                                                     | Value                                                                                                                |
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
@@ -553,7 +558,12 @@ Rules of the schemas:
   characters), and secret references only: env references match
   `^PULSE_NOTIFY_SECRET_[A-Z0-9_]{1,64}$`, file references are basenames matching
   `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`. Webhook, slack and teams need exactly one of `urlEnv`,
-  `urlFile`. The keys `url`, `password` and `secret` are unknown fields. One definition is at most
+  `urlFile`. Email `from` and each `to` entry take the address inside a final `<…>` (only whitespace
+  may follow it) or else the whole text, trimmed, and it must match `^[^\s<>@]+@[^\s<>@]+$`; the
+  validator does not trim or rewrite the value. `smtp.clientName` is a host name (dot-separated
+  labels of 1..63 ASCII letters, digits or `-`, not starting or ending with `-`) or an address
+  literal in `[…]` (hex digits, `:` and `.`, after an optional `IPv6:`), at most 200 characters.
+  The keys `url`, `password` and `secret` are unknown fields. One definition is at most
   16384 bytes.
 - `NotifyChannelRecord`: a definition plus `createdAt` and `updatedAt`; the byte limit is measured
   without them. `NotifyDatabaseChannelView` adds `source: "database"`.
@@ -567,11 +577,16 @@ Rules of the schemas:
   `rejected` (0..100 `NotifyRejectedChannel`), `failed` (0..200 `NotifyFailedDelivery`), `failedTotal`.
   A total is at least the length of its list. The contract checks the limits; notify cuts display text.
 - `NotifyFailedDelivery`: `{channelId (1..200), key (1..300), event, isManual, failedAt, hasPayload}`.
+  `event` is a `NotifyFailedEvent`, one of `NOTIFY_FAILED_EVENTS`: `opened`, `update`, `resolved`,
+  `reminder`, `budget-low`, `tls-expiry`, `domain-expiry`, `unknown`.
 - `AdminNotifyChannelsView`: `{revision, channels, shadowed, service}`; `channels` and `shadowed`
   hold database views only. `AdminNotifyFailedView`: `{state, receivedAt, failed, failedTotal}`,
-  without the rest of the report.
+  without the rest of the report. With `state: "never"` it has `receivedAt: null`, `failed: []` and
+  `failedTotal: 0`.
 - `ResendRequest`: `{channelId, key, requestId}` with `requestId` matching `^[A-Za-z0-9_-]{16,64}$`.
-  `ResendCommand` adds an `id` of 24 base64url characters, `state`, `createdAt`, `updatedAt`.
+  `ResendCommand` adds an `id` of 24 base64url characters, `state` (a `ResendCommandState`, one of
+  `RESEND_COMMAND_STATES`: `queued`, `claimed`, `admitted`, `delivered`, `failed`, `dropped`,
+  `not-failed`, `no-payload`, `channel-unavailable`), `createdAt`, `updatedAt`.
   `ResendClaimResponse` holds at most 20 commands. `ResendResultInput` is `{state}` with an
   admission or a final outcome; `queued` and `claimed` are refused.
 
