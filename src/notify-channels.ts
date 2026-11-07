@@ -99,11 +99,29 @@ const fileRef = z
 const address = singleLine.refine((v) => ADDRESS.test(envelopeAddress(v)), {
   error: "must hold an email address",
 });
-/** The address inside the last `<…>`, or the whole trimmed text. */
+/**
+ * The address inside a final `<…>` (only whitespace may follow), or the whole text, trimmed.
+ * Source rule: `envelopeAddress` of notify `src/channels/mailer.ts`.
+ */
 function envelopeAddress(value: string): string {
-  const open = value.lastIndexOf("<");
-  const close = value.lastIndexOf(">");
-  return open !== -1 && close > open ? value.slice(open + 1, close) : value.trim();
+  const match = /<([^<>]*)>\s*$/.exec(value);
+  return (match?.[1] ?? value).trim();
+}
+
+// Source rule: `isEhloName` of notify `src/channels/mailer.ts`; the contract keeps its 200 cap.
+const HOST_LABEL = /^[A-Za-z0-9-]{1,63}$/;
+const LITERAL_BODY = /^[0-9A-Fa-f:.]+$/;
+function isAddressLiteral(value: string): boolean {
+  if (!value.startsWith("[") || !value.endsWith("]")) return false;
+  return LITERAL_BODY.test(value.slice(1, -1).replace(/^IPv6:/, ""));
+}
+function isHostName(value: string): boolean {
+  return value
+    .split(".")
+    .every((label) => HOST_LABEL.test(label) && !label.startsWith("-") && !label.endsWith("-"));
+}
+function isEhloName(value: string): boolean {
+  return value.length <= 255 && (isHostName(value) || isAddressLiteral(value));
 }
 
 const flag = z.boolean({ error: "must be true or false" }).optional();
@@ -158,9 +176,7 @@ const shapes = {
         username: singleLine.min(1, "must not be empty").optional(),
         passwordEnv: envRef.optional(),
         passwordFile: fileRef.optional(),
-        clientName: text
-          .refine((v) => v !== "" && !/\s/.test(v), { error: "must be a host name" })
-          .optional(),
+        clientName: text.refine(isEhloName, { error: "must be a host name" }).optional(),
       },
       objectError,
     ),
@@ -342,11 +358,11 @@ export type ServiceNotifyChannelsEnvelope = {
 /** Answer of `GET /service/notify/channels`: every database channel, in creation order. */
 export type ServiceNotifyChannels = { revision: string; channels: NotifyChannelRecord[] };
 
+/** Report text: the length counts UTF-16 units (`string.length`), as notify cuts it. */
 const viewText = (max: number): z.ZodString =>
   z
     .string({ error: "must be a string" })
-    .min(1, `must be 1..${max} characters`)
-    .max(max, `must be 1..${max} characters`);
+    .refine((v) => v.length >= 1 && v.length <= max, { error: `must be 1..${max} characters` });
 
 export const notifyFileChannelViewSchema = z.strictObject(
   {
@@ -484,6 +500,20 @@ export const adminNotifyFailedViewSchema = z
         code: "custom",
         path: ["receivedAt"],
         message: "must be null exactly when state is never",
+      });
+    }
+    if (view.state === "never" && view.failed.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["failed"],
+        message: "must be empty when state is never",
+      });
+    }
+    if (view.state === "never" && view.failedTotal !== 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["failedTotal"],
+        message: "must be 0 when state is never",
       });
     }
     if (view.failedTotal < view.failed.length) {

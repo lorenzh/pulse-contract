@@ -354,3 +354,230 @@ test("cross-field channel rules and report totals refuse with literal messages",
     assert.deepEqual(result, { ok: false, error });
   }
 });
+
+const emailChannel = {
+  id: "mail",
+  type: "email",
+  smtp: { host: "smtp.test", port: 587 },
+  from: "pulse@x.test",
+  to: ["ops@x.test"],
+};
+const emailRecord = { ...emailChannel, ...stamps, source: "database" };
+const channelsView = (channel: unknown): Record<string, unknown> => ({
+  revision,
+  channels: [channel],
+  shadowed: [],
+  service: { state: "never", receivedAt: null, report: null },
+});
+const smile = "😀";
+
+test("the six report texts count UTF-16 units", () => {
+  type Place = [string, number, (v: string) => unknown];
+  const places: Place[] = [
+    ["fileChannels[0].id", 200, (v) => ({ ...report, fileChannels: [{ ...fileView, id: v }] })],
+    [
+      "fileChannels[0].refs[0]",
+      200,
+      (v) => ({ ...report, fileChannels: [{ ...fileView, refs: [v] }] }),
+    ],
+    [
+      "rejected[0].channelId",
+      200,
+      (v) => ({ ...report, rejected: [{ channelId: v, reason: "bad" }] }),
+    ],
+    ["rejected[0].reason", 300, (v) => ({ ...report, rejected: [{ channelId: null, reason: v }] })],
+    [
+      "failed[0].channelId",
+      200,
+      (v) => ({ ...report, failed: [{ ...failedEntry, channelId: v }] }),
+    ],
+    ["failed[0].key", 300, (v) => ({ ...report, failed: [{ ...failedEntry, key: v }] })],
+  ];
+  for (const [path, max, build] of places) {
+    const error = `report.${path}: must be 1..${max} characters`;
+    const accepts = [smile.repeat(max / 2), `${"a".repeat(max - 2)}${smile}`];
+    for (const value of accepts) {
+      assert.equal(validateNotifyServiceReport(build(value)).ok, true, `${path} ${value.length}`);
+    }
+    for (const value of [smile.repeat(max / 2 + 1), `${"a".repeat(max - 1)}${smile}`, ""]) {
+      assert.deepEqual(
+        validateNotifyServiceReport(build(value)),
+        { ok: false, error },
+        `${path} ${value.length}`,
+      );
+    }
+  }
+  assert.equal(
+    validateNotifyServiceReport({ ...report, rejected: [{ channelId: null, reason: "x" }] }).ok,
+    true,
+  );
+  const view = {
+    ...channelsView(emailRecord),
+    service: {
+      state: "fresh",
+      receivedAt: 3,
+      report: { ...report, fileChannels: [{ ...fileView, refs: [smile.repeat(101)] }] },
+    },
+  };
+  assert.deepEqual(validateAdminNotifyChannelsView(view), {
+    ok: false,
+    error: "view.service.report.fileChannels[0].refs[0]: must be 1..200 characters",
+  });
+  const failedView = {
+    state: "fresh",
+    receivedAt: 3,
+    failed: [{ ...failedEntry, key: smile.repeat(151) }],
+    failedTotal: 1,
+  };
+  assert.deepEqual(validateAdminNotifyFailedView(failedView), {
+    ok: false,
+    error: "view.failed[0].key: must be 1..300 characters",
+  });
+});
+
+test("email addresses follow notify's final-bracket extraction in from and to", () => {
+  const accepts = [
+    "Ops <ops@example.test>",
+    "Ops < ops@example.test >",
+    "<ops@example.test >",
+    "  ops@example.test  ",
+    "Ops <ops@example.test>  ",
+  ];
+  const rejects: [string, string][] = [
+    ["Ops <ops@example.test> trailing", "must hold an email address"],
+    ["ops@example.test\r\n", "must be a single line"],
+    ["Ops <>", "must hold an email address"],
+  ];
+  const variants: [string, (v: string) => Record<string, unknown>][] = [
+    ["from", (v) => ({ ...emailChannel, from: v })],
+    ["to[0]", (v) => ({ ...emailChannel, to: [v] })],
+  ];
+  for (const [path, build] of variants) {
+    for (const value of accepts) {
+      const channel = build(value);
+      const result = validateNotifyChannelDefinition(channel);
+      assert.ok(result.ok && Object.is(result.value, channel), `${path} ${value}`);
+    }
+    for (const [value, message] of rejects) {
+      assert.deepEqual(
+        validateNotifyChannelDefinition(build(value)),
+        { ok: false, error: `channel.${path}: ${message}` },
+        `${path} ${value}`,
+      );
+    }
+  }
+  const accepted = { ...emailChannel, from: "Ops < ops@example.test >" };
+  const result = validateNotifyChannelDefinition(accepted);
+  assert.ok(
+    result.ok && "from" in result.value && result.value.from === "Ops < ops@example.test >",
+  );
+  const trailing = { ...emailRecord, from: "Ops <ops@example.test> trailing" };
+  assert.deepEqual(validateNotifyChannelRecord(trailing, "channels[0]"), {
+    ok: false,
+    error: "channels[0].from: must hold an email address",
+  });
+  assert.deepEqual(validateAdminNotifyChannelsView(channelsView(trailing)), {
+    ok: false,
+    error: "view.channels[0].from: must hold an email address",
+  });
+});
+
+test("smtp.clientName is notify's EHLO name, capped at 200 characters", () => {
+  const withName = (clientName: string): Record<string, unknown> => ({
+    ...emailChannel,
+    smtp: { ...emailChannel.smtp, clientName },
+  });
+  const error = "channel.smtp.clientName: must be a host name";
+  const accepts = [
+    "pulse.example.test",
+    "[192.0.2.1]",
+    "[IPv6:2001:db8::1]",
+    "localhost",
+    `${"a".repeat(63)}.${"b".repeat(63)}.${"c".repeat(63)}`,
+  ];
+  for (const name of accepts) {
+    assert.equal(validateNotifyChannelDefinition(withName(name)).ok, true, name);
+  }
+  assert.equal(validateNotifyChannelDefinition(emailChannel).ok, true);
+  // The literal snowman (U+2603) is its own case by the manager's decision on #815.
+  assert.equal("☃".codePointAt(0), 0x2603);
+  assert.deepEqual(validateNotifyChannelDefinition(withName("☃")), { ok: false, error });
+  const rejects = [
+    "pulse_console",
+    "☃.example.test",
+    "münchen.test",
+    "pülse.example.test",
+    "pulse\u0000.example.test",
+    "-pulse.test",
+    "pulse..test",
+    "pulse.example.test.",
+    "[]",
+    "x".repeat(64),
+    "",
+    "a b",
+  ];
+  for (const name of rejects) {
+    assert.deepEqual(validateNotifyChannelDefinition(withName(name)), { ok: false, error }, name);
+  }
+  assert.deepEqual(
+    validateNotifyChannelDefinition(withName(Array(4).fill("a".repeat(63)).join("."))),
+    {
+      ok: false,
+      error: "channel.smtp.clientName: must be at most 200 characters",
+    },
+  );
+  for (const name of ["pulse_console", "☃"]) {
+    const record = { ...emailRecord, smtp: { ...emailRecord.smtp, clientName: name } };
+    assert.deepEqual(validateNotifyChannelRecord(record, "channels[0]"), {
+      ok: false,
+      error: "channels[0].smtp.clientName: must be a host name",
+    });
+    assert.deepEqual(validateAdminNotifyChannelsView(channelsView(record)), {
+      ok: false,
+      error: "view.channels[0].smtp.clientName: must be a host name",
+    });
+  }
+});
+
+test("a never failed view is empty with a total of 0", () => {
+  const never = { state: "never", receivedAt: null };
+  const cases: [unknown, string][] = [
+    [
+      { ...never, failed: [failedEntry], failedTotal: 1 },
+      "view.failed: must be empty when state is never",
+    ],
+    [
+      { ...never, failed: [failedEntry], failedTotal: 0 },
+      "view.failed: must be empty when state is never",
+    ],
+    [{ ...never, failed: [], failedTotal: 1 }, "view.failedTotal: must be 0 when state is never"],
+    [{ ...never, failed: [], failedTotal: 3 }, "view.failedTotal: must be 0 when state is never"],
+  ];
+  for (const [input, error] of cases) {
+    assert.deepEqual(
+      validateAdminNotifyFailedView(input),
+      { ok: false, error },
+      JSON.stringify(input),
+    );
+  }
+  for (const input of [
+    { ...never, failed: [], failedTotal: 0 },
+    { state: "fresh", receivedAt: 3, failed: [], failedTotal: 0 },
+    { state: "stale", receivedAt: 3, failed: [failedEntry], failedTotal: 500 },
+  ]) {
+    assert.equal(validateAdminNotifyFailedView(input).ok, true, JSON.stringify(input));
+  }
+});
+
+test("hostile addresses and client names are refused fast without throwing", () => {
+  const address = `${"<".repeat(50_000)}${"a".repeat(50_000)}`;
+  const name = ".[".repeat(50_000);
+  for (const channel of [
+    { ...emailChannel, from: address },
+    { ...emailChannel, smtp: { ...emailChannel.smtp, clientName: name } },
+  ]) {
+    const start = performance.now();
+    assert.equal(validateNotifyChannelDefinition(channel).ok, false);
+    assert.ok(performance.now() - start < 50);
+  }
+});
