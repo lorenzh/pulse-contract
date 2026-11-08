@@ -524,6 +524,10 @@ notify cuts them; every other text limit of this section counts Unicode code poi
 Contract 2.5.1 is a patch that tightens the notify channel, report and failed-view validators to
 notify's own rules. `WIRE_VERSION` stays 1.
 
+Contract 2.5.2 is a patch that hardens the API client: no redirect in `fetchJson`, identity
+coding only, a refused encoded body under Bun, and fixed invalid-JSON and wire-mismatch texts. No
+type, export or wire change; `WIRE_VERSION` stays 1.
+
 | Constant                                                     | Value                                                                                                                |
 | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
 | `STATUS_COLOR_KEYS`                                          | the 20 colour keys of status `theme-config.ts`                                                                       |
@@ -719,28 +723,48 @@ function; default `setTimeout`).
 
 The result is `{ ok: true; value; wire: "ok" | "absent" }` or `{ ok: false; error }`. `error.kind`:
 
-| kind            | fields             | meaning                                                          |
-| --------------- | ------------------ | ---------------------------------------------------------------- |
-| `timeout`       | `timeoutMs`        | no complete response in time, also if `fetch` ignores the signal |
-| `aborted`       | `reason`           | the caller's `signal` aborted before the timer fired             |
-| `network`       | `cause`            | `fetch` or the body read rejected                                |
-| `http`          | `status`, `wire`   | status is not 2xx; `wire` is the `checkWireVersion` result       |
-| `too-large`     | `maxBytes`         | `Content-Length` or the streamed bytes exceed the cap            |
-| `invalid-json`  | `message`          | the body is not JSON                                             |
-| `wire-mismatch` | `message`          | the wire header differs from `WIRE_VERSION`                      |
-| `validation`    | `message`, `path?` | the validator refused the body; `message` has the path           |
+| kind            | fields             | meaning                                                                                                                   |
+| --------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `timeout`       | `timeoutMs`        | no complete response in time, also if `fetch` ignores the signal                                                          |
+| `aborted`       | `reason`           | the caller's `signal` aborted before the timer fired                                                                      |
+| `network`       | `cause`            | `fetch` or the body read rejected, or a refused content coding under Bun                                                  |
+| `http`          | `status`, `wire`   | status is not 2xx; `wire` is the `checkWireVersion` result                                                                |
+| `too-large`     | `maxBytes`         | `Content-Length` or the streamed bytes exceed the cap                                                                     |
+| `invalid-json`  | `message`          | the body is not JSON; `message` is always `response body is not valid JSON`                                               |
+| `wire-mismatch` | `message`          | the wire header differs from `WIRE_VERSION`; `message` is always `x-pulse-contract: unsupported wire version, expected 1` |
+| `validation`    | `message`, `path?` | the validator refused the body; `message` has the path                                                                    |
 
-Order of checks: HTTP status, wire header, size, JSON, validation. A non-2xx response with a
-mismatching header is therefore `http`. The timer is always cleared and the request is aborted on
-timeout, cap and caller abort.
-An error found before the body is read returns at once; the body is cancelled without waiting.
+Order of checks: HTTP status, wire header, content encoding, size, JSON, validation. A non-2xx
+response with a mismatching header is therefore `http`, and an encoded `503` is `http` 503.
+
+Request init: both functions send `redirect: "manual"`, Bun's `decompress: false` (other runtimes
+ignore it) and the caller's `headers` with `accept-encoding: identity` set last, so it replaces a
+caller value. The caller's `headers` object is not changed.
+
+- Redirects: none is followed, also not to the same origin. A visible `3xx` is an `http` error
+  with that status; a browser's opaque redirect is an `http` error with status 0; a runtime that
+  rejects the redirect gives `network`. The URL must be the final endpoint.
+- Content coding under Bun: an absent `Content-Encoding`, or `""` / `identity` after trimming and
+  lower-casing, is read. Any other value (a real coding, an unknown one or a list) is refused
+  before the body is read: `network` with a `cause` whose message is exactly
+  `response content-encoding is not supported`. The validator is not called.
+- Node and browsers decode inside the body stream that the size cap counts, so the cap bounds the
+  decoded bytes; they do not refuse on `Content-Encoding`. Known limit: a browser cannot ask for
+  identity and relies on its streaming decoder inside the cap.
+- The wire-mismatch text is fixed in every place: `wire-mismatch.message`, `http.wire.error` and
+  `requestJson`'s `response.wire.error`. The `ok` / `absent` / `mismatch` decision is unchanged. The timer is always cleared and the request is aborted on
+  timeout, cap and caller abort.
+  An error found before the body is read returns at once; the body is cancelled without waiting.
 
 ### Writes: `requestJson`
 
 `requestJson(url, options)` sends a POST, PUT or DELETE. Options are those of `fetchJson`
 without `onWireAbsent`, plus `method` (`"POST" | "PUT" | "DELETE"`) and an optional `body`
 (JSON text, sent with `content-type: application/json`). It always passes `redirect: "manual"`
-and never retries. Order of checks is the same as in `fetchJson`.
+and never retries. Order of checks: HTTP status, wire header, content encoding, size, empty body,
+JSON, validation. Under Bun an encoded `2xx` body is `network` with the fixed cause and keeps
+`response`; an encoded non-`2xx` answer is an `http` error without `message`, because its body is
+not read, and also keeps `response`.
 
 The result is `{ ok: true; status; value; etag; wire }` (`value` is `undefined` for a `204` or an
 empty body, which is not validated; `etag` is the raw `etag` header or null) or
@@ -757,7 +781,7 @@ no `message`, never `too-large`. `fetchJson` never sets `message`.
 
 ## Bump the pin in a consumer
 
-Consumers are pulse-api, pulse-probe, pulse-status and pulse-notify. Each pins the contract to a
+Consumers are pulse-api, pulse-probe, pulse-status, pulse-notify and pulse-console. Each pins the contract to a
 full commit SHA on its `main`.
 
 1. Merge the contract change to `main` of pulse-contract and note the full commit SHA.

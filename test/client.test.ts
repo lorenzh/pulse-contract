@@ -1,7 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
-  checkWireVersion,
   DEFAULT_MAX_BODY_BYTES,
   type FetchJsonOptions,
   fetchJson,
@@ -12,6 +12,7 @@ import {
 
 type FetchFn = FetchJsonOptions<unknown>["fetch"];
 
+const WIRE_TEXT = "x-pulse-contract: unsupported wire version, expected 1";
 const pass = (raw: unknown): Validation<unknown> => ({ ok: true, value: raw });
 const wireHeaders = { [WIRE_VERSION_HEADER]: String(WIRE_VERSION) };
 
@@ -65,7 +66,7 @@ test("passes headers and signal to fetch", async () => {
     return Promise.resolve(json([]));
   };
   await fetchJson("https://x/", { ...base(fetchFn), headers: { authorization: "k" } });
-  assert.deepEqual(seen?.headers, { authorization: "k" });
+  assert.equal(new Headers(seen?.headers).get("authorization"), "k");
   assert.ok(seen?.signal);
 });
 
@@ -83,14 +84,9 @@ test("wire mismatch is a typed error with the checkWireVersion text", async () =
     "https://x/",
     base(respond(() => json(1, { [WIRE_VERSION_HEADER]: "99" }))),
   );
-  const expected = checkWireVersion("99");
-  assert.equal(expected.status, "mismatch");
   assert.deepEqual(result, {
     ok: false,
-    error: {
-      kind: "wire-mismatch",
-      message: expected.status === "mismatch" ? expected.error : "",
-    },
+    error: { kind: "wire-mismatch", message: WIRE_TEXT },
   });
 });
 
@@ -115,7 +111,10 @@ test("invalid json", async () => {
     "https://x/",
     base(respond(() => new Response("{nope", { headers: wireHeaders }))),
   );
-  assert.equal(!result.ok && result.error.kind, "invalid-json");
+  assert.deepEqual(result, {
+    ok: false,
+    error: { kind: "invalid-json", message: "response body is not valid JSON" },
+  });
 });
 
 test("validation error keeps the validator message", async () => {
@@ -344,4 +343,66 @@ test("a caller abort before the timer stays aborted", async () => {
   controller.abort("stop");
   timers.fire(); // fires before the race settles
   assert.deepEqual(await pending, { ok: false, error: { kind: "aborted", reason: "stop" } });
+});
+
+test("invalid JSON diagnostic uses a fixed text", async () => {
+  const marker = `zq${"x".repeat(5)}upstream`;
+  for (const body of [`{${marker}`, `${marker}`, `[1, ${marker}]`]) {
+    const result = await fetchJson(
+      "https://x/",
+      base(respond(() => new Response(body, { headers: wireHeaders }))),
+    );
+    assert.deepEqual(result, {
+      ok: false,
+      error: { kind: "invalid-json", message: "response body is not valid JSON" },
+    });
+    assert.ok(!JSON.stringify(result).includes("upstream"));
+  }
+});
+
+test("wire mismatch diagnostic uses a fixed text", async () => {
+  for (const value of ["2", `9${"z".repeat(300)}upstream`]) {
+    const ok = await fetchJson(
+      "https://x/",
+      base(respond(() => json(1, { [WIRE_VERSION_HEADER]: value }))),
+    );
+    assert.deepEqual(ok, { ok: false, error: { kind: "wire-mismatch", message: WIRE_TEXT } });
+    const failed = await fetchJson(
+      "https://x/",
+      base(
+        respond(
+          () => new Response("x", { status: 500, headers: { [WIRE_VERSION_HEADER]: value } }),
+        ),
+      ),
+    );
+    assert.deepEqual(failed, {
+      ok: false,
+      error: { kind: "http", status: 500, wire: { status: "mismatch", error: WIRE_TEXT } },
+    });
+    assert.ok(!JSON.stringify([ok, failed]).includes("upstream"));
+  }
+});
+
+test("fetchJson sends manual redirect, no decompression and identity coding", async () => {
+  let seen: (RequestInit & { decompress?: boolean }) | undefined;
+  const fetchFn: FetchFn = (_url, init) => {
+    seen = init;
+    return Promise.resolve(json([]));
+  };
+  const headers = { authorization: "k", "accept-encoding": "gzip" };
+  await fetchJson("https://x/", { ...base(fetchFn), headers });
+  assert.equal(seen?.redirect, "manual");
+  assert.equal(seen?.decompress, false);
+  const sent = new Headers(seen?.headers);
+  assert.equal(sent.get("accept-encoding"), "identity");
+  assert.equal(sent.get("authorization"), "k");
+  assert.deepEqual(headers, { authorization: "k", "accept-encoding": "gzip" });
+});
+
+test("client sources import no node: or bun module", () => {
+  for (const file of ["client.ts", "version.ts"]) {
+    const text = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
+    assert.ok(!text.includes('from "node:'), file);
+    assert.ok(!text.includes('from "bun'), file);
+  }
 });
