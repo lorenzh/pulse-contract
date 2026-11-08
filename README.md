@@ -28,7 +28,9 @@ const checked = validateCheck(body, "checks[3]"); // { ok: true, value } | { ok:
 const version = checkWireVersion(response.headers.get(WIRE_VERSION_HEADER));
 ```
 
-Validators never throw. `error` reads `<path>: <problem>`, for example
+Validators never throw. Every check validator rejects a header named `__proto__` that is an own
+property, whatever its value, with `<path>.headers.__proto__: is not an allowed header name`, and
+never reads its value. `error` reads `<path>: <problem>`, for example
 `checks[3].intervalMs: must be an integer 1..2147483647`. Ranges are enforced (timer values at most `MAX_TIMER_MS`, dates must exist, uptime 0..100); see the bounds table in [docs/index.md](docs/index.md#validators).
 
 `fetchJson` is a shared JSON GET client with timeout, size cap (5 MiB by default), wire-version

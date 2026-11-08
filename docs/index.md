@@ -197,7 +197,7 @@ These optional `HttpCheck` fields are additive; the wire version stays 1. `TlsCh
 | Field            | Rule                                                                                                                                                                                                                                                                                                                                                  |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `method`         | `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE` or `OPTIONS`; upper case, case-sensitive; absent means `GET`.                                                                                                                                                                                                                                         |
-| `headers`        | Object, at most 20 entries. Names are RFC 9110 tokens of 1..256 bytes, unique case-insensitively; `host`, `content-length`, `transfer-encoding`, `connection` and `user-agent` are forbidden. Names plus literal values total at most 16 KiB.                                                                                                         |
+| `headers`        | Object, at most 20 entries. Names are RFC 9110 tokens of 1..256 bytes, unique case-insensitively; `host`, `content-length`, `transfer-encoding`, `connection` and `user-agent` are forbidden; an own `__proto__` name is not allowed. Names plus literal values total at most 16 KiB.                                                                 |
 | header value     | A literal string of 0..4096 visible ASCII/obs-text characters or spaces (no tab, CR or LF), or `{ "env": "NAME" }` with `NAME` matching `^PULSE_HEADER_[A-Za-z0-9_]{1,115}$` (`HEADER_ENV_PREFIX`).                                                                                                                                                   |
 | `body`           | String, at most 65536 bytes (UTF-8). Not allowed with `GET` (the default) or `HEAD`. There is no default `Content-Type`; set it in `headers`.                                                                                                                                                                                                         |
 | `expectedStatus` | Non-empty array of at most 20 entries, each an integer 100..599 or a string `"lo-hi"` with `100 <= lo <= hi <= 599`. Absent means `200-299`. The final status after redirects is judged.                                                                                                                                                              |
@@ -651,6 +651,12 @@ validator never throws on one, but its result is not specified. Known limits: Zo
 `propertyIsEnumerable` in record keys, the top-level array check still reads `__lookupGetter__`
 per element, and the exact depth at which very deep input fails with the stack limit depends on the
 engine; there is no separate depth limit.
+
+Reserved header name: `validateCheck`, `validateCheckWithState`, `validateChecksResponse`,
+`validateAdminConfigExport` and the admin input, view and config validators reject a check whose
+`headers` has an own property named `__proto__` (enumerable or not, data or accessor, any
+prototype), with `<path>.headers.__proto__: is not an allowed header name`. The value is never
+read. An inherited `__proto__` name is still accepted. On success `value` is still the same object.
 
 Rules: the full declared shape is checked (required fields, types, enums, non-empty `id` and
 `checkId`, finite numbers, the bounds below; nullable fields accept `null`; optional fields may be absent or `undefined`). Unknown
