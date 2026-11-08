@@ -109,4 +109,5 @@ The shared tooling configuration lives in `lorenzh/pulse-config`. The other puls
 - `bun run check` also runs `bun run build`.
 - `build`, `typecheck` and the dist test use TypeScript 7 (`typescript7`, an alias of `typescript@7.0.2`). `typescript` 6.0.3 stays installed only for typescript-eslint (used by `pulse-eslint`), which does not support TS 7 yet.
 - Tests live in `test/`; `test/types.fixture.ts` must keep compiling against every exported type.
+- A new public export is named and described in `docs/index.md` in the same change; `test/docs-inventory.test.ts` enforces it.
 - A breaking type change needs a matching section for each consumer in the spec.

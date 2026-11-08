@@ -74,6 +74,11 @@ Every type exported from `src/index.ts`. Import them with `import type`.
 | `AuditAction`, `AuditTargetKind`                                                                         | One of `AUDIT_ACTIONS` and of `AUDIT_TARGET_KINDS`.                                                                                                                       |
 | `AuditEntry`                                                                                             | One audit entry: `{ id, at, actor: { tokenId, name }, action, target: { kind, id }, revision }`. Strict.                                                                  |
 | `AuditPage`                                                                                              | Response of `GET /admin/audit`: `{ entries, nextBefore }`.                                                                                                                |
+| `AdminCheckSource`                                                                                       | Where a check is stored: `"file"` or `"database"` (one of `ADMIN_CHECK_SOURCES`).                                                                                         |
+| `AdminConfigSummary`                                                                                     | Short summary of the admin config: `{ revision, checks: { id }[] }`.                                                                                                      |
+| `AdminExportRedaction`                                                                                   | A value left out of a config export: `{ checkId, field }`, where `field` is `"body"`, `"secret"` or `"headers.<name>"`. Strict.                                           |
+| `ManualIncidentImpact`                                                                                   | Impact of a manual incident: `"none"`, `"minor"`, `"major"` or `"critical"` (one of `MANUAL_INCIDENT_IMPACTS`).                                                           |
+| `ManualIncidentStatus`                                                                                   | Status of a manual incident: `"investigating"`, `"identified"`, `"monitoring"` or `"resolved"` (one of `MANUAL_INCIDENT_STATUSES`).                                       |     |
 
 ## Details of the shared shapes
 
@@ -270,7 +275,21 @@ not null; `updates` is non-empty, append-only and ordered by `at`; the last upda
 
 Limits (exported as `MANUAL_INCIDENT_*` constants): title 1..200 characters, message 1..2000
 characters, at most 100 updates, at most 50 `componentIds` (unique, component id syntax), request body
-at most 16 KiB. Text is plain: control characters are refused, newline is allowed in messages only.
+at most 16 KiB. The constants:
+
+- `MANUAL_INCIDENT_TITLE_MAX` = 200: longest title, in Unicode code points.
+- `MANUAL_INCIDENT_MESSAGE_MAX` = 2000: longest update, draft or note message, in Unicode code
+  points.
+- `MANUAL_INCIDENT_MAX_UPDATES` = 100: most updates per incident.
+- `MANUAL_INCIDENT_MAX_COMPONENTS` = 50: most `componentIds` per incident.
+- `MANUAL_INCIDENT_MAX_BODY_BYTES` = 16384 (16 KiB): largest request body the api accepts for a
+  write.
+- `MANUAL_INCIDENT_IMPACTS` = `["none", "minor", "major", "critical"]`: the `ManualIncidentImpact`
+  values.
+- `MANUAL_INCIDENT_STATUSES` = `["investigating", "identified", "monitoring", "resolved"]`: the
+  `ManualIncidentStatus` values.
+
+Text is plain: control characters are refused, newline is allowed in messages only.
 HTML is not stripped; consumers must escape it on output. Whether `componentIds` exist is the api's
 concern.
 
@@ -697,12 +716,79 @@ integer `attempts` >= 1 and optional null or integer `certDaysLeft`. It returns 
 without defaults. `validateResult` applies the same `latencyMs` and `reason` rules. Older probes may
 send a fractional `latencyMs`; the api rounds it before it validates.
 
+### Schemas
+
+The zod schemas behind the validators are exported too, for a consumer that composes them. Each
+checks the type or value set named below; the rules are those of the matching type and validator
+above. `schema.parse` throws on a bad value; `schema.safeParse` returns a result. Only the
+`validate*` functions promise never to throw.
+
+Check fields and checks:
+
+- `httpMethodSchema`: an `HttpMethod` (`GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`).
+- `headerValueSchema`: one header value of an HTTP check, a literal string (at most 4096 visible
+  ASCII/obs-text characters or spaces) or an `{ env }` reference to a `PULSE_HEADER_*` variable. See
+  [Trust model of header values and bodies](#trust-model-of-header-values-and-bodies).
+- `expectedStatusSchema`: the `expectedStatus` list, 1..20 entries, each an integer 100..599 or a
+  range `"lo-hi"`.
+- `jsonAssertSchema`: one `jsonAssert` entry: an RFC 6901 `pointer` (at most 256 bytes) with
+  `equals` or `exists: true`.
+- `tcpCheckSchema`: a `TcpCheck` (`host`, `port` 1..65535, `intervalMs`).
+- `dnsCheckSchema`: a `DnsCheck` (`dnsName`, `recordType`, optional `expected` and `resolver`).
+- `dnsRecordTypeSchema`: a DNS record type: `A`, `AAAA`, `CNAME`, `MX`, `TXT` or `NS`.
+- `domainCheckSchema`: a `DomainCheck` (`domain`, `warnDays` 0..3650, `intervalMs` at least
+  `MIN_DOMAIN_INTERVAL_MS`).
+- `availabilityTargetSchema`: an `availabilityTarget`, a number >= 90 and < 100.
+- `locationSchema`: a `Location` of `GET /locations` (`name`, `lastResultAt`, `state`
+  `reporting` or `silent`). Strict.
+
+Latency and SLOs (see [Latency history and availability SLOs](#latency-history-and-availability-slos)):
+
+- `latencyDaySchema`: one `LatencyDay` (`date`, `p50Ms`, `p95Ms`, `count`); the percentiles are null
+  exactly when `count` is 0.
+- `checkLatencySchema`: a `CheckLatency`: `checkId` and exactly 90 `days`.
+- `sloSchema`: an `Slo`: `target`, `windowDays` 30 and the measured `availability`.
+
+Manual incidents (see [Manual incidents](#manual-incidents)):
+
+- `internalManualIncidentSchema`: an `InternalManualIncident`, with visibility, draft and notes.
+- `manualIncidentDraftSchema`: a `ManualIncidentDraft`: `{ status, message, savedAt }`.
+- `manualIncidentDraftInputSchema`: a `ManualIncidentDraftInput`, the body that creates or
+  replaces a draft. Strict.
+- `manualIncidentNoteSchema`: a `ManualIncidentNote`: `{ id, at, author, message }`.
+- `manualIncidentNoteInputSchema`: a `ManualIncidentNoteInput`, `{ message }`. Strict.
+- `manualIncidentVisibilitySchema`: a visibility, `public` or `internal`.
+
+Admin, tokens and audit (see [Admin config api](#admin-config-api) and
+[Tokens and audit](#tokens-and-audit)):
+
+- `adminComponentSchema`: an `AdminComponent`; the same rules as a `Component`.
+- `tokenScopeSchema`: a `TokenScope`, one of `TOKEN_SCOPES`.
+- `tokenCreateInputSchema`: a `TokenCreateInput`. Strict.
+- `tokenMetadataSchema`: a `TokenMetadata`.
+- `tokensResponseSchema`: a `TokensResponse`, `{ tokens }`. Strict.
+- `tokenSecretResponseSchema`: a `TokenSecretResponse`, `{ token, secret, previousValidUntil }`.
+  Strict.
+- `auditEntrySchema`: an `AuditEntry`. Strict.
+- `auditPageSchema`: an `AuditPage`, `{ entries, nextBefore }`. Strict.
+
+Subscriptions (see [Subscriptions](#subscriptions)):
+
+- `subscriptionRequestSchema`: the body of `POST /subscriptions`, strict `{ email }`. Only an
+  address that is already normalized passes; any other gives `must be a normalized email address`.
+- `subscriptionTokenRequestSchema`: the body of `POST /subscriptions/confirm` and
+  `/subscriptions/unsubscribe`, strict `{ token }`. `token` is a string of at most 128 Unicode code
+  points; a longer one gives `must be at most 128 characters`. The token pattern of each route
+  (`SUBSCRIPTION_CONFIRM_TOKEN_PATTERN`, …) is a separate check in the route.
+- `subscriptionAnswerSchema`: the success answer of a subscription route, strict `{ status }` with
+  a value of `SUBSCRIPTION_RESULTS`.
+
 ## Wire-format version
 
 `WIRE_VERSION` (integer, now `1`) changes only on an incompatible wire change. The api sends it in
 the `WIRE_VERSION_HEADER` header (`x-pulse-contract`) on every response.
-`checkWireVersion(header)` returns `{ status: "ok" }`, `{ status: "absent" }` or
-`{ status: "mismatch"; error }`; the comparison is an exact integer match and a malformed value is a
+`checkWireVersion(header)` returns a `WireVersionCheck`:
+`{ status: "ok" } | { status: "absent" } | { status: "mismatch"; error: string }`; the comparison is an exact integer match and a malformed value is a
 mismatch. Consumer policy: `absent` is tolerated (an old api during rollout) and logged once per
 process; `mismatch` fails the call like a network error and is never ignored.
 
@@ -778,6 +864,25 @@ A non-2xx answer (also `1xx` and `3xx`) is an `http` error. Its optional `messag
 `error` string of a JSON `ErrorResponse` body, read from an own data property and cut to
 `MAX_REASON_LENGTH` (1000) characters. A body over `maxBytes`, not JSON or of another shape gives
 no `message`, never `too-large`. `fetchJson` never sets `message`.
+
+### Client types
+
+- `FetchJsonOptions<T>`: options of `fetchJson`: `fetch`, `validate: (raw: unknown) =>
+  Validation<T>`, `timeoutMs` (limit for headers and body together), and optional `signal`,
+  `maxBytes` (default `DEFAULT_MAX_BODY_BYTES`, 5 MiB), `headers`, `onWireAbsent` and `schedule`
+  (timer injection that returns a cancel function).
+- `FetchJsonResult<T>`: `{ ok: true; value: T; wire: "ok" | "absent" } | { ok: false; error:
+  FetchJsonError }`.
+- `FetchJsonError`: why a call failed, told apart by `kind`: `timeout` (`timeoutMs`), `aborted`
+  (`reason`), `network` (`cause`), `http` (`status`, `wire`, optional `message` from
+  `requestJson` only), `too-large` (`maxBytes`), `invalid-json`, `wire-mismatch` (`message`) and
+  `validation` (`message`, optional `path`).
+- `RequestJsonOptions<T>`: `FetchJsonOptions<T>` without `onWireAbsent`, plus `method`
+  (`"POST" | "PUT" | "DELETE"`) and an optional JSON `body` string.
+- `RequestJsonResult<T>`: `{ ok: true; status; value: T | undefined; etag; wire: "ok" | "absent" }
+  | { ok: false; error: FetchJsonError; response: RequestJsonResponse | null }`.
+- `ManualIncidentReadOptions`: options of the manual incident readers: `FetchJsonOptions` without
+  `validate`, plus `isAbsentTolerated` (a 404 from an older api means no manual incidents).
 
 ## Bump the pin in a consumer
 
