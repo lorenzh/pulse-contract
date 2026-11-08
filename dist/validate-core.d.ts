@@ -23,6 +23,11 @@ export declare const lookupGetter: (key: PropertyKey) => unknown;
  */
 export declare function problem(schema: z.ZodType, value: unknown, path: string): string | undefined;
 /**
+ * Zod's record parse skips an own `__proto__` key, while a validator returns the original object.
+ * So such a header would pass unchecked: a literal value in a view or a malformed keep marker.
+ */
+export declare function reservedHeaderProblem(check: unknown, path: string): string | undefined;
+/**
  * Runs `check` at the validation boundary. Hostile input, such as a Proxy whose traps throw, can
  * make inspection throw; that counts as invalid, because validators never throw.
  */
