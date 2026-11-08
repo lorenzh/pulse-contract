@@ -26,3 +26,12 @@ test("checkWireVersion reports other and malformed values as mismatch", () => {
     }
   }
 });
+
+test("mismatch text is fixed", () => {
+  for (const value of ["2", "0", "abc", "", `upstream${"q".repeat(500)}`]) {
+    assert.deepEqual(checkWireVersion(value), {
+      status: "mismatch",
+      error: "x-pulse-contract: unsupported wire version, expected 1",
+    });
+  }
+});
