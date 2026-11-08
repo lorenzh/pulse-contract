@@ -23,6 +23,7 @@ export function checkWireVersion(header: string | null | undefined): WireVersion
   }
   return {
     status: "mismatch",
-    error: `${WIRE_VERSION_HEADER}: got "${header}", expected ${WIRE_VERSION}`,
+    // The received value is never copied: it is untrusted text that would reach errors and logs.
+    error: `${WIRE_VERSION_HEADER}: unsupported wire version, expected ${WIRE_VERSION}`,
   };
 }

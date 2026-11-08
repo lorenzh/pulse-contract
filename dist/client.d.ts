@@ -63,7 +63,9 @@ export type FetchJsonOptions<T> = {
 /**
  * GETs a JSON document and checks it. The timeout covers headers and body. It uses web APIs
  * only, and `AbortSignal.any` (Chrome 116, Firefox 124, Safari 17.4, Node 20.3).
- * Order of checks: HTTP status, wire header, size, JSON, validation.
+ * Order of checks: HTTP status, wire header, content encoding, size, JSON, validation.
+ * It follows no redirect: a 3xx is an `http` error (status 0 for a browser's opaque redirect).
+ * It asks for identity coding; under Bun an encoded body is refused as `network`.
  */
 export declare function fetchJson<T>(url: string | URL, options: FetchJsonOptions<T>): Promise<FetchJsonResult<T>>;
 /** Status, `ETag` and wire check of a response whose headers arrived. */
@@ -98,6 +100,9 @@ export type RequestJsonResult<T> = {
  * retries; timeout, abort, size cap and wire check work as in `fetchJson`. A non-`2xx` answer is
  * an `http` error whose `message` is the `ErrorResponse.error` text (at most 1000 characters) when
  * the body is one and fits `maxBytes`. A `204` or empty body gives `value` `undefined`.
+ * Order of checks: HTTP status, wire header, content encoding, size, empty body, JSON, validation.
+ * Under Bun an encoded `2xx` body is `network`, and an encoded non-`2xx` answer is `http` without
+ * `message`, because its body is not read.
  */
 export declare function requestJson<T>(url: string | URL, options: RequestJsonOptions<T>): Promise<RequestJsonResult<T>>;
 export type ManualIncidentReadOptions = Omit<FetchJsonOptions<unknown>, "validate"> & {

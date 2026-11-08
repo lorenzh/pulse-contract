@@ -4,7 +4,7 @@
 
 pulse is an uptime monitor with a status page. This repository is its shared contract: the TypeScript types used by every other pulse repository (checks, results, incidents, manual incidents, maintenance windows, uptime, status page components, admin tokens, the audit log, status page and notify channel settings, resend commands, status page email subscriptions and the API request and response shapes). It also holds runtime validators for those shapes and the wire-format version, so every service checks the wire format the same way. Types and validators come from one set of [zod](https://zod.dev) schemas; `zod` is the only runtime dependency.
 
-pulse-contract depends on no other pulse repository. It is consumed by [pulse-api](https://github.com/lorenzh/pulse-api), [pulse-probe](https://github.com/lorenzh/pulse-probe), [pulse-status](https://github.com/lorenzh/pulse-status) and [pulse-notify](https://github.com/lorenzh/pulse-notify).
+pulse-contract depends on no other pulse repository. It is consumed by [pulse-api](https://github.com/lorenzh/pulse-api), [pulse-probe](https://github.com/lorenzh/pulse-probe), [pulse-status](https://github.com/lorenzh/pulse-status), [pulse-notify](https://github.com/lorenzh/pulse-notify) and [pulse-console](https://github.com/lorenzh/pulse-console).
 
 Documentation: the type reference, check types, retries, locations and the pin bump steps are in [docs/index.md](docs/index.md).
 
@@ -35,8 +35,12 @@ Validators never throw. `error` reads `<path>: <problem>`, for example
 check and validation; it returns a typed result instead of throwing. `requestJson` sends a
 POST, PUT or DELETE with the same limits, never follows a redirect and never retries; a failed
 result carries `response` (status, `ETag`, wire check) when the headers arrived, so a failure
-with a `2xx` `response.status` means the server answered `2xx`. See
-[docs/index.md](docs/index.md#api-client).
+with a `2xx` `response.status` means the server answered `2xx`. Both functions follow no
+redirect (a `3xx` is an `http` error) and ask for `accept-encoding: identity`. Under Bun an
+encoded body is refused before it is read; Node and browsers decode inside the stream that the
+size cap counts. Invalid JSON gives the fixed text `response body is not valid JSON`, and a wire
+mismatch gives `x-pulse-contract: unsupported wire version, expected 1`; neither copies received
+text. See [docs/index.md](docs/index.md#api-client).
 
 The compiled output in `dist/` is committed, because Node does not strip types under
 `node_modules` and Git dependencies have no build step. After changing `src/`, run

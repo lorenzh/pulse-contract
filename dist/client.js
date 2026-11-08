@@ -56,16 +56,39 @@ async function readText(response, maxBytes) {
     }
     return decode(chunks, total);
 }
+/**
+ * The init both functions send: no redirect, identity coding only, and no runtime decompression.
+ * `accept-encoding` is set after the caller's headers, so it replaces a caller value.
+ */
+function clientInit(headers, signal) {
+    const sent = new Headers(headers);
+    sent.set("accept-encoding", "identity");
+    return { signal, redirect: "manual", decompress: false, headers: sent };
+}
+/**
+ * Bun with `decompress: false` hands over the encoded bytes, so an encoded body is refused before
+ * any read. Node and browsers decode inside the stream that `readText` counts, so the cap holds.
+ */
+function isEncodingRefused(response) {
+    if (!("Bun" in globalThis)) {
+        return false;
+    }
+    const coding = response.headers.get("content-encoding")?.trim().toLowerCase() ?? "";
+    return coding !== "" && coding !== "identity";
+}
+/** The `network` cause of a refused content coding. It never holds the received header. */
+const encodingRefused = () => ({
+    kind: "network",
+    cause: new Error("response content-encoding is not supported"),
+});
 function parseBody(text, validate, wire) {
     let raw;
     try {
         raw = JSON.parse(text);
     }
-    catch (error) {
-        return fail({
-            kind: "invalid-json",
-            message: error instanceof Error ? error.message : String(error),
-        });
+    catch {
+        // The parser text is ignored on purpose: it can quote untrusted body text.
+        return fail({ kind: "invalid-json", message: "response body is not valid JSON" });
     }
     const checked = validate(raw);
     if (!checked.ok) {
@@ -75,16 +98,12 @@ function parseBody(text, validate, wire) {
 }
 async function exchange(url, options, signal) {
     const maxBytes = options.maxBytes ?? DEFAULT_MAX_BODY_BYTES;
-    const init = { signal };
-    if (options.headers !== undefined) {
-        init.headers = options.headers;
-    }
-    const response = await options.fetch(url, init);
+    const response = await options.fetch(url, clientInit(options.headers, signal));
     const wire = checkWireVersion(response.headers.get(WIRE_VERSION_HEADER));
     if (wire.status === "absent") {
         options.onWireAbsent?.();
     }
-    // Order: status, wire header, size, JSON, validation.
+    // Order: status, wire header, content encoding, size, JSON, validation.
     if (!response.ok) {
         dropBody(response.body?.cancel.bind(response.body));
         return fail({ kind: "http", status: response.status, wire });
@@ -92,6 +111,10 @@ async function exchange(url, options, signal) {
     if (wire.status === "mismatch") {
         dropBody(response.body?.cancel.bind(response.body));
         return fail({ kind: "wire-mismatch", message: wire.error });
+    }
+    if (isEncodingRefused(response)) {
+        dropBody(response.body?.cancel.bind(response.body));
+        return fail(encodingRefused());
     }
     const text = await readText(response, maxBytes);
     if (text === undefined) {
@@ -149,7 +172,9 @@ async function interruptible(options, run, onFail) {
 /**
  * GETs a JSON document and checks it. The timeout covers headers and body. It uses web APIs
  * only, and `AbortSignal.any` (Chrome 116, Firefox 124, Safari 17.4, Node 20.3).
- * Order of checks: HTTP status, wire header, size, JSON, validation.
+ * Order of checks: HTTP status, wire header, content encoding, size, JSON, validation.
+ * It follows no redirect: a 3xx is an `http` error (status 0 for a browser's opaque redirect).
+ * It asks for identity coding; under Bun an encoded body is refused as `network`.
  */
 export function fetchJson(url, options) {
     return interruptible(options, (signal) => exchange(url, options, signal), fail);
@@ -179,8 +204,13 @@ async function requestBody(response, meta, options) {
         response: meta,
     });
     const { wire } = meta;
-    // Order: status, wire header, size, JSON, validation.
+    // Order: status, wire header, content encoding, size, empty body, JSON, validation.
+    // For a non-2xx answer the encoding check decides whether the body may be read for `message`.
     if (response.status < 200 || response.status > 299) {
+        if (isEncodingRefused(response)) {
+            dropBody(response.body?.cancel.bind(response.body));
+            return failed({ kind: "http", status: response.status, wire });
+        }
         const text = await readText(response, maxBytes);
         const message = text === undefined ? undefined : errorText(text);
         return failed(message === undefined
@@ -190,6 +220,10 @@ async function requestBody(response, meta, options) {
     if (wire.status === "mismatch") {
         dropBody(response.body?.cancel.bind(response.body));
         return failed({ kind: "wire-mismatch", message: wire.error });
+    }
+    if (isEncodingRefused(response)) {
+        dropBody(response.body?.cancel.bind(response.body));
+        return failed(encodingRefused());
     }
     const text = await readText(response, maxBytes);
     if (text === undefined) {
@@ -203,10 +237,10 @@ async function requestBody(response, meta, options) {
     return parsed.ok ? { ...done, value: parsed.value } : failed(parsed.error);
 }
 async function requestExchange(url, options, signal, state) {
-    const headers = new Headers(options.headers);
-    const init = { method: options.method, redirect: "manual", signal, headers };
+    const init = clientInit(options.headers, signal);
+    init.method = options.method;
     if (options.body !== undefined) {
-        headers.set("content-type", "application/json");
+        init.headers.set("content-type", "application/json");
         init.body = options.body;
     }
     const response = await options.fetch(url, init);
@@ -223,6 +257,9 @@ async function requestExchange(url, options, signal, state) {
  * retries; timeout, abort, size cap and wire check work as in `fetchJson`. A non-`2xx` answer is
  * an `http` error whose `message` is the `ErrorResponse.error` text (at most 1000 characters) when
  * the body is one and fits `maxBytes`. A `204` or empty body gives `value` `undefined`.
+ * Order of checks: HTTP status, wire header, content encoding, size, empty body, JSON, validation.
+ * Under Bun an encoded `2xx` body is `network`, and an encoded non-`2xx` answer is `http` without
+ * `message`, because its body is not read.
  */
 export function requestJson(url, options) {
     const state = { response: null };

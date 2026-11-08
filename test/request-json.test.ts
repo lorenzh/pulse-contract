@@ -184,7 +184,10 @@ test("a missing wire header on a 201 succeeds with wire absent", async () => {
 
 test("invalid JSON and failed validation keep the response", async () => {
   const bad = await once(json(201, "not json"));
-  assert.equal(bad.ok === false && bad.error.kind, "invalid-json");
+  assert.deepEqual(bad.ok === false && bad.error, {
+    kind: "invalid-json",
+    message: "response body is not valid JSON",
+  });
   assert.equal(bad.ok === false && bad.response?.status, 201);
   const invalid = await once(json(200, "{}"), { validate: () => ({ ok: false, error: "bad" }) });
   assert.equal(invalid.ok === false && invalid.error.kind, "validation");
@@ -271,4 +274,52 @@ test("an abort during a 201 body keeps response.status 201", async () => {
   assert.equal(result.ok === false && result.error.kind, "aborted");
   assert.equal(result.ok === false && result.response?.status, 201);
   assert.equal(fake.calls.length, 1);
+});
+
+const WIRE_TEXT = "x-pulse-contract: unsupported wire version, expected 1";
+
+test("invalid JSON diagnostic uses a fixed text", async () => {
+  const result = await once(json(200, "{upstream-body"));
+  assert.deepEqual(result.ok === false && result.error, {
+    kind: "invalid-json",
+    message: "response body is not valid JSON",
+  });
+  assert.ok(!JSON.stringify(result).includes("upstream"));
+});
+
+test("wire mismatch diagnostic uses a fixed text", async () => {
+  for (const value of ["2", `9${"z".repeat(300)}upstream`]) {
+    const ok = await once(
+      new Response("{}", { status: 200, headers: { [WIRE_VERSION_HEADER]: value } }),
+    );
+    assert.deepEqual(ok.ok === false && ok.error, { kind: "wire-mismatch", message: WIRE_TEXT });
+    assert.deepEqual(ok.ok === false && ok.response?.wire, {
+      status: "mismatch",
+      error: WIRE_TEXT,
+    });
+    const failed = await once(
+      new Response("{}", { status: 409, headers: { [WIRE_VERSION_HEADER]: value } }),
+    );
+    assert.deepEqual(failed.ok === false && failed.error, {
+      kind: "http",
+      status: 409,
+      wire: { status: "mismatch", error: WIRE_TEXT },
+    });
+    assert.ok(!JSON.stringify([ok, failed]).includes("upstream"));
+  }
+});
+
+test("requestJson sends manual redirect, no decompression and identity coding", async () => {
+  const fake = fakeFetch(() => json(200, "{}"));
+  const headers = new Headers({ authorization: "k", "accept-encoding": "br" });
+  await requestJson(URL_, options(fake.fetch, { headers, body: "{}" }));
+  const init: (RequestInit & { decompress?: boolean }) | undefined = fake.calls[0]?.init;
+  assert.equal(init?.redirect, "manual");
+  assert.equal(init?.decompress, false);
+  const sent = new Headers(init?.headers);
+  assert.equal(sent.get("accept-encoding"), "identity");
+  assert.equal(sent.get("authorization"), "k");
+  assert.equal(sent.get("content-type"), "application/json");
+  assert.equal(headers.get("accept-encoding"), "br");
+  assert.equal(headers.get("content-type"), null);
 });
