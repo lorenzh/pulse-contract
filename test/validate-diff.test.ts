@@ -657,7 +657,15 @@ test("15b: an own __proto__ key", () => {
     ),
     fail("uptime.days[0].date: is required"),
   );
-  same(p.validateCheck, JSON.parse(`${HTTP_TEXT},"headers":{"__proto__":"v"}}`), OK);
+  // Intentional difference (#865): the candidate rejects an own reserved header name.
+  const reserved = JSON.parse(`${HTTP_TEXT},"headers":{"__proto__":"v"}}`);
+  assertResult(
+    "validateCheck candidate",
+    p.validateCheck.candidate(reserved),
+    reserved,
+    fail("check.headers.__proto__: is not an allowed header name"),
+  );
+  assertResult("validateCheck reference", p.validateCheck.reference(reserved), reserved, OK);
 });
 
 test("15c: huge and non-finite-looking numbers", () => {

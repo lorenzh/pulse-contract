@@ -62,6 +62,7 @@ import {
   lookupGetter,
   ownValue,
   problem,
+  reservedHeaderProblem,
   type Validation,
   validateWith,
   verdict,
@@ -110,7 +111,7 @@ function checkBase(value: unknown, path: string): string | undefined {
   switch (ownValue(value, "type")) {
     case undefined:
     case "http":
-      return problem(httpCheckSchema, value, path);
+      return reservedHeaderProblem(value, path) ?? problem(httpCheckSchema, value, path);
     case "tls":
       return problem(tlsCheckSchema, value, path);
     case "heartbeat":

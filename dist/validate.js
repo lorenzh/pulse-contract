@@ -1,5 +1,5 @@
 import { checkLatencySchema, checkLocationUptimeSchema, checkStateFieldsSchema, checkUptimeSchema, componentSchema, componentUptimeSchema, componentWithStateSchema, dnsCheckSchema, domainCheckSchema, heartbeatCheckSchema, httpCheckSchema, incidentSchema, internalManualIncidentSchema, locationSchema, maintenanceWindowSchema, manualIncidentDraftInputSchema, manualIncidentInputSchema, manualIncidentNoteInputSchema, manualIncidentSchema, manualIncidentUpdateInputSchema, postResultRequestSchema, resultSchema, sloSchema, tcpCheckSchema, tlsCheckSchema, } from "./schema.js";
-import { isObject, lookupGetter, ownValue, problem, validateWith, verdict, } from "./validate-core.js";
+import { isObject, lookupGetter, ownValue, problem, reservedHeaderProblem, validateWith, verdict, } from "./validate-core.js";
 export const arrayProblem = (check, value, path) => {
     if (!Array.isArray(value)) {
         return `${path}: must be an array`;
@@ -35,7 +35,7 @@ function checkBase(value, path) {
     switch (ownValue(value, "type")) {
         case undefined:
         case "http":
-            return problem(httpCheckSchema, value, path);
+            return reservedHeaderProblem(value, path) ?? problem(httpCheckSchema, value, path);
         case "tls":
             return problem(tlsCheckSchema, value, path);
         case "heartbeat":
