@@ -59,6 +59,9 @@ bun run lint    # Biome and SonarJS (ESLint) check, changes nothing
 bun run format  # Biome autofix (safe fixes only)
 ```
 
+`bun run test` (and so `bun run check`) includes `test/docs-inventory.test.ts`, which fails when an
+export of `src/index.ts` is not named in `docs/index.md`.
+
 `bun install --frozen-lockfile` installs a Lefthook pre-commit hook that runs `biome check` on staged
 `*.js`, `*.ts`, `*.json` and `*.jsonc` files and ESLint on staged `*.js` and `*.ts` files, and rejects the commit if they are
 badly formatted or fail lint. Run `bun run format` to fix them.
