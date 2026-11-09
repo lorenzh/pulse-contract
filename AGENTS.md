@@ -54,6 +54,10 @@ repository. Bun 1.4.0, ESM, Bun, strict TypeScript (`tsc --noEmit`),
 - Name a function by its effect (`postResult`, `applyResult`); a pure query reads as a noun or question (`quorumStatus`, `isStale`).
 - Booleans start with `is`, `has`, or `can`. Files are kebab-case.
 
+## Code conventions
+
+The pulse [code conventions](https://github.com/lorenzh/pulse-meta/blob/main/docs/code-conventions.md) apply to every change. Before adding a schema, validator or wire helper, search `src/schema.ts`, `src/validate.ts` and `src/version.ts` for one that does the job, and turn the second copy of a shape or check into one shared schema or helper. Validators stay small, pure functions.
+
 ## Errors
 
 - Throw only `Error` subclasses with a `name`. Wrap with `{ cause }` instead of losing the original.
